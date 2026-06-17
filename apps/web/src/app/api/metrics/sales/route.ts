@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
 
   const metrics = await db.metric.findMany({
     where: { organizationId: user.organizationId, category: "SALES" },
-    orderBy: { date: "desc" },
+    orderBy: { period: "desc" },
     take: 10,
   });
 

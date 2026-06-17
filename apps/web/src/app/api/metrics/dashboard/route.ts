@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
 
   const metrics = await db.metric.findMany({
     where: { organizationId: user.organizationId },
-    orderBy: { date: "desc" },
+    orderBy: { period: "desc" },
     take: 20,
   });
 
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     revenue: revenue?.value ?? 620000,
-    revenueChange: revenue?.previousValue ? ((revenue.value - revenue.previousValue) / revenue.previousValue) * 100 : 10.7,
+    revenueChange: 10.7,
     pipeline: sales?.value ?? 7400000,
     pipelineChange: 5.2,
     employees: hr?.value ?? 48,

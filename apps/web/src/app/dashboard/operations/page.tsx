@@ -1,3 +1,5 @@
+"use client";
+
 import { Settings2, Clock, CheckCircle, AlertTriangle } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/metric-card";
 

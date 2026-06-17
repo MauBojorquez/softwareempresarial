@@ -12,11 +12,11 @@ export async function POST(req: NextRequest) {
 
   const user = await db.user.findUnique({ where: { email } });
 
-  if (!user?.hashedPassword) {
+  if (!user?.passwordHash) {
     return NextResponse.json({ error: "Credenciales inválidas" }, { status: 401 });
   }
 
-  const valid = await bcrypt.compare(password, user.hashedPassword);
+  const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) {
     return NextResponse.json({ error: "Credenciales inválidas" }, { status: 401 });
   }

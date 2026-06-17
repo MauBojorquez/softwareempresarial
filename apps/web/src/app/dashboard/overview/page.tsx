@@ -1,3 +1,5 @@
+"use client";
+
 import { DollarSign, TrendingUp, Users, ShoppingCart, ArrowUpRight, ArrowDownRight, Sparkles } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { RevenueChart } from "@/components/charts/revenue-chart";

@@ -1,3 +1,5 @@
+"use client";
+
 import { DollarSign, TrendingDown, Wallet, PiggyBank } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { RevenueChart } from "@/components/charts/revenue-chart";

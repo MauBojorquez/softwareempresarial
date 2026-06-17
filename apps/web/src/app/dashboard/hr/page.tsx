@@ -1,3 +1,5 @@
+"use client";
+
 import { Users, UserPlus, UserMinus, Heart } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/metric-card";
 

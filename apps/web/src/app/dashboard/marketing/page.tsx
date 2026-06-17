@@ -1,3 +1,5 @@
+"use client";
+
 import { Megaphone, MousePointerClick, DollarSign, Users } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/metric-card";
 

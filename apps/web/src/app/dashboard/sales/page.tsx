@@ -1,3 +1,5 @@
+"use client";
+
 import { TrendingUp, Target, Users, ShoppingCart } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { SalesPipelineChart } from "@/components/charts/sales-pipeline-chart";
