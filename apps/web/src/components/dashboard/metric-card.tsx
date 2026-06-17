@@ -20,18 +20,20 @@ export function MetricCard({ title, value, change, icon: Icon, format }: MetricC
         : String(value);
 
   return (
-    <div className="rounded-xl border bg-card p-6">
+    <div className="group rounded-xl border border-white/5 bg-card p-6 transition-all hover:border-white/10 hover:glow-sm">
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium text-muted-foreground">{title}</p>
-        <Icon className="h-4 w-4 text-muted-foreground" />
+        <div className="rounded-lg bg-white/5 p-2">
+          <Icon className="h-4 w-4 text-muted-foreground" />
+        </div>
       </div>
-      <div className="mt-2">
-        <p className="text-2xl font-bold">{formattedValue}</p>
+      <div className="mt-3">
+        <p className="text-2xl font-bold tracking-tight">{formattedValue}</p>
         {change !== undefined && (
           <p
             className={cn(
-              "mt-1 text-xs font-medium",
-              change >= 0 ? "text-emerald-600" : "text-destructive"
+              "mt-1.5 text-xs font-medium",
+              change >= 0 ? "text-emerald-400" : "text-red-400"
             )}
           >
             {formatPercentage(change)} vs mes anterior

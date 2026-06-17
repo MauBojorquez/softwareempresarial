@@ -5,7 +5,7 @@ export default function MarketingPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Marketing</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Marketing</h1>
         <p className="text-sm text-muted-foreground">Rendimiento de campañas y adquisición</p>
       </div>
 
@@ -17,24 +17,24 @@ export default function MarketingPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-xl border bg-card p-6">
+        <div className="rounded-xl border border-white/5 bg-card p-6">
           <h3 className="text-lg font-semibold">Canales de Adquisición</h3>
           <div className="mt-4 space-y-3">
             {[
               { channel: "Google Ads", leads: 45, spend: 58000, color: "bg-blue-500" },
-              { channel: "LinkedIn", leads: 32, spend: 42000, color: "bg-sky-500" },
+              { channel: "LinkedIn", leads: 32, spend: 42000, color: "bg-sky-400" },
               { channel: "Orgánico", leads: 28, spend: 0, color: "bg-emerald-500" },
               { channel: "Referidos", leads: 22, spend: 15000, color: "bg-purple-500" },
             ].map((item, i) => (
-              <div key={i} className="flex items-center justify-between border-b pb-3 last:border-0">
+              <div key={i} className="flex items-center justify-between border-b border-white/5 pb-3 last:border-0">
                 <div className="flex items-center gap-3">
-                  <div className={`h-3 w-3 rounded-full ${item.color}`} />
+                  <div className={`h-2.5 w-2.5 rounded-full ${item.color}`} />
                   <div>
                     <p className="text-sm font-medium">{item.channel}</p>
                     <p className="text-xs text-muted-foreground">{item.leads} leads</p>
                   </div>
                 </div>
-                <span className="text-sm">
+                <span className="text-sm font-medium">
                   {item.spend > 0
                     ? new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(item.spend)
                     : "Gratis"}
@@ -44,7 +44,7 @@ export default function MarketingPage() {
           </div>
         </div>
 
-        <div className="rounded-xl border bg-card p-6">
+        <div className="rounded-xl border border-white/5 bg-card p-6">
           <h3 className="text-lg font-semibold">Campañas Activas</h3>
           <div className="mt-4 space-y-3">
             {[
@@ -52,18 +52,15 @@ export default function MarketingPage() {
               { name: "Brand Awareness", status: "Activa", budget: 50000, spent: 32000 },
               { name: "Webinar Series", status: "Pausada", budget: 25000, spent: 12000 },
             ].map((item, i) => (
-              <div key={i} className="space-y-2 border-b pb-3 last:border-0">
+              <div key={i} className="space-y-2 border-b border-white/5 pb-3 last:border-0">
                 <div className="flex justify-between">
                   <span className="text-sm font-medium">{item.name}</span>
-                  <span className={`text-xs ${item.status === "Activa" ? "text-emerald-600" : "text-amber-600"}`}>
+                  <span className={`text-xs font-medium ${item.status === "Activa" ? "text-emerald-400" : "text-amber-400"}`}>
                     {item.status}
                   </span>
                 </div>
-                <div className="h-2 rounded-full bg-muted">
-                  <div
-                    className="h-2 rounded-full bg-primary"
-                    style={{ width: `${(item.spent / item.budget) * 100}%` }}
-                  />
+                <div className="h-1.5 rounded-full bg-white/5">
+                  <div className="h-1.5 rounded-full gradient-bg" style={{ width: `${(item.spent / item.budget) * 100}%` }} />
                 </div>
                 <p className="text-xs text-muted-foreground">
                   ${(item.spent / 1000).toFixed(0)}k / ${(item.budget / 1000).toFixed(0)}k gastado

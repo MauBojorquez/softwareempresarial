@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Check } from "lucide-react";
+import { Check, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const plans = [
@@ -54,32 +54,34 @@ export default function PricingPage() {
   const [annual, setAnnual] = useState(true);
 
   return (
-    <div className="min-h-screen">
-      <header className="border-b">
+    <div className="min-h-screen bg-background">
+      <header className="fixed top-0 z-50 w-full glass">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <Link href="/" className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-primary" />
-            <span className="text-xl font-bold">MetrixPro</span>
+            <div className="h-8 w-8 rounded-lg gradient-bg" />
+            <span className="text-lg font-bold">MetrixPro</span>
           </Link>
-          <Link href="/login" className="text-sm text-muted-foreground hover:text-foreground">
+          <Link href="/login" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
             Iniciar Sesión
           </Link>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-16">
+      <main className="container mx-auto px-4 pt-32 pb-16">
         <div className="text-center">
-          <h1 className="text-4xl font-bold">Planes y Precios</h1>
+          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
+            Planes y <span className="gradient-text">Precios</span>
+          </h1>
           <p className="mt-4 text-lg text-muted-foreground">
             14 días de prueba gratis. Sin tarjeta de crédito.
           </p>
 
-          <div className="mt-8 inline-flex items-center rounded-lg border p-1">
+          <div className="mt-8 inline-flex items-center rounded-xl border border-white/10 bg-white/5 p-1">
             <button
               onClick={() => setAnnual(false)}
               className={cn(
-                "rounded-md px-4 py-2 text-sm font-medium transition-colors",
-                !annual ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+                "rounded-lg px-5 py-2 text-sm font-medium transition-all",
+                !annual ? "gradient-bg text-white" : "text-muted-foreground hover:text-foreground"
               )}
             >
               Mensual
@@ -87,8 +89,8 @@ export default function PricingPage() {
             <button
               onClick={() => setAnnual(true)}
               className={cn(
-                "rounded-md px-4 py-2 text-sm font-medium transition-colors",
-                annual ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+                "rounded-lg px-5 py-2 text-sm font-medium transition-all",
+                annual ? "gradient-bg text-white" : "text-muted-foreground hover:text-foreground"
               )}
             >
               Anual <span className="text-xs opacity-75">(-17%)</span>
@@ -96,18 +98,23 @@ export default function PricingPage() {
           </div>
         </div>
 
-        <div className="mt-12 grid gap-8 md:grid-cols-3">
+        <div className="mt-12 grid gap-6 md:grid-cols-3">
           {plans.map((plan) => (
             <div
               key={plan.name}
               className={cn(
-                "relative rounded-2xl border p-8",
-                plan.popular && "border-primary shadow-lg"
+                "relative rounded-2xl border bg-card p-8 transition-all",
+                plan.popular
+                  ? "border-primary/30 glow"
+                  : "border-white/5 hover:border-white/10"
               )}
             >
               {plan.popular && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-4 py-1 text-xs font-medium text-primary-foreground">
-                  Más Popular
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                  <div className="flex items-center gap-1.5 rounded-full gradient-bg px-4 py-1 text-xs font-medium text-white">
+                    <Sparkles className="h-3 w-3" />
+                    Más Popular
+                  </div>
                 </div>
               )}
               <h3 className="text-xl font-bold">{plan.name}</h3>
@@ -126,19 +133,21 @@ export default function PricingPage() {
               <Link
                 href="/register"
                 className={cn(
-                  "mt-6 block w-full rounded-lg py-3 text-center text-sm font-medium",
+                  "mt-6 block w-full rounded-xl py-3 text-center text-sm font-medium transition-all",
                   plan.popular
-                    ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                    : "border hover:bg-accent"
+                    ? "gradient-bg text-white hover:opacity-90"
+                    : "border border-white/10 bg-white/5 hover:bg-white/10"
                 )}
               >
                 Comenzar Prueba Gratis
               </Link>
               <ul className="mt-8 space-y-3">
                 {plan.features.map((feature) => (
-                  <li key={feature} className="flex items-center gap-2 text-sm">
-                    <Check className="h-4 w-4 text-primary" />
-                    {feature}
+                  <li key={feature} className="flex items-center gap-2.5 text-sm">
+                    <div className="rounded-full bg-primary/10 p-0.5">
+                      <Check className="h-3 w-3 text-primary" />
+                    </div>
+                    <span className="text-muted-foreground">{feature}</span>
                   </li>
                 ))}
               </ul>
