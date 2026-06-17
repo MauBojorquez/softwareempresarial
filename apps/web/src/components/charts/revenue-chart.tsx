@@ -21,7 +21,7 @@ const demoData = [
 
 export function RevenueChart() {
   return (
-    <div className="rounded-xl border bg-card p-6">
+    <div className="rounded-xl border border-white/5 bg-card p-6">
       <h3 className="text-lg font-semibold">Ingresos vs Gastos</h3>
       <p className="text-sm text-muted-foreground">Últimos 6 meses</p>
       <div className="mt-4 h-[300px]">
@@ -29,18 +29,24 @@ export function RevenueChart() {
           <AreaChart data={demoData}>
             <defs>
               <linearGradient id="colorIngresos" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="hsl(221, 83%, 53%)" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="hsl(221, 83%, 53%)" stopOpacity={0} />
+                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
               </linearGradient>
               <linearGradient id="colorGastos" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="hsl(0, 84%, 60%)" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="hsl(0, 84%, 60%)" stopOpacity={0} />
+                <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-            <XAxis dataKey="month" className="text-xs" />
-            <YAxis className="text-xs" tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+            <XAxis dataKey="month" stroke="rgba(255,255,255,0.3)" fontSize={12} />
+            <YAxis stroke="rgba(255,255,255,0.3)" fontSize={12} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
             <Tooltip
+              contentStyle={{
+                backgroundColor: "hsl(225, 20%, 8%)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                borderRadius: "8px",
+                color: "#fff",
+              }}
               formatter={(value: number) =>
                 new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(value)
               }
@@ -48,7 +54,8 @@ export function RevenueChart() {
             <Area
               type="monotone"
               dataKey="ingresos"
-              stroke="hsl(221, 83%, 53%)"
+              stroke="#3b82f6"
+              strokeWidth={2}
               fillOpacity={1}
               fill="url(#colorIngresos)"
               name="Ingresos"
@@ -56,7 +63,8 @@ export function RevenueChart() {
             <Area
               type="monotone"
               dataKey="gastos"
-              stroke="hsl(0, 84%, 60%)"
+              stroke="#8b5cf6"
+              strokeWidth={2}
               fillOpacity={1}
               fill="url(#colorGastos)"
               name="Gastos"

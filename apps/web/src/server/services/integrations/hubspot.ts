@@ -1,4 +1,5 @@
 import { db } from "@/server/db";
+import { ensureValidToken } from "./token-refresh";
 
 const HUBSPOT_BASE_URL = "https://api.hubapi.com";
 
@@ -11,7 +12,9 @@ export async function getHubSpotClient(organizationId: string) {
     throw new Error("HubSpot integration not found or inactive");
   }
 
-  return { accessToken: integration.accessToken };
+  const accessToken = await ensureValidToken(organizationId, "HUBSPOT");
+
+  return { accessToken };
 }
 
 async function hubspotFetch(accessToken: string, path: string) {
