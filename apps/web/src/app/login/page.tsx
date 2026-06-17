@@ -1,11 +1,37 @@
 "use client";
 
 import { useState } from "react";
+import { signIn } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    const result = await signIn("credentials", {
+      email,
+      password,
+      redirect: false,
+    });
+
+    setLoading(false);
+
+    if (result?.error) {
+      setError("Email o contraseña incorrectos");
+    } else {
+      router.push("/dashboard/overview");
+    }
+  }
 
   return (
     <div className="relative flex min-h-screen items-center justify-center bg-background">
@@ -21,13 +47,20 @@ export default function LoginPage() {
           <p className="mt-1 text-sm text-muted-foreground">Ingresa a tu dashboard empresarial</p>
         </div>
 
-        <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+        {error && (
+          <div className="rounded-lg border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm text-red-400">
+            {error}
+          </div>
+        )}
+
+        <form className="space-y-4" onSubmit={handleSubmit}>
           <div>
             <label className="text-sm font-medium">Email</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              required
               className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/50 transition-colors"
               placeholder="tu@empresa.com"
             />
@@ -38,13 +71,16 @@ export default function LoginPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              required
               className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/50 transition-colors"
             />
           </div>
           <button
             type="submit"
-            className="w-full rounded-lg gradient-bg py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90"
+            disabled={loading}
+            className="flex w-full items-center justify-center gap-2 rounded-lg gradient-bg py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
           >
+            {loading && <Loader2 className="h-4 w-4 animate-spin" />}
             Iniciar Sesión
           </button>
         </form>
@@ -58,7 +94,10 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <button className="w-full rounded-lg border border-white/10 bg-white/5 py-2.5 text-sm font-medium transition-colors hover:bg-white/10">
+        <button
+          onClick={() => signIn("google", { callbackUrl: "/dashboard/overview" })}
+          className="w-full rounded-lg border border-white/10 bg-white/5 py-2.5 text-sm font-medium transition-colors hover:bg-white/10"
+        >
           Google
         </button>
 
