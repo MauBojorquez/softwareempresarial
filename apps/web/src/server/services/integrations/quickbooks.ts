@@ -1,4 +1,5 @@
 import { db } from "@/server/db";
+import { ensureValidToken } from "./token-refresh";
 
 const QUICKBOOKS_BASE_URL = "https://quickbooks.api.intuit.com/v3";
 
@@ -11,8 +12,10 @@ export async function getQuickBooksClient(organizationId: string) {
     throw new Error("QuickBooks integration not found or inactive");
   }
 
+  const accessToken = await ensureValidToken(organizationId, "QUICKBOOKS");
+
   return {
-    accessToken: integration.accessToken,
+    accessToken,
     realmId: (integration.metadata as { realmId?: string })?.realmId,
   };
 }
