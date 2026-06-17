@@ -1,23 +1,64 @@
 "use client";
 
-import { DollarSign, TrendingUp, Users, ShoppingCart, ArrowUpRight, ArrowDownRight, Sparkles } from "lucide-react";
+import { useEffect, useState } from "react";
+import { DollarSign, TrendingUp, Users, ShoppingCart, ArrowUpRight, ArrowDownRight, Sparkles, RefreshCw } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { RevenueChart } from "@/components/charts/revenue-chart";
 import { SalesPipelineChart } from "@/components/charts/sales-pipeline-chart";
 
+type DashboardData = {
+  revenue: number;
+  revenueChange: number;
+  pipeline: number;
+  pipelineChange: number;
+  employees: number;
+  employeesChange: number;
+  conversion: number;
+  conversionChange: number;
+};
+
+const defaults: DashboardData = {
+  revenue: 0, revenueChange: 0,
+  pipeline: 0, pipelineChange: 0,
+  employees: 0, employeesChange: 0,
+  conversion: 0, conversionChange: 0,
+};
+
 export default function OverviewPage() {
+  const [data, setData] = useState<DashboardData>(defaults);
+  const [loading, setLoading] = useState(true);
+
+  const load = async () => {
+    try {
+      const res = await fetch("/api/metrics/dashboard");
+      if (res.ok) setData(await res.json());
+    } catch {}
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">Resumen ejecutivo de tu negocio</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-sm text-muted-foreground">Resumen ejecutivo de tu negocio</p>
+        </div>
+        <button
+          onClick={() => { setLoading(true); load(); }}
+          className="flex items-center gap-2 rounded-lg bg-white/5 px-3 py-2 text-sm font-medium transition-colors hover:bg-white/10"
+        >
+          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          Actualizar
+        </button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <MetricCard title="Ingresos del Mes" value={620000} change={10.7} icon={DollarSign} format="currency" />
-        <MetricCard title="Pipeline Activo" value={7410000} change={5.2} icon={TrendingUp} format="currency" />
-        <MetricCard title="Empleados Activos" value={48} change={4.3} icon={Users} format="number" />
-        <MetricCard title="Tasa de Conversión" value={17.8} change={-2.1} icon={ShoppingCart} format="percentage" />
+        <MetricCard title="Ingresos del Mes" value={data.revenue} change={data.revenueChange} icon={DollarSign} format="currency" />
+        <MetricCard title="Pipeline Activo" value={data.pipeline} change={data.pipelineChange} icon={TrendingUp} format="currency" />
+        <MetricCard title="Empleados Activos" value={data.employees} change={data.employeesChange} icon={Users} format="number" />
+        <MetricCard title="Tasa de Conversión" value={data.conversion} change={data.conversionChange} icon={ShoppingCart} format="percentage" />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">

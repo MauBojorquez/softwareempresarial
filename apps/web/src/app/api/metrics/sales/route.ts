@@ -1,23 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getMobileUser } from "@/lib/mobile-auth";
+import { getOrganizationId } from "@/lib/get-org";
 import { db } from "@/server/db";
 
 export async function GET(req: NextRequest) {
-  const user = await getMobileUser(req);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const orgId = await getOrganizationId(req);
+  if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const metrics = await db.metric.findMany({
-    where: { organizationId: user.organizationId, category: "SALES" },
+    where: { organizationId: orgId, category: "SALES" },
     orderBy: { period: "desc" },
-    take: 10,
+    take: 30,
   });
 
-  const find = (name: string) => metrics.find((m) => m.name === name);
+  const latest = (name: string) => metrics.find((m) => m.name === name)?.value ?? 0;
 
   return NextResponse.json({
-    pipeline: find("pipeline")?.value ?? 7400000,
-    activeDeals: find("active_deals")?.value ?? 45,
-    conversionRate: find("conversion_rate")?.value ?? 17.8,
-    avgDealSize: find("avg_deal_size")?.value ?? 164000,
+    pipeline: latest("pipeline_value"),
+    activeDeals: latest("total_deals"),
+    conversionRate: latest("conversion_rate"),
+    avgDealSize: latest("avg_deal_size"),
   });
 }

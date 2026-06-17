@@ -1,31 +1,41 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getMobileUser } from "@/lib/mobile-auth";
+import { getOrganizationId } from "@/lib/get-org";
 import { db } from "@/server/db";
 
 export async function GET(req: NextRequest) {
-  const user = await getMobileUser(req);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const orgId = await getOrganizationId(req);
+  if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const metrics = await db.metric.findMany({
-    where: { organizationId: user.organizationId },
+    where: { organizationId: orgId },
     orderBy: { period: "desc" },
-    take: 20,
+    take: 50,
   });
 
-  const byCategory = (cat: string) => metrics.find((m) => m.category === cat);
+  const latest = (name: string) => metrics.find((m) => m.name === name);
+  const previous = (name: string) => metrics.filter((m) => m.name === name)[1];
 
-  const revenue = byCategory("FINANCE");
-  const sales = byCategory("SALES");
-  const hr = byCategory("HR");
+  const calc = (name: string) => {
+    const curr = latest(name);
+    const prev = previous(name);
+    const value = curr?.value ?? 0;
+    const change = prev ? ((value - prev.value) / prev.value) * 100 : 0;
+    return { value, change: parseFloat(change.toFixed(1)) };
+  };
+
+  const income = calc("income");
+  const pipeline = calc("pipeline_value");
+  const headcount = calc("headcount");
+  const conversion = calc("conversion_rate");
 
   return NextResponse.json({
-    revenue: revenue?.value ?? 620000,
-    revenueChange: 10.7,
-    pipeline: sales?.value ?? 7400000,
-    pipelineChange: 5.2,
-    employees: hr?.value ?? 48,
-    employeesChange: 4.3,
-    conversion: 17.8,
-    conversionChange: -2.1,
+    revenue: income.value,
+    revenueChange: income.change,
+    pipeline: pipeline.value,
+    pipelineChange: pipeline.change,
+    employees: headcount.value,
+    employeesChange: headcount.change,
+    conversion: conversion.value,
+    conversionChange: conversion.change,
   });
 }

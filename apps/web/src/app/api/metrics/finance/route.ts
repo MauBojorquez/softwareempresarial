@@ -1,27 +1,41 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getMobileUser } from "@/lib/mobile-auth";
+import { getOrganizationId } from "@/lib/get-org";
 import { db } from "@/server/db";
 
 export async function GET(req: NextRequest) {
-  const user = await getMobileUser(req);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const orgId = await getOrganizationId(req);
+  if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const metrics = await db.metric.findMany({
-    where: { organizationId: user.organizationId, category: "FINANCE" },
+    where: { organizationId: orgId, category: "FINANCE" },
     orderBy: { period: "desc" },
-    take: 10,
+    take: 30,
   });
 
-  const find = (name: string) => metrics.find((m) => m.name === name);
+  const latest = (name: string) => metrics.find((m) => m.name === name);
+  const previous = (name: string) => metrics.filter((m) => m.name === name)[1];
+
+  const calc = (name: string) => {
+    const curr = latest(name);
+    const prev = previous(name);
+    const value = curr?.value ?? 0;
+    const change = prev ? ((value - prev.value) / prev.value) * 100 : 0;
+    return { value, change: parseFloat(change.toFixed(1)) };
+  };
+
+  const income = calc("income");
+  const expenses = calc("expenses");
+  const netProfit = calc("net_profit");
+  const cashFlow = calc("cash_flow");
 
   return NextResponse.json({
-    income: find("income")?.value ?? 620000,
-    incomeChange: 10.7,
-    expenses: find("expenses")?.value ?? 360000,
-    expensesChange: 2.9,
-    netProfit: find("net_profit")?.value ?? 260000,
-    netProfitChange: 22.4,
-    cashFlow: find("cash_flow")?.value ?? 180000,
-    cashFlowChange: 8.1,
+    income: income.value,
+    incomeChange: income.change,
+    expenses: expenses.value,
+    expensesChange: expenses.change,
+    netProfit: netProfit.value,
+    netProfitChange: netProfit.change,
+    cashFlow: cashFlow.value,
+    cashFlowChange: cashFlow.change,
   });
 }

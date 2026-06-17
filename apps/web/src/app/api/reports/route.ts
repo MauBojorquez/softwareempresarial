@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getMobileUser } from "@/lib/mobile-auth";
+import { getOrganizationId } from "@/lib/get-org";
 import { db } from "@/server/db";
 
 export async function GET(req: NextRequest) {
-  const user = await getMobileUser(req);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const orgId = await getOrganizationId(req);
+  if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const reports = await db.aIReport.findMany({
-    where: { organizationId: user.organizationId },
+    where: { organizationId: orgId },
     orderBy: { createdAt: "desc" },
     take: 10,
   });
