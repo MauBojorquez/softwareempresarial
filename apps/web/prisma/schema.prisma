@@ -1,0 +1,245 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Auth ───────────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+  role          Role      @default(OWNER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts     Account[]
+  sessions     Session[]
+  organization Organization? @relation("OrganizationOwner")
+  memberships  Membership[]
+  reports      AIReport[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─── Organization ───────────────────────────────────────────────────
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  industry  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ownerId String @unique
+  owner   User   @relation("OrganizationOwner", fields: [ownerId], references: [id])
+
+  subscription  Subscription?
+  memberships   Membership[]
+  integrations  Integration[]
+  metrics       Metric[]
+  dashboards    Dashboard[]
+  reports       AIReport[]
+}
+
+model Membership {
+  id     String         @id @default(cuid())
+  role   MembershipRole @default(VIEWER)
+
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+}
+
+// ─── Subscription & Billing ─────────────────────────────────────────
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  stripeCustomerId     String             @unique
+  stripeSubscriptionId String?            @unique
+  stripePriceId        String?
+  status               SubscriptionStatus @default(TRIALING)
+  plan                 Plan               @default(STARTER)
+  interval             BillingInterval    @default(MONTHLY)
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean            @default(false)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  organizationId String       @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+// ─── Integrations ───────────────────────────────────────────────────
+
+model Integration {
+  id           String          @id @default(cuid())
+  type         IntegrationType
+  accessToken  String          @db.Text
+  refreshToken String?         @db.Text
+  expiresAt    DateTime?
+  metadata     Json?
+  isActive     Boolean         @default(true)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, type])
+}
+
+// ─── Metrics ────────────────────────────────────────────────────────
+
+model Metric {
+  id        String         @id @default(cuid())
+  category  MetricCategory
+  name      String
+  value     Float
+  unit      String?
+  period    DateTime
+  source    IntegrationType?
+  metadata  Json?
+  createdAt DateTime       @default(now())
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, category, period])
+}
+
+// ─── Dashboards ─────────────────────────────────────────────────────
+
+model Dashboard {
+  id        String   @id @default(cuid())
+  name      String
+  layout    Json
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+// ─── AI Reports ─────────────────────────────────────────────────────
+
+model AIReport {
+  id        String       @id @default(cuid())
+  title     String
+  content   String       @db.Text
+  summary   String       @db.Text
+  period    DateTime
+  type      ReportType   @default(MONTHLY)
+  status    ReportStatus @default(GENERATING)
+  createdAt DateTime     @default(now())
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  generatedById  String
+  generatedBy    User         @relation(fields: [generatedById], references: [id])
+}
+
+// ─── Enums ──────────────────────────────────────────────────────────
+
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum MembershipRole {
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  UNPAID
+}
+
+enum Plan {
+  STARTER
+  PROFESSIONAL
+  ENTERPRISE
+}
+
+enum BillingInterval {
+  MONTHLY
+  ANNUAL
+}
+
+enum IntegrationType {
+  QUICKBOOKS
+  HUBSPOT
+  CUSTOM_API
+}
+
+enum MetricCategory {
+  FINANCE
+  SALES
+  OPERATIONS
+  HR
+  MARKETING
+}
+
+enum ReportType {
+  MONTHLY
+  QUARTERLY
+  ANNUAL
+  CUSTOM
+}
+
+enum ReportStatus {
+  GENERATING
+  COMPLETED
+  FAILED
+}

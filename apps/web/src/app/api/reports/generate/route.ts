@@ -1,0 +1,30 @@
+import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { db } from "@/server/db";
+import { generateMonthlyReport } from "@/server/services/ai/report-generator";
+
+export async function POST() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const membership = await db.membership.findFirst({
+    where: { userId: session.user.id },
+    include: { organization: { include: { subscription: true } } },
+  });
+
+  if (!membership) {
+    return NextResponse.json({ error: "No organization found" }, { status: 404 });
+  }
+
+  const sub = membership.organization.subscription;
+  if (!sub || !["ACTIVE", "TRIALING"].includes(sub.status)) {
+    return NextResponse.json({ error: "Active subscription required" }, { status: 403 });
+  }
+
+  const reportId = await generateMonthlyReport(membership.organizationId, session.user.id);
+
+  return NextResponse.json({ reportId });
+}

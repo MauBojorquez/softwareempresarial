@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "MetrixPro",
+    "slug": "metrixpro",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "metrixpro",
+    "platforms": ["ios", "android"],
+    "ios": {
+      "bundleIdentifier": "com.metrixpro.app",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.metrixpro.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#3b82f6"
+      }
+    }
+  }
+}
