@@ -88,7 +88,7 @@ export default function OverviewPage() {
     );
   }
 
-  if (!data?.hasData) {
+  if (!data || !data.hasData) {
     return (
       <div className="space-y-6">
         <div>
@@ -131,7 +131,8 @@ export default function OverviewPage() {
     );
   }
 
-  const { calculated, goals: rawGoals, monthlyHistory: rawHistory, metaSummary, metaConnected } = data;
+  const { calculated: rawCalc, goals: rawGoals, monthlyHistory: rawHistory, metaSummary, metaConnected } = data;
+  const calculated = rawCalc || { ytdRevenue: 0, ytdGastos: 0, annualProjection: 0, revenuePerEmployee: 0, utilidad: 0, margen: 0 };
   const goals = Array.isArray(rawGoals) ? rawGoals : [];
   const monthlyHistory = Array.isArray(rawHistory) ? rawHistory : [];
   const maxHistory = Math.max(...monthlyHistory.map((m) => Math.max(m.ingresos, m.gastos)), 1);

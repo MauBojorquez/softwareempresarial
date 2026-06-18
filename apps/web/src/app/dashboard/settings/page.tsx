@@ -50,7 +50,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     fetch("/api/user")
-      .then((r) => r.json())
+      .then((r) => { if (!r.ok) throw new Error("fetch failed"); return r.json(); })
       .then((data) => {
         if (data.user) {
           setProfile({ name: data.user.name || "", email: data.user.email || "" });
@@ -64,8 +64,8 @@ export default function SettingsPage() {
       .catch(() => setLoading(false));
 
     fetch("/api/user/api-keys")
-      .then((r) => r.json())
-      .then((data) => setApiKeys(data.keys || []))
+      .then((r) => { if (!r.ok) throw new Error("fetch failed"); return r.json(); })
+      .then((data) => setApiKeys(Array.isArray(data.keys) ? data.keys : []))
       .catch(() => {});
 
     try {
