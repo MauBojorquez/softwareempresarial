@@ -11,13 +11,13 @@ export default function MarketingPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"overview" | "campaigns" | "history">("overview");
-  const [selectedAccount, setSelectedAccount] = useState<string>("all");
+  const [selectedAccount, setSelectedAccount] = useState<string>("");
 
   const load = (accountId?: string) => {
     setLoading(true);
     setError(null);
     const acct = accountId ?? selectedAccount;
-    const acctParam = acct && acct !== "all" ? `&accountId=${acct}` : "";
+    const acctParam = acct ? `&accountId=${acct}` : "";
     Promise.all([
       fetch("/api/metrics/marketing").then((r) => r.json()),
       fetch(`/api/metrics/marketing/campaigns?months=6${acctParam}`).then((r) => r.json()),
@@ -87,7 +87,6 @@ export default function MarketingPage() {
     return { text: s?.replace(/_/g, " ") || "—", cls: "text-muted-foreground bg-secondary/50" };
   };
 
-  const multipleAccounts = campaigns?.adAccounts?.length > 1 && selectedAccount === "all";
 
   return (
     <div className="space-y-5">
@@ -150,26 +149,23 @@ export default function MarketingPage() {
         </div>
       )}
 
-      {campaigns?.adAccounts?.length > 1 && (
+      {campaigns?.adAccounts?.length > 0 && (
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">Cuenta:</span>
-          <select
-            value={selectedAccount}
-            onChange={(e) => { setSelectedAccount(e.target.value); load(e.target.value); }}
-            className="rounded-md border border-border bg-card px-2 py-1 text-xs font-medium text-foreground"
-          >
-            <option value="all">Todas las cuentas</option>
-            {campaigns.adAccounts.map((a: any) => (
-              <option key={a.id} value={a.id}>{a.name}</option>
-            ))}
-          </select>
+          {campaigns.adAccounts.length === 1 ? (
+            <span className="text-xs font-medium text-foreground">{campaigns.adAccounts[0].name}</span>
+          ) : (
+            <select
+              value={selectedAccount || campaigns.adAccounts[0]?.id || ""}
+              onChange={(e) => { setSelectedAccount(e.target.value); load(e.target.value); }}
+              className="rounded-md border border-border bg-card px-2 py-1 text-xs font-medium text-foreground"
+            >
+              {campaigns.adAccounts.map((a: any) => (
+                <option key={a.id} value={a.id}>{a.name}</option>
+              ))}
+            </select>
+          )}
         </div>
-      )}
-
-      {campaigns?.adAccounts?.length === 1 && (
-        <p className="text-xs text-muted-foreground">
-          Cuenta: <span className="font-medium text-foreground">{campaigns.adAccounts[0].name}</span>
-        </p>
       )}
 
       {tab === "overview" && (
@@ -232,7 +228,6 @@ export default function MarketingPage() {
                   <thead>
                     <tr className="border-b border-border text-left text-xs text-muted-foreground">
                       <th scope="col" className="p-3 font-medium">Campaña</th>
-                      {multipleAccounts && <th scope="col" className="p-3 font-medium">Cuenta</th>}
                       <th scope="col" className="p-3 font-medium">Estado</th>
                       <th scope="col" className="p-3 font-medium text-right">Gasto</th>
                       <th scope="col" className="p-3 font-medium text-right">Clics</th>
@@ -248,11 +243,6 @@ export default function MarketingPage() {
                           <td className="p-3">
                             <p className="font-medium truncate max-w-[250px]">{c.name}</p>
                           </td>
-                          {multipleAccounts && (
-                            <td className="p-3">
-                              <p className="text-xs text-muted-foreground truncate max-w-[150px]">{c.accountName}</p>
-                            </td>
-                          )}
                           <td className="p-3">
                             <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", st.cls)}>{st.text}</span>
                           </td>

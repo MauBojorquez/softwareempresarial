@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
 
     const accountsToFetch = selectedAccountId
       ? adAccounts.filter((a) => a.id === selectedAccountId)
-      : adAccounts;
+      : [adAccounts[0]];
 
     if (accountsToFetch.length === 0) {
       return NextResponse.json({ connected: true, campaigns: [], monthly: [], adAccounts, error: "Cuenta no encontrada" });
