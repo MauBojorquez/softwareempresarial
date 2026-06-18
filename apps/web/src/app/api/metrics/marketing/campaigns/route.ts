@@ -56,8 +56,36 @@ const FALLBACK_PRIORITY = [
   ...LANDING, ...LINK, ...ENGAGEMENT, ...VIDEO, ...PAGE_LIKE,
 ];
 
+// optimization_goal of the ad set -> ordered action groups. This is what Meta
+// actually uses to compute the "Results" column, so it is checked BEFORE the
+// campaign objective (a OUTCOME_LEADS campaign optimized for CONVERSATIONS
+// reports messaging conversations, not lead forms).
+const OPT_GOAL_RESULTS: Record<string, string[][]> = {
+  CONVERSATIONS: [MESSAGING],
+  LEAD_GENERATION: [LEAD],
+  QUALITY_LEAD: [LEAD],
+  QUALITY_CALL: [LEAD],
+  OFFSITE_CONVERSIONS: [PURCHASE, LEAD, REGISTRATION],
+  VALUE: [PURCHASE],
+  LANDING_PAGE_VIEWS: [LANDING],
+  LINK_CLICKS: [LINK],
+  POST_ENGAGEMENT: [ENGAGEMENT],
+  PAGE_LIKES: [PAGE_LIKE],
+  THRUPLAY: [VIDEO],
+  TWO_SECOND_CONTINUOUS_VIDEO_VIEWS: [VIDEO],
+  APP_INSTALLS: [APP_INSTALL],
+  REACH: [],
+  IMPRESSIONS: [],
+  AD_RECALL_LIFT: [],
+};
+
 // Extracts the "Results" number for a campaign exactly as Meta Ads Manager would.
-function extractResults(objective: string, actions: any[]): { value: number; type: string | null } {
+// optimizationGoal (from the ad set) takes priority over the campaign objective.
+function extractResults(
+  objective: string,
+  actions: any[],
+  optimizationGoal?: string | null
+): { value: number; type: string | null } {
   if (!Array.isArray(actions) || actions.length === 0) return { value: 0, type: null };
   const valueOf = (type: string): number | null => {
     const a = actions.find((x) => x.action_type === type);
@@ -74,6 +102,17 @@ function extractResults(objective: string, actions: any[]): { value: number; typ
     return null;
   };
 
+  // 1) Most accurate: the ad set's optimization goal (what Meta's "Results" uses).
+  if (optimizationGoal && OPT_GOAL_RESULTS[optimizationGoal]) {
+    const groups = OPT_GOAL_RESULTS[optimizationGoal];
+    for (const group of groups) {
+      const hit = firstOf(group);
+      if (hit) return hit;
+    }
+    if (groups.length === 0) return { value: 0, type: null };
+  }
+
+  // 2) Fallback to the campaign objective.
   const groups = OBJECTIVE_RESULTS[objective];
   if (groups) {
     for (const group of groups) {
@@ -170,15 +209,34 @@ export async function GET(req: NextRequest) {
     // Fetch campaigns from all accounts in parallel
     const campaignResults = await Promise.allSettled(
       accountsToFetch.map(async (account) => {
-        const res = await fetchWithTimeout(
-          `https://graph.facebook.com/v21.0/${account.id}/campaigns?` +
-          `fields=id,name,status,effective_status,objective,` +
-          `insights.time_range({"since":"${sinceCurrent}","until":"${untilCurrent}"}){spend,impressions,clicks,ctr,cpc,reach,actions,action_values}` +
-          `&limit=100&access_token=${accessToken}`
-        );
+        // Fetch campaigns (with insights) and ad set optimization goals in parallel.
+        const [res, adsetRes] = await Promise.all([
+          fetchWithTimeout(
+            `https://graph.facebook.com/v21.0/${account.id}/campaigns?` +
+            `fields=id,name,status,effective_status,objective,` +
+            `insights.time_range({"since":"${sinceCurrent}","until":"${untilCurrent}"}){spend,impressions,clicks,ctr,cpc,reach,actions,action_values}` +
+            `&limit=100&access_token=${accessToken}`
+          ),
+          fetchWithTimeout(
+            `https://graph.facebook.com/v21.0/${account.id}/adsets?` +
+            `fields=campaign_id,optimization_goal&limit=500&access_token=${accessToken}`
+          ),
+        ]);
         if (!res.ok) return [];
         const data = await res.json();
         if (data.error) return [];
+
+        // Map campaign_id -> optimization_goal (first ad set wins; campaigns rarely mix goals).
+        const optGoalByCampaign: Record<string, string> = {};
+        if (adsetRes.ok) {
+          const adsetData = await adsetRes.json();
+          for (const s of adsetData.data || []) {
+            if (s.campaign_id && s.optimization_goal && !optGoalByCampaign[s.campaign_id]) {
+              optGoalByCampaign[s.campaign_id] = s.optimization_goal;
+            }
+          }
+        }
+
         return (data.data || []).map((c: any) => {
           const insights = c.insights?.data?.[0] || {};
           // Also check action_values for purchase-value objectives, but use actions count for results
@@ -186,7 +244,11 @@ export async function GET(req: NextRequest) {
             ...(insights.actions || []),
             ...(insights.action_values || []),
           ].filter((a, i, arr) => arr.findIndex((b) => b.action_type === a.action_type) === i);
-          const { value: results, type: resultType } = extractResults(c.objective || "", allActions);
+          const { value: results, type: resultType } = extractResults(
+            c.objective || "",
+            allActions,
+            optGoalByCampaign[c.id]
+          );
           const spend = parseFloat(insights.spend || "0");
           return {
             id: c.id,
