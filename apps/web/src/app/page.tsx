@@ -72,26 +72,30 @@ export default function HomePage() {
 
             <div className="relative mx-auto mt-20 max-w-5xl">
               <div className="rounded-2xl border border-border bg-card p-2 shadow-lg">
-                <div className="rounded-xl bg-secondary/30 p-6">
-                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                    {[
-                      { label: "Ingresos", value: "$620K", change: "+10.7%" },
-                      { label: "Pipeline", value: "$7.4M", change: "+5.2%" },
-                      { label: "Empleados", value: "48", change: "+4.3%" },
-                      { label: "Conversión", value: "17.8%", change: "-2.1%" },
-                    ].map((m) => (
-                      <div key={m.label} className="rounded-lg border border-border bg-card p-4">
-                        <p className="text-xs text-muted-foreground">{m.label}</p>
-                        <p className="mt-1 text-2xl font-bold text-foreground">{m.value}</p>
-                        <p className={`mt-1 text-xs font-medium ${m.change.startsWith("+") ? "text-emerald-600" : "text-red-500"}`}>
-                          {m.change}
-                        </p>
+                <div className="rounded-xl bg-secondary/30 p-6 sm:p-8">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-4">
+                    {[65, 45, 80, 55].map((w, i) => (
+                      <div key={i} className="rounded-lg border border-border bg-card p-3 sm:p-4">
+                        <div className="h-2 w-12 rounded bg-muted mb-2" />
+                        <div className="h-4 rounded gradient-bg" style={{ width: `${w}%` }} />
                       </div>
                     ))}
                   </div>
-                  <div className="mt-4 grid grid-cols-2 gap-4">
-                    <div className="h-40 rounded-lg border border-border bg-card" />
-                    <div className="h-40 rounded-lg border border-border bg-card" />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-lg border border-border bg-card p-4">
+                      <div className="flex items-end gap-1 h-24 sm:h-32">
+                        {[40, 65, 50, 80, 60, 75, 90, 55, 70, 85, 60, 45].map((h, i) => (
+                          <div key={i} className="flex-1 rounded-t gradient-bg" style={{ height: `${h}%` }} />
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-lg border border-border bg-card p-4">
+                      <div className="flex items-end gap-1 h-24 sm:h-32">
+                        {[30, 45, 60, 40, 55, 70, 50, 65, 80, 45, 55, 70].map((h, i) => (
+                          <div key={i} className="flex-1 rounded-t bg-primary/20" style={{ height: `${h}%` }} />
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

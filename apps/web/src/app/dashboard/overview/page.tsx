@@ -21,7 +21,7 @@ type DashboardData = {
     annualProjection: number; revenuePerEmployee: number;
     utilidad: number; margen: number;
   };
-  goals: { revenue: number; gastos: number; pipeline: number; employees: number };
+  goals: Array<{ name: string; current: number; target: number; unit: string }>;
   monthlyHistory: { month: string; ingresos: number; gastos: number }[];
   metaSummary: { spend: number; clicks: number; impressions: number; reach: number } | null;
   metaConnected: boolean;
@@ -34,7 +34,7 @@ export default function OverviewPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showGoals, setShowGoals] = useState(false);
-  const [goalForm, setGoalForm] = useState({ metric: "Ingresos", target: "" });
+  const [goalForm, setGoalForm] = useState({ metric: "Ingresos", target: "", unit: "MXN" });
   const [savingGoal, setSavingGoal] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
@@ -54,11 +54,11 @@ export default function OverviewPage() {
     await fetch("/api/metrics/goals", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ metric: goalForm.metric, target: parseFloat(goalForm.target) }),
+      body: JSON.stringify({ metric: goalForm.metric, target: parseFloat(goalForm.target), unit: goalForm.unit }),
     });
     setSavingGoal(false);
     setShowGoals(false);
-    setGoalForm({ metric: "Ingresos", target: "" });
+    setGoalForm({ metric: "Ingresos", target: "", unit: "MXN" });
     load();
   };
 
@@ -172,13 +172,31 @@ export default function OverviewPage() {
           <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
             <select
               value={goalForm.metric}
-              onChange={(e) => setGoalForm({ ...goalForm, metric: e.target.value })}
+              onChange={(e) => {
+                const unitMap: Record<string, string> = {
+                  "Ingresos": "MXN", "Gastos": "MXN", "Pipeline Total": "MXN", "Ventas del Mes": "MXN",
+                  "Deals Cerrados": "unidades", "Nuevos Leads": "unidades", "Headcount": "personas",
+                  "Nuevas Contrataciones": "personas", "Tareas Completadas": "unidades", "Eficiencia": "%",
+                  "SLA Cumplimiento": "%", "Rotación": "%", "Satisfacción": "pts", "Costo Nómina": "MXN",
+                };
+                setGoalForm({ ...goalForm, metric: e.target.value, unit: unitMap[e.target.value] || "" });
+              }}
               className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
             >
-              <option value="Ingresos">Ingresos</option>
-              <option value="Gastos">Gastos (límite)</option>
-              <option value="Pipeline Total">Pipeline</option>
-              <option value="Headcount">Headcount</option>
+              <option value="Ingresos">Ingresos (MXN)</option>
+              <option value="Gastos">Gastos (MXN)</option>
+              <option value="Pipeline Total">Pipeline Total (MXN)</option>
+              <option value="Ventas del Mes">Ventas del Mes (MXN)</option>
+              <option value="Deals Cerrados">Deals Cerrados (unidades)</option>
+              <option value="Nuevos Leads">Nuevos Leads (unidades)</option>
+              <option value="Headcount">Headcount (personas)</option>
+              <option value="Nuevas Contrataciones">Nuevas Contrataciones (personas)</option>
+              <option value="Tareas Completadas">Tareas Completadas (unidades)</option>
+              <option value="Eficiencia">Eficiencia (%)</option>
+              <option value="SLA Cumplimiento">SLA Cumplimiento (%)</option>
+              <option value="Rotación">Rotación (%)</option>
+              <option value="Satisfacción">Satisfacción (pts)</option>
+              <option value="Costo Nómina">Costo Nómina (MXN)</option>
             </select>
             <input
               type="number"
@@ -205,18 +223,20 @@ export default function OverviewPage() {
         <MetricCard title="Conversión" value={data.conversion} change={data.conversionChange || undefined} icon={ShoppingCart} format="percentage" />
       </div>
 
-      {(goals.revenue > 0 || goals.pipeline > 0) && (
+      {goals.length > 0 && (
         <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            { label: "Meta Ingresos", current: data.revenue, target: goals.revenue },
-            { label: "Meta Pipeline", current: data.pipeline, target: goals.pipeline },
-            { label: "Meta Equipo", current: data.employees, target: goals.employees },
-          ].filter((g) => g.target > 0).map((g) => {
+          {goals.filter((g) => g.target > 0).map((g) => {
             const pct = goalProgress(g.current, g.target);
+            const fmtGoalVal = (v: number) => {
+              if (g.unit === "MXN") return fmtMoney(v);
+              if (g.unit === "%") return `${v}%`;
+              if (g.unit === "pts") return `${fmt(v)} pts`;
+              return fmt(v);
+            };
             return (
-              <div key={g.label} className="rounded-xl border border-border bg-card p-4">
+              <div key={g.name} className="rounded-xl border border-border bg-card p-4">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="font-medium text-muted-foreground">{g.label}</span>
+                  <span className="font-medium text-muted-foreground">{g.name}</span>
                   <span className="font-semibold">{pct?.toFixed(0)}%</span>
                 </div>
                 <div className="mt-2 h-2 rounded-full bg-secondary/50">
@@ -226,7 +246,7 @@ export default function OverviewPage() {
                   />
                 </div>
                 <p className="mt-1.5 text-[11px] text-muted-foreground">
-                  {typeof g.current === "number" && g.current > 1000 ? fmtMoney(g.current) : fmt(g.current)} / {g.target > 1000 ? fmtMoney(g.target) : fmt(g.target)}
+                  {fmtGoalVal(g.current)} / {fmtGoalVal(g.target)}
                 </p>
               </div>
             );

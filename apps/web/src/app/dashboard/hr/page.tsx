@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Users, UserPlus, UserMinus, Heart, Plus, Loader2, LinkIcon, Trash2, X } from "lucide-react";
+import { Users, UserPlus, UserMinus, Heart, Plus, Loader2, LinkIcon, Trash2, X, Download, Upload } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/metric-card";
 
 type MetricEntry = { id: string; name: string; value: number; unit: string | null; period: string };
@@ -20,6 +20,7 @@ export default function HRPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [form, setForm] = useState({ name: "Headcount", value: "", period: new Date().toISOString().split("T")[0] });
 
   const load = () => {
@@ -30,6 +31,23 @@ export default function HRPage() {
   };
 
   useEffect(() => { load(); }, []);
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("category", "HR");
+    const res = await fetch("/api/metrics/import", { method: "POST", body: fd });
+    const data = await res.json();
+    if (data.errors?.length > 0) {
+      alert(`Importados: ${data.imported}/${data.total}\nErrores:\n${data.errors.join("\n")}`);
+    }
+    setImporting(false);
+    load();
+    e.target.value = "";
+  };
 
   const handleSave = async () => {
     if (!form.value) return;
@@ -72,13 +90,27 @@ export default function HRPage() {
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Recursos Humanos</h1>
           <p className="text-sm text-muted-foreground">Métricas de equipo</p>
         </div>
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 rounded-lg gradient-bg px-3 py-2 sm:px-4 text-sm font-medium text-white transition-opacity hover:opacity-90"
-        >
-          <Plus className="h-4 w-4" />
-          Agregar Dato
-        </button>
+        <div className="flex items-center gap-2">
+          <a
+            href="/api/metrics/template?category=HR"
+            className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium transition-colors hover:bg-secondary"
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Plantilla</span>
+          </a>
+          <label className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium transition-colors hover:bg-secondary cursor-pointer">
+            <Upload className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">{importing ? "Importando..." : "Importar"}</span>
+            <input type="file" accept=".csv" onChange={handleImport} className="hidden" />
+          </label>
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-2 rounded-lg gradient-bg px-3 py-2 sm:px-4 text-sm font-medium text-white transition-opacity hover:opacity-90"
+          >
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">Agregar Dato</span>
+          </button>
+        </div>
       </div>
 
       {showForm && (

@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   if (!membership) return NextResponse.json({ error: "No organization" }, { status: 404 });
 
   const body = await req.json();
-  const { metric, target } = body;
+  const { metric, target, unit } = body;
 
   if (!metric || typeof target !== "number" || target < 0) {
     return NextResponse.json({ error: "Invalid input" }, { status: 400 });
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
   });
 
   if (existing) {
-    await db.metric.update({ where: { id: existing.id }, data: { value: target } });
+    await db.metric.update({ where: { id: existing.id }, data: { value: target, unit: unit || existing.unit } });
   } else {
     await db.metric.create({
       data: {
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
         category: "FINANCE",
         name,
         value: target,
-        unit: "meta",
+        unit: unit || "meta",
         period: new Date(),
       },
     });

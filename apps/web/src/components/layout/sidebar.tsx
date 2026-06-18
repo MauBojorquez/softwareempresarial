@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, DollarSign, TrendingUp, Settings2, Users,
-  Megaphone, FileText, Plug, CreditCard, LogOut, X,
+  Megaphone, FileText, Plug, CreditCard, LogOut, X, Settings,
 } from "lucide-react";
 
 const navigation = [
@@ -18,6 +18,7 @@ const navigation = [
   { name: "Reportes IA", href: "/dashboard/reports", icon: FileText },
   { name: "Integraciones", href: "/dashboard/integrations", icon: Plug },
   { name: "Suscripción", href: "/dashboard/billing", icon: CreditCard },
+  { name: "Configuración", href: "/dashboard/settings", icon: Settings },
 ];
 
 export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => void }) {

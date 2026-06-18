@@ -1,6 +1,7 @@
 "use client";
 
-import { Bell, Search, Sparkles, Menu } from "lucide-react";
+import { Search, Sparkles, Menu } from "lucide-react";
+import { NotificationBell } from "@/components/notifications";
 
 export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   return (
@@ -26,9 +27,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
           <Sparkles className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
           <span className="hidden xs:inline sm:inline">Reporte IA</span>
         </a>
-        <button className="relative rounded-lg p-2 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">
-          <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
-        </button>
+        <NotificationBell />
         <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center sm:h-8 sm:w-8">
           <span className="text-[10px] font-semibold text-primary sm:text-xs">MB</span>
         </div>
