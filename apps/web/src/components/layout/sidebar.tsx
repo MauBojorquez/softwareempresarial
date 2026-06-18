@@ -4,16 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
-  LayoutDashboard,
-  DollarSign,
-  TrendingUp,
-  Settings2,
-  Users,
-  Megaphone,
-  FileText,
-  Plug,
-  CreditCard,
-  LogOut,
+  LayoutDashboard, DollarSign, TrendingUp, Settings2, Users,
+  Megaphone, FileText, Plug, CreditCard, LogOut, X,
 } from "lucide-react";
 
 const navigation = [
@@ -28,53 +20,69 @@ const navigation = [
   { name: "Suscripción", href: "/dashboard/billing", icon: CreditCard },
 ];
 
-export function Sidebar() {
+export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => void }) {
   const pathname = usePathname();
 
   return (
-    <aside className="flex h-screen w-64 flex-col border-r border-border bg-card">
-      <div className="flex h-16 items-center gap-2.5 border-b border-border px-6">
-        <div className="h-8 w-8 rounded-lg gradient-bg flex items-center justify-center">
-          <span className="text-xs font-bold text-white">S</span>
-        </div>
-        <span className="text-lg font-bold text-foreground">MetrixPro</span>
-      </div>
-
-      <nav className="flex-1 space-y-0.5 p-3">
-        {navigation.map((item) => {
-          const isActive = pathname.startsWith(item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
-                isActive
-                  ? "bg-primary/8 text-primary"
-                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-              )}
-            >
-              <item.icon className="h-4 w-4" />
-              {item.name}
-            </Link>
-          );
-        })}
-      </nav>
-
-      <div className="border-t border-border p-3">
-        <div className="flex items-center gap-3 rounded-lg px-3 py-2.5">
-          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-            <span className="text-xs font-semibold text-primary">ME</span>
+    <>
+      {open && (
+        <div className="fixed inset-0 z-40 bg-black/30 lg:hidden" onClick={onClose} />
+      )}
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-50 flex h-screen w-64 flex-col border-r border-border bg-card transition-transform lg:static lg:translate-x-0",
+          open ? "translate-x-0" : "-translate-x-full"
+        )}
+      >
+        <div className="flex h-14 items-center justify-between border-b border-border px-4 sm:h-16 sm:px-6">
+          <div className="flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-lg gradient-bg flex items-center justify-center">
+              <span className="text-xs font-bold text-white">S</span>
+            </div>
+            <span className="text-lg font-bold text-foreground">MetrixPro</span>
           </div>
-          <div className="flex-1 truncate">
-            <p className="text-sm font-medium text-foreground">Mi Empresa</p>
-            <p className="text-xs text-muted-foreground">Plan Professional</p>
-          </div>
-          <button className="text-muted-foreground transition-colors hover:text-foreground">
-            <LogOut className="h-4 w-4" />
+          <button onClick={onClose} className="rounded-lg p-1 text-muted-foreground hover:text-foreground lg:hidden">
+            <X className="h-5 w-5" />
           </button>
         </div>
-      </div>
-    </aside>
+
+        <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
+          {navigation.map((item) => {
+            const isActive = pathname.startsWith(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onClose}
+                className={cn(
+                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                  isActive
+                    ? "bg-primary/8 text-primary"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                )}
+              >
+                <item.icon className="h-4 w-4" />
+                {item.name}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="border-t border-border p-3">
+          <div className="flex items-center gap-3 rounded-lg px-3 py-2.5">
+            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+              <span className="text-xs font-semibold text-primary">ME</span>
+            </div>
+            <div className="flex-1 truncate">
+              <p className="text-sm font-medium text-foreground">Mi Empresa</p>
+              <p className="text-xs text-muted-foreground">Stratium</p>
+            </div>
+            <button className="text-muted-foreground transition-colors hover:text-foreground">
+              <LogOut className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </aside>
+    </>
   );
 }

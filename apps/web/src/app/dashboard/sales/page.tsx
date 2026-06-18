@@ -66,15 +66,15 @@ export default function SalesPage() {
   const hasData = metrics.length > 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Ventas</h1>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Ventas</h1>
           <p className="text-sm text-muted-foreground">Métricas de ventas</p>
         </div>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
+          className="flex items-center gap-2 rounded-lg gradient-bg px-3 py-2 sm:px-4 text-sm font-medium text-white transition-opacity hover:opacity-90"
         >
           <Plus className="h-4 w-4" />
           Agregar Dato
@@ -82,12 +82,12 @@ export default function SalesPage() {
       </div>
 
       {showForm && (
-        <div className="rounded-xl border border-primary/20 bg-card p-6">
+        <div className="rounded-xl border border-primary/20 bg-card p-4 sm:p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold">Nuevo Registro de Ventas</h3>
             <button onClick={() => setShowForm(false)} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
           </div>
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
             <div>
               <label className="text-xs font-medium text-muted-foreground">Tipo</label>
               <select
@@ -129,24 +129,24 @@ export default function SalesPage() {
       )}
 
       {!hasData ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card py-20">
+        <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card py-14 sm:py-20">
           <LinkIcon className="h-10 w-10 text-muted-foreground mb-4" />
           <h3 className="text-lg font-semibold">Sin datos de ventas</h3>
           <p className="mt-1 text-sm text-muted-foreground text-center max-w-md">
             Conecta HubSpot desde integraciones o registra tus ventas manualmente.
           </p>
           <div className="mt-4 flex gap-3">
-            <a href="/dashboard/integrations" className="rounded-lg border border-border bg-secondary/50 px-4 py-2 text-sm font-medium hover:bg-secondary">
+            <a href="/dashboard/integrations" className="rounded-lg border border-border bg-secondary/50 px-3 py-2 sm:px-4 text-sm font-medium hover:bg-secondary">
               Conectar HubSpot
             </a>
-            <button onClick={() => setShowForm(true)} className="rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90">
+            <button onClick={() => setShowForm(true)} className="rounded-lg gradient-bg px-3 py-2 sm:px-4 text-sm font-medium text-white hover:opacity-90">
               Entrada Manual
             </button>
           </div>
         </div>
       ) : (
         <>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
             <MetricCard title="Ventas del Mes" value={ventas} icon={TrendingUp} format="currency" />
             <MetricCard title="Deals Cerrados" value={deals} icon={Target} format="number" />
             <MetricCard title="Nuevos Leads" value={leads} icon={Users} format="number" />

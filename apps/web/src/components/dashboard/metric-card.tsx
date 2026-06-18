@@ -20,19 +20,19 @@ export function MetricCard({ title, value, change, icon: Icon, format }: MetricC
         : String(value);
 
   return (
-    <div className="rounded-xl border border-border bg-card p-6 transition-all hover:shadow-md">
+    <div className="rounded-xl border border-border bg-card p-4 transition-all hover:shadow-md sm:p-5">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-muted-foreground">{title}</p>
-        <div className="rounded-lg bg-primary/8 p-2">
-          <Icon className="h-4 w-4 text-primary" />
+        <p className="text-xs font-medium text-muted-foreground sm:text-sm">{title}</p>
+        <div className="rounded-lg bg-primary/8 p-1.5 sm:p-2">
+          <Icon className="h-3.5 w-3.5 text-primary sm:h-4 sm:w-4" />
         </div>
       </div>
-      <div className="mt-3">
-        <p className="text-2xl font-bold tracking-tight text-foreground">{formattedValue}</p>
+      <div className="mt-2 sm:mt-3">
+        <p className="text-lg font-bold tracking-tight text-foreground sm:text-2xl">{formattedValue}</p>
         {change !== undefined && (
           <p
             className={cn(
-              "mt-1.5 text-xs font-medium",
+              "mt-1 text-[11px] font-medium sm:mt-1.5 sm:text-xs",
               change >= 0 ? "text-emerald-600" : "text-red-500"
             )}
           >
