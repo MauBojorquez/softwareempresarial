@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { TrendingUp, Target, Users, ShoppingCart, Plus, Loader2, LinkIcon, Trash2, X, Download, Upload } from "lucide-react";
+import { TrendingUp, Target, Users, ShoppingCart, Plus, Loader2, LinkIcon, Trash2, X, Download, Upload, Search } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { DashboardSkeleton } from "@/components/dashboard/skeleton";
 import { cn } from "@/lib/utils";
@@ -24,6 +24,7 @@ export default function SalesPage() {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [search, setSearch] = useState("");
   const [form, setForm] = useState({ name: "Ventas del Mes", value: "", period: new Date().toISOString().split("T")[0] });
 
   const load = () => {
@@ -220,8 +221,18 @@ export default function SalesPage() {
           </div>
 
           <div className="rounded-xl border border-border bg-card">
-            <div className="border-b border-border p-4">
+            <div className="flex items-center justify-between border-b border-border p-4">
               <h3 className="font-semibold">Registros Recientes</h3>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Buscar..."
+                  className="w-32 sm:w-48 rounded-lg border border-border bg-background pl-8 pr-3 py-1.5 text-xs"
+                />
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -234,7 +245,10 @@ export default function SalesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {metrics.map((m) => (
+                  {metrics.filter((m) => !search || m.name.toLowerCase().includes(search.toLowerCase())).length === 0 && (
+                    <tr><td colSpan={4} className="p-6 text-center text-sm text-muted-foreground">Sin resultados</td></tr>
+                  )}
+                  {metrics.filter((m) => !search || m.name.toLowerCase().includes(search.toLowerCase())).map((m) => (
                     <tr key={m.id} className="border-b border-border last:border-0 hover:bg-secondary/30">
                       <td className="p-3 font-medium">{m.name}</td>
                       <td className="p-3 text-right font-semibold">

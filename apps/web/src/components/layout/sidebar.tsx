@@ -47,7 +47,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
           </button>
         </div>
 
-        <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
+        <nav aria-label="Navegación principal" className="flex-1 space-y-0.5 overflow-y-auto p-3">
           {navigation.map((item) => {
             const isActive = pathname.startsWith(item.href);
             return (
@@ -55,6 +55,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
                 key={item.href}
                 href={item.href}
                 onClick={onClose}
+                aria-current={isActive ? "page" : undefined}
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
                   isActive

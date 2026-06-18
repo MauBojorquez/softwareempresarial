@@ -82,6 +82,7 @@ export function NotificationBell() {
     <div className="relative">
       <button
         onClick={() => { setOpen(!open); if (!open) markAllRead(); }}
+        aria-label="Notificaciones"
         className="relative rounded-lg border border-border bg-card p-2 text-muted-foreground transition-colors hover:text-foreground hover:bg-secondary"
       >
         <Bell className="h-4 w-4" />
