@@ -6,6 +6,7 @@ export async function GET(req: NextRequest) {
   const orgId = await getOrganizationId(req);
   if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  try {
   const metrics = await db.metric.findMany({
     where: { organizationId: orgId },
     orderBy: { period: "desc" },
@@ -134,4 +135,7 @@ export async function GET(req: NextRequest) {
     metaSummary,
     metaConnected: !!metaIntegration,
   });
+  } catch {
+    return NextResponse.json({ error: "Error loading dashboard" }, { status: 500 });
+  }
 }

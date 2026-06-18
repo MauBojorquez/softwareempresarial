@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Sparkles, FileText, Calendar, Loader2, ChevronRight, LinkIcon, Download } from "lucide-react";
+import { useToast } from "@/components/toast";
 
 type Report = {
   id: string;
@@ -15,6 +16,7 @@ type Report = {
 };
 
 export default function ReportsPage() {
+  const { toast } = useToast();
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -35,12 +37,12 @@ export default function ReportsPage() {
       const res = await fetch("/api/reports/generate", { method: "POST" });
       const data = await res.json();
       if (!res.ok || data.error) {
-        alert(data.error || "Error al generar reporte");
+        toast(data.error || "Error al generar reporte", "error");
       } else {
         load();
       }
     } catch {
-      alert("Error al generar reporte");
+      toast("Error al generar reporte", "error");
     }
     setGenerating(false);
   };

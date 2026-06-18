@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { TrendingUp, Target, Users, ShoppingCart, Plus, Loader2, LinkIcon, Trash2, X, Download, Upload } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/components/toast";
 
 type MetricEntry = { id: string; name: string; value: number; unit: string | null; period: string };
 
@@ -16,6 +17,7 @@ const METRIC_TEMPLATES = [
 ];
 
 export default function SalesPage() {
+  const { toast } = useToast();
   const [metrics, setMetrics] = useState<MetricEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -42,7 +44,9 @@ export default function SalesPage() {
     const res = await fetch("/api/metrics/import", { method: "POST", body: fd });
     const data = await res.json();
     if (data.errors?.length > 0) {
-      alert(`Importados: ${data.imported}/${data.total}\nErrores:\n${data.errors.join("\n")}`);
+      toast(`Importados: ${data.imported}/${data.total}. ${data.errors.length} errores.`, "error");
+    } else {
+      toast(`${data.imported} registros importados correctamente`, "success");
     }
     setImporting(false);
     load();

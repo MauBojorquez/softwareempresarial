@@ -11,6 +11,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  try {
   const membership = await db.membership.findFirst({
     where: { userId: session.user.id },
     include: { organization: { include: { subscription: true } } },
@@ -50,4 +51,7 @@ export async function GET() {
       aiReportsThisMonth: reportCount,
     },
   });
+  } catch {
+    return NextResponse.json({ error: "Error loading billing plan" }, { status: 500 });
+  }
 }

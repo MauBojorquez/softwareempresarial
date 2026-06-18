@@ -42,7 +42,7 @@ export default function OverviewPage() {
     try {
       const res = await fetch("/api/metrics/dashboard");
       if (res.ok) setData(await res.json());
-    } catch {}
+    } catch (e) { console.error(e); }
     setLoading(false);
   };
 

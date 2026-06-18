@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { CreditCard, Check, Sparkles, ArrowRight, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/components/toast";
 
 const plans = [
   {
@@ -29,6 +30,7 @@ const plans = [
 ];
 
 export default function BillingPage() {
+  const { toast } = useToast();
   const [currentPlan, setCurrentPlan] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
@@ -57,9 +59,9 @@ export default function BillingPage() {
       });
       const data = await res.json();
       if (data.url) window.location.href = data.url;
-      else alert(data.error || "Error al crear sesión de pago");
+      else toast(data.error || "Error al crear sesión de pago", "error");
     } catch {
-      alert("Error de conexión");
+      toast("Error de conexión", "error");
     } finally {
       setCheckoutLoading(null);
     }
@@ -71,9 +73,9 @@ export default function BillingPage() {
       const res = await fetch("/api/billing/portal", { method: "POST" });
       const data = await res.json();
       if (data.url) window.location.href = data.url;
-      else alert(data.error || "Error al abrir portal");
+      else toast(data.error || "Error al abrir portal", "error");
     } catch {
-      alert("Error de conexión");
+      toast("Error de conexión", "error");
     } finally {
       setPortalLoading(false);
     }
