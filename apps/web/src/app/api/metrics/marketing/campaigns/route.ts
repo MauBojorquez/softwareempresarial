@@ -14,10 +14,16 @@ async function fetchWithTimeout(url: string, ms = 10000): Promise<Response> {
 }
 
 // Action types grouped by what Meta counts as a "Result" per objective.
-const PURCHASE = ["offsite_conversion.fb_pixel_purchase", "omni_purchase", "purchase"];
-const LEAD = ["offsite_conversion.fb_pixel_lead", "leadgen.other", "onsite_conversion.lead_grouped", "lead"];
+const PURCHASE = ["offsite_conversion.fb_pixel_purchase", "omni_purchase", "purchase", "omni_purchase_value"];
+const LEAD = ["offsite_conversion.fb_pixel_lead", "leadgen.other", "onsite_conversion.lead_grouped", "lead", "contact", "submit_application"];
 const REGISTRATION = ["offsite_conversion.fb_pixel_complete_registration", "complete_registration"];
-const MESSAGING = ["onsite_conversion.messaging_conversation_started_7d", "onsite_conversion.total_messaging_connection"];
+// Meta uses both prefixed and non-prefixed forms depending on account/campaign type
+const MESSAGING = [
+  "onsite_conversion.messaging_conversation_started_7d",
+  "messaging_conversation_started_7d",
+  "onsite_conversion.total_messaging_connection",
+  "onsite_conversion.messaging_first_reply",
+];
 const LINK = ["link_click"];
 const LANDING = ["landing_page_view"];
 const ENGAGEMENT = ["post_engagement", "page_engagement"];
@@ -55,12 +61,15 @@ function extractResults(objective: string, actions: any[]): { value: number; typ
   if (!Array.isArray(actions) || actions.length === 0) return { value: 0, type: null };
   const valueOf = (type: string): number | null => {
     const a = actions.find((x) => x.action_type === type);
-    return a ? parseInt(a.value || "0") : null;
+    if (!a) return null;
+    const n = parseFloat(a.value || "0");
+    return n; // can be 0 — caller decides whether to skip
   };
+  // Returns the first action type with value > 0, skipping types that exist but are zero.
   const firstOf = (types: string[]): { value: number; type: string } | null => {
     for (const t of types) {
       const v = valueOf(t);
-      if (v !== null) return { value: v, type: t };
+      if (v !== null && v > 0) return { value: Math.round(v), type: t };
     }
     return null;
   };
@@ -164,7 +173,7 @@ export async function GET(req: NextRequest) {
         const res = await fetchWithTimeout(
           `https://graph.facebook.com/v21.0/${account.id}/campaigns?` +
           `fields=id,name,status,effective_status,objective,` +
-          `insights.time_range({"since":"${sinceCurrent}","until":"${untilCurrent}"}){spend,impressions,clicks,ctr,cpc,reach,actions}` +
+          `insights.time_range({"since":"${sinceCurrent}","until":"${untilCurrent}"}){spend,impressions,clicks,ctr,cpc,reach,actions,action_values}` +
           `&limit=100&access_token=${accessToken}`
         );
         if (!res.ok) return [];
@@ -172,7 +181,12 @@ export async function GET(req: NextRequest) {
         if (data.error) return [];
         return (data.data || []).map((c: any) => {
           const insights = c.insights?.data?.[0] || {};
-          const { value: results, type: resultType } = extractResults(c.objective || "", insights.actions || []);
+          // Also check action_values for purchase-value objectives, but use actions count for results
+          const allActions: any[] = [
+            ...(insights.actions || []),
+            ...(insights.action_values || []),
+          ].filter((a, i, arr) => arr.findIndex((b) => b.action_type === a.action_type) === i);
+          const { value: results, type: resultType } = extractResults(c.objective || "", allActions);
           const spend = parseFloat(insights.spend || "0");
           return {
             id: c.id,
