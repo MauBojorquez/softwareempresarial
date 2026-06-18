@@ -67,9 +67,9 @@ export default function PricingPage() {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 pt-32 pb-16">
+      <main className="container mx-auto px-4 pt-24 sm:pt-32 pb-16">
         <div className="text-center">
-          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight md:text-5xl">
             Planes y <span className="gradient-text">Precios</span>
           </h1>
           <p className="mt-4 text-lg text-muted-foreground">
@@ -98,12 +98,12 @@ export default function PricingPage() {
           </div>
         </div>
 
-        <div className="mt-12 grid gap-6 md:grid-cols-3">
+        <div className="mt-12 grid gap-6 grid-cols-1 sm:grid-cols-3">
           {plans.map((plan) => (
             <div
               key={plan.name}
               className={cn(
-                "relative rounded-2xl border bg-card p-8 transition-all",
+                "relative rounded-2xl border bg-card p-5 sm:p-8 transition-all",
                 plan.popular
                   ? "border-primary/30 glow"
                   : "border-border hover:border-border"
@@ -120,7 +120,7 @@ export default function PricingPage() {
               <h3 className="text-xl font-bold">{plan.name}</h3>
               <p className="mt-1 text-sm text-muted-foreground">{plan.description}</p>
               <div className="mt-6">
-                <span className="text-4xl font-bold">
+                <span className="text-3xl sm:text-4xl font-bold">
                   ${(annual ? plan.annualPrice / 12 : plan.monthlyPrice).toLocaleString("es-MX")}
                 </span>
                 <span className="text-muted-foreground"> MXN/mes</span>
@@ -153,6 +153,23 @@ export default function PricingPage() {
               </ul>
             </div>
           ))}
+        </div>
+
+        <div className="mx-auto mt-20 max-w-2xl">
+          <h2 className="text-center text-2xl font-bold">Preguntas Frecuentes</h2>
+          <div className="mt-8 space-y-3">
+            {[
+              { q: "¿Puedo cancelar en cualquier momento?", a: "Sí, puedes cancelar tu suscripción cuando quieras. No hay contratos ni penalizaciones." },
+              { q: "¿Qué pasa después de los 14 días?", a: "Al terminar tu prueba gratuita, podrás elegir un plan. Si no eliges uno, tu cuenta se pausará hasta que actives una suscripción." },
+              { q: "¿Mis datos están seguros?", a: "Absolutamente. Usamos encriptación de grado bancario y nunca compartimos tus datos con terceros." },
+              { q: "¿Necesito tarjeta de crédito?", a: "No. Puedes iniciar tu prueba gratuita de 14 días sin ingresar ningún método de pago." },
+            ].map((faq) => (
+              <details key={faq.q} className="group rounded-xl border border-border p-4">
+                <summary className="cursor-pointer text-sm font-medium text-foreground">{faq.q}</summary>
+                <p className="mt-2 text-sm text-muted-foreground">{faq.a}</p>
+              </details>
+            ))}
+          </div>
         </div>
       </main>
     </div>

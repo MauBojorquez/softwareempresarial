@@ -88,15 +88,15 @@ export default function BillingPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Suscripción</h1>
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Suscripción</h1>
         <p className="text-sm text-muted-foreground">Gestiona tu plan y facturación</p>
       </div>
 
       {currentPlan && (
-        <div className="rounded-xl border border-primary/15 bg-card p-6 glow-sm">
-          <div className="flex items-center justify-between">
+        <div className="rounded-xl border border-primary/15 bg-card p-4 sm:p-6 glow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-lg font-semibold">Plan {currentPlan}</h3>
@@ -107,7 +107,7 @@ export default function BillingPage() {
             <button
               onClick={handlePortal}
               disabled={portalLoading}
-              className="flex items-center gap-2 rounded-lg border border-border bg-secondary/50 px-4 py-2 text-sm font-medium transition-colors hover:bg-secondary disabled:opacity-50"
+              className="flex w-full sm:w-auto items-center justify-center gap-2 rounded-lg border border-border bg-secondary/50 px-3 py-2 sm:px-4 text-sm font-medium transition-colors hover:bg-secondary disabled:opacity-50"
             >
               {portalLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
               Gestionar Facturación
@@ -152,7 +152,7 @@ export default function BillingPage() {
           </div>
         </div>
 
-        <div className="mt-4 grid gap-4 md:grid-cols-3">
+        <div className="mt-4 grid gap-4 grid-cols-1 sm:grid-cols-3">
           {plans.map((plan) => {
             const isCurrent = currentPlan === plan.key || currentPlan === plan.name;
             const price = interval === "MONTHLY" ? plan.price : plan.annualPrice;
@@ -162,7 +162,7 @@ export default function BillingPage() {
               <div
                 key={plan.key}
                 className={cn(
-                  "rounded-xl border p-6 transition-all",
+                  "rounded-xl border p-4 sm:p-6 transition-all",
                   isCurrent ? "border-primary/30 bg-primary/5" : "border-border bg-card hover:border-border"
                 )}
               >
@@ -205,7 +205,7 @@ export default function BillingPage() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-border bg-card p-6">
+      <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-amber-600" />
           <h3 className="font-semibold">Gestionar método de pago y facturas</h3>
