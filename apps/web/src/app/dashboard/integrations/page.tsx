@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plug, CheckCircle, ExternalLink, RefreshCw, AlertCircle, Loader2 } from "lucide-react";
+import { CheckCircle, RefreshCw, AlertCircle, Loader2 } from "lucide-react";
 
 type IntegrationStatus = {
   type: string;
@@ -19,6 +19,7 @@ const integrationConfig = [
     category: "ERP / Contabilidad",
     metrics: ["Ingresos", "Gastos", "Utilidad Neta", "Flujo de Caja", "Cuentas por Cobrar"],
     color: "from-green-500 to-emerald-600",
+    logo: "QB",
     connectUrl: "/api/integrations/quickbooks",
   },
   {
@@ -28,6 +29,7 @@ const integrationConfig = [
     category: "CRM",
     metrics: ["Pipeline", "Deals", "Conversión", "Leads", "Revenue"],
     color: "from-orange-500 to-red-500",
+    logo: "HS",
     connectUrl: "/api/integrations/hubspot",
   },
   {
@@ -37,6 +39,7 @@ const integrationConfig = [
     category: "Publicidad Digital",
     metrics: ["Gasto", "ROAS", "Conversiones", "CTR", "CPC", "Alcance", "Impresiones"],
     color: "from-blue-500 to-indigo-600",
+    logo: "M",
     connectUrl: "/api/integrations/meta",
   },
   {
@@ -46,6 +49,7 @@ const integrationConfig = [
     category: "Marketing",
     metrics: ["Tráfico Web", "Bounce Rate", "Conversiones", "Sesiones"],
     color: "from-yellow-500 to-amber-500",
+    logo: "GA",
     connectUrl: null,
   },
   {
@@ -55,6 +59,7 @@ const integrationConfig = [
     category: "Comunicación",
     metrics: ["Notificaciones", "Alertas", "Reportes"],
     color: "from-purple-500 to-violet-600",
+    logo: "S",
     connectUrl: null,
   },
 ];
@@ -135,8 +140,8 @@ export default function IntegrationsPage() {
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
-                  <div className={`h-10 w-10 rounded-xl bg-gradient-to-br ${integration.color} flex items-center justify-center`}>
-                    <Plug className="h-5 w-5 text-white" />
+                  <div className={`h-10 w-10 rounded-xl bg-gradient-to-br ${integration.color} flex items-center justify-center text-white text-xs font-bold`}>
+                    {integration.logo}
                   </div>
                   <div>
                     <h3 className="font-semibold">{integration.name}</h3>
@@ -221,10 +226,10 @@ export default function IntegrationsPage() {
         <p className="mt-1 text-sm text-muted-foreground">
           Conecta cualquier sistema vía REST API para enviar métricas personalizadas.
         </p>
-        <div className="mt-4 rounded-lg border border-border bg-black/30 p-4 font-mono text-xs text-muted-foreground">
-          <p className="text-primary">POST /api/v1/metrics</p>
-          <p className="mt-1">Authorization: Bearer {"<"}api_key{">"}</p>
-          <p className="mt-2 text-emerald-600">{"{}"}</p>
+        <div className="mt-4 rounded-lg border border-border bg-slate-900 p-4 font-mono text-xs text-slate-300">
+          <p className="text-blue-400">POST /api/v1/metrics</p>
+          <p className="mt-1 text-slate-400">Authorization: Bearer {"<"}api_key{">"}</p>
+          <p className="mt-2 text-emerald-400">{"{}"}</p>
         </div>
         <p className="mt-3 text-xs text-muted-foreground">Disponible en planes Professional y Enterprise</p>
       </div>

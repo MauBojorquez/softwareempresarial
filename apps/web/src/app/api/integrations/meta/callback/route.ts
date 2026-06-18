@@ -11,9 +11,15 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const code = searchParams.get("code");
+  const state = searchParams.get("state");
+  const storedState = req.cookies.get("meta_oauth_state")?.value;
 
   if (!code) {
     return NextResponse.redirect(new URL("/dashboard/integrations?error=missing_code", req.url));
+  }
+
+  if (!state || state !== storedState) {
+    return NextResponse.redirect(new URL("/dashboard/integrations?error=invalid_state", req.url));
   }
 
   try {

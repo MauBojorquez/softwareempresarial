@@ -11,10 +11,11 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = req.nextUrl;
   const category = searchParams.get("category");
-  const months = parseInt(searchParams.get("months") || "1", 10);
+  const months = Math.min(Math.max(parseInt(searchParams.get("months") || "1", 10), 1), 24);
 
-  if (!category) {
-    return NextResponse.json({ error: "category is required" }, { status: 400 });
+  const validCategories = ["FINANCE", "SALES", "OPERATIONS", "HR", "MARKETING"];
+  if (!category || !validCategories.includes(category)) {
+    return NextResponse.json({ error: "Valid category is required" }, { status: 400 });
   }
 
   const since = new Date();
@@ -41,15 +42,25 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { category, name, value, unit, period } = body;
 
-  if (!category || !name || value === undefined) {
-    return NextResponse.json({ error: "category, name, and value are required" }, { status: 400 });
+  const validCategories = ["FINANCE", "SALES", "OPERATIONS", "HR", "MARKETING"];
+  if (!category || !validCategories.includes(category) || !name || value === undefined) {
+    return NextResponse.json({ error: "Valid category, name, and value are required" }, { status: 400 });
+  }
+
+  if (typeof name !== "string" || name.length > 100) {
+    return NextResponse.json({ error: "Invalid name" }, { status: 400 });
+  }
+
+  const numValue = parseFloat(value);
+  if (isNaN(numValue) || !isFinite(numValue)) {
+    return NextResponse.json({ error: "Invalid value" }, { status: 400 });
   }
 
   const metric = await db.metric.create({
     data: {
       category,
       name,
-      value,
+      value: numValue,
       unit: unit || null,
       period: period ? new Date(period) : new Date(),
       source: null,
