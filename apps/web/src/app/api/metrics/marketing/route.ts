@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
   const untilPrev = lastDayOfLastMonth.toISOString().split("T")[0];
 
   try {
-    const fields = "spend,impressions,clicks,ctr,cpc,cpm,reach,actions";
+    const fields = "spend,impressions,clicks,ctr,cpc,cpm,reach";
 
     const [currentRes, previousRes] = await Promise.all([
       fetchWithTimeout(
@@ -75,10 +75,6 @@ export async function GET(req: NextRequest) {
 
     const parse = (d: any) => {
       if (!d) return emptyMetrics();
-      const conversionTypes = new Set(["purchase", "lead", "complete_registration", "offsite_conversion.fb_pixel_purchase", "offsite_conversion.fb_pixel_lead"]);
-      const conversions = Array.isArray(d.actions)
-        ? d.actions.filter((a: any) => conversionTypes.has(a.action_type)).reduce((s: number, a: any) => s + parseInt(a.value || "0"), 0)
-        : 0;
       return {
         spend: parseFloat(d.spend || "0"),
         impressions: parseInt(d.impressions || "0"),
@@ -87,7 +83,6 @@ export async function GET(req: NextRequest) {
         cpc: parseFloat(d.cpc || "0"),
         cpm: parseFloat(d.cpm || "0"),
         reach: parseInt(d.reach || "0"),
-        conversions,
         roas: 0,
       };
     };
@@ -114,5 +109,5 @@ export async function GET(req: NextRequest) {
 }
 
 function emptyMetrics() {
-  return { spend: 0, impressions: 0, clicks: 0, ctr: 0, cpc: 0, cpm: 0, reach: 0, conversions: 0, roas: 0 };
+  return { spend: 0, impressions: 0, clicks: 0, ctr: 0, cpc: 0, cpm: 0, reach: 0, roas: 0 };
 }

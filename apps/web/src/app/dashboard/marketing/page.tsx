@@ -78,6 +78,7 @@ export default function MarketingPage() {
   const monthlyData = campaigns?.monthly || [];
   const maxSpend = Math.max(...monthlyData.map((m: any) => n(m.spend)), 1);
   const fetchError = campaigns?.error;
+  const totalResults = campaignList.reduce((sum: number, c: any) => sum + n(c.results), 0);
 
   const statusLabel = (s: string) => {
     if (s === "ACTIVE") return { text: "Activa", cls: "text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10" };
@@ -177,7 +178,7 @@ export default function MarketingPage() {
                 { icon: Eye, color: "text-blue-600", label: "Impresiones", value: fmt(current.impressions) },
                 { icon: Megaphone, color: "text-purple-600", label: "Alcance", value: fmt(current.reach) },
                 { icon: MousePointerClick, color: "text-emerald-600", label: "Clics", value: fmt(current.clicks) },
-                { icon: Target, color: "text-amber-600", label: "Conversiones", value: fmt(current.conversions) },
+                { icon: Target, color: "text-amber-600", label: "Resultados", value: fmt(totalResults) },
               ].map((item, i, arr) => (
                 <div key={item.label} className={cn("flex items-center justify-between", i < arr.length - 1 && "border-b border-border pb-3")}>
                   <div className="flex items-center gap-2 sm:gap-3">
@@ -229,6 +230,7 @@ export default function MarketingPage() {
                     <tr className="border-b border-border text-left text-xs text-muted-foreground">
                       <th scope="col" className="p-3 font-medium">Campaña</th>
                       <th scope="col" className="p-3 font-medium">Estado</th>
+                      <th scope="col" className="p-3 font-medium text-right">Resultados</th>
                       <th scope="col" className="p-3 font-medium text-right">Gasto</th>
                       <th scope="col" className="p-3 font-medium text-right">Clics</th>
                       <th scope="col" className="p-3 font-medium text-right">CTR</th>
@@ -246,6 +248,7 @@ export default function MarketingPage() {
                           <td className="p-3">
                             <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", st.cls)}>{st.text}</span>
                           </td>
+                          <td className="p-3 text-right font-semibold">{n(c.results) > 0 ? fmt(c.results) : "—"}</td>
                           <td className="p-3 text-right font-medium">{fmtMoney(c.spend)}</td>
                           <td className="p-3 text-right">{fmt(c.clicks)}</td>
                           <td className="p-3 text-right">{n(c.ctr).toFixed(2)}%</td>
@@ -265,7 +268,8 @@ export default function MarketingPage() {
                         <p className="text-sm font-medium truncate flex-1 mr-2">{c.name}</p>
                         <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold shrink-0", st.cls)}>{st.text}</span>
                       </div>
-                      <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground">
+                      <div className="grid grid-cols-4 gap-2 text-xs text-muted-foreground">
+                        <div><span className="block font-medium text-foreground">{n(c.results) > 0 ? fmt(c.results) : "—"}</span>Resultados</div>
                         <div><span className="block font-medium text-foreground">{fmtMoney(c.spend)}</span>Gasto</div>
                         <div><span className="block font-medium text-foreground">{fmt(c.clicks)}</span>Clics</div>
                         <div><span className="block font-medium text-foreground">{n(c.ctr).toFixed(2)}%</span>CTR</div>
