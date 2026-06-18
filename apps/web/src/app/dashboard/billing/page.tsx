@@ -95,7 +95,7 @@ export default function BillingPage() {
       </div>
 
       {currentPlan && (
-        <div className="rounded-xl border border-primary/20 bg-card p-6 glow-sm">
+        <div className="rounded-xl border border-primary/15 bg-card p-6 glow-sm">
           <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center gap-2">
@@ -107,7 +107,7 @@ export default function BillingPage() {
             <button
               onClick={handlePortal}
               disabled={portalLoading}
-              className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium transition-colors hover:bg-white/10 disabled:opacity-50"
+              className="flex items-center gap-2 rounded-lg border border-border bg-secondary/50 px-4 py-2 text-sm font-medium transition-colors hover:bg-secondary disabled:opacity-50"
             >
               {portalLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
               Gestionar Facturación
@@ -116,15 +116,15 @@ export default function BillingPage() {
 
           {usage && (
             <div className="mt-6 grid gap-4 sm:grid-cols-3">
-              <div className="rounded-lg bg-white/5 p-3">
+              <div className="rounded-lg bg-secondary/50 p-3">
                 <p className="text-xs text-muted-foreground">Integraciones</p>
                 <p className="mt-1 text-sm font-semibold">{usage.integrations} activas</p>
               </div>
-              <div className="rounded-lg bg-white/5 p-3">
+              <div className="rounded-lg bg-secondary/50 p-3">
                 <p className="text-xs text-muted-foreground">Usuarios</p>
                 <p className="mt-1 text-sm font-semibold">{usage.users} activos</p>
               </div>
-              <div className="rounded-lg bg-white/5 p-3">
+              <div className="rounded-lg bg-secondary/50 p-3">
                 <p className="text-xs text-muted-foreground">Reportes IA este mes</p>
                 <p className="mt-1 text-sm font-semibold">{usage.aiReports} generados</p>
               </div>
@@ -136,7 +136,7 @@ export default function BillingPage() {
       <div>
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold">{currentPlan ? "Cambiar Plan" : "Selecciona un Plan"}</h3>
-          <div className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 p-1">
+          <div className="flex items-center gap-1 rounded-lg border border-border bg-secondary/50 p-1">
             <button
               onClick={() => setInterval("MONTHLY")}
               className={cn("rounded-md px-3 py-1 text-xs font-medium transition-colors", interval === "MONTHLY" ? "bg-primary text-white" : "text-muted-foreground hover:text-foreground")}
@@ -147,7 +147,7 @@ export default function BillingPage() {
               onClick={() => setInterval("ANNUAL")}
               className={cn("rounded-md px-3 py-1 text-xs font-medium transition-colors", interval === "ANNUAL" ? "bg-primary text-white" : "text-muted-foreground hover:text-foreground")}
             >
-              Anual <span className="text-emerald-400">-17%</span>
+              Anual <span className="text-emerald-600">-17%</span>
             </button>
           </div>
         </div>
@@ -163,7 +163,7 @@ export default function BillingPage() {
                 key={plan.key}
                 className={cn(
                   "rounded-xl border p-6 transition-all",
-                  isCurrent ? "border-primary/30 bg-primary/5" : "border-white/5 bg-card hover:border-white/10"
+                  isCurrent ? "border-primary/30 bg-primary/5" : "border-border bg-card hover:border-border"
                 )}
               >
                 <h4 className="font-semibold">{plan.name}</h4>
@@ -180,7 +180,7 @@ export default function BillingPage() {
                   ))}
                 </ul>
                 {isCurrent ? (
-                  <div className="mt-4 rounded-lg border border-primary/20 py-2 text-center text-sm font-medium text-primary">
+                  <div className="mt-4 rounded-lg border border-primary/15 py-2 text-center text-sm font-medium text-primary">
                     Plan Actual
                   </div>
                 ) : (
@@ -205,9 +205,9 @@ export default function BillingPage() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-white/5 bg-card p-6">
+      <div className="rounded-xl border border-border bg-card p-6">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-amber-400" />
+          <Sparkles className="h-4 w-4 text-amber-600" />
           <h3 className="font-semibold">Gestionar método de pago y facturas</h3>
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -216,7 +216,7 @@ export default function BillingPage() {
         <button
           onClick={handlePortal}
           disabled={portalLoading}
-          className="mt-3 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium transition-colors hover:bg-white/10 disabled:opacity-50"
+          className="mt-3 rounded-lg border border-border bg-secondary/50 px-4 py-2 text-sm font-medium transition-colors hover:bg-secondary disabled:opacity-50"
         >
           {portalLoading ? "Abriendo..." : "Abrir Portal de Facturación"}
         </button>

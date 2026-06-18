@@ -20,32 +20,33 @@ const demoData = [
 
 export function SalesPipelineChart() {
   return (
-    <div className="rounded-xl border border-white/5 bg-card p-6">
-      <h3 className="text-lg font-semibold">Pipeline de Ventas</h3>
+    <div className="rounded-xl border border-border bg-card p-6">
+      <h3 className="text-lg font-semibold text-foreground">Pipeline de Ventas</h3>
       <p className="text-sm text-muted-foreground">Deals por etapa</p>
       <div className="mt-4 h-[300px]">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={demoData} layout="vertical">
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
             <XAxis
               type="number"
               tickFormatter={(v) => `$${(v / 1000000).toFixed(1)}M`}
-              stroke="rgba(255,255,255,0.3)"
+              stroke="rgba(0,0,0,0.3)"
               fontSize={12}
             />
             <YAxis
               type="category"
               dataKey="stage"
               width={90}
-              stroke="rgba(255,255,255,0.3)"
+              stroke="rgba(0,0,0,0.3)"
               fontSize={12}
             />
             <Tooltip
               contentStyle={{
-                backgroundColor: "hsl(225, 20%, 8%)",
-                border: "1px solid rgba(255,255,255,0.1)",
+                backgroundColor: "#fff",
+                border: "1px solid rgba(0,0,0,0.1)",
                 borderRadius: "8px",
-                color: "#fff",
+                color: "#1a1a2e",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
               }}
               formatter={(value: number) =>
                 new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(value)
@@ -53,16 +54,10 @@ export function SalesPipelineChart() {
             />
             <Bar
               dataKey="value"
-              fill="url(#barGradient)"
+              fill="#2563a8"
               radius={[0, 6, 6, 0]}
               name="Valor"
             />
-            <defs>
-              <linearGradient id="barGradient" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="#3b82f6" />
-                <stop offset="100%" stopColor="#8b5cf6" />
-              </linearGradient>
-            </defs>
           </BarChart>
         </ResponsiveContainer>
       </div>

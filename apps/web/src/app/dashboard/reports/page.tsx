@@ -59,7 +59,7 @@ export default function ReportsPage() {
       </div>
 
       {generating && (
-        <div className="rounded-xl border border-primary/20 bg-primary/5 p-6">
+        <div className="rounded-xl border border-primary/15 bg-primary/5 p-6">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl gradient-bg flex items-center justify-center">
               <Sparkles className="h-5 w-5 text-white animate-pulse" />
@@ -69,13 +69,13 @@ export default function ReportsPage() {
               <p className="text-sm text-muted-foreground">Analizando métricas de finanzas, ventas, operaciones, RRHH y marketing</p>
             </div>
           </div>
-          <div className="mt-4 h-2 rounded-full bg-white/5">
+          <div className="mt-4 h-2 rounded-full bg-secondary/50">
             <div className="h-2 rounded-full gradient-bg animate-pulse" style={{ width: "60%" }} />
           </div>
         </div>
       )}
 
-      <div className="rounded-xl border border-white/5 bg-card p-6">
+      <div className="rounded-xl border border-border bg-card p-6">
         <div className="flex items-center gap-2 text-lg font-semibold">
           <FileText className="h-5 w-5 text-primary" />
           Último Reporte - Junio 2024
@@ -83,7 +83,7 @@ export default function ReportsPage() {
         <p className="mt-1 text-xs text-muted-foreground">Generado el 1 de julio, 2024</p>
 
         <div className="mt-6 space-y-4">
-          <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
+          <div className="rounded-lg border border-primary/15 bg-primary/5 p-4">
             <p className="text-sm font-medium text-primary">Resumen Ejecutivo</p>
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
               Los ingresos alcanzaron $620,000 MXN (+10.7% vs mayo), impulsados por el cierre de 3 deals enterprise
@@ -94,15 +94,15 @@ export default function ReportsPage() {
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4">
-              <p className="text-sm font-medium text-emerald-400">Fortalezas</p>
+              <p className="text-sm font-medium text-emerald-600">Fortalezas</p>
               <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
                 <li>- Crecimiento sostenido de ingresos por 4to mes</li>
                 <li>- Margen neto en máximo histórico</li>
                 <li>- Rotación de personal controlada (2.1%)</li>
               </ul>
             </div>
-            <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4">
-              <p className="text-sm font-medium text-amber-400">Áreas de Mejora</p>
+            <div className="rounded-lg border border-amber-500/20 bg-amber-50 p-4">
+              <p className="text-sm font-medium text-amber-600">Áreas de Mejora</p>
               <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
                 <li>- Tasa de conversión en descenso</li>
                 <li>- CAC de Google Ads subiendo</li>
@@ -111,7 +111,7 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          <div className="rounded-lg border border-white/5 bg-white/5 p-4">
+          <div className="rounded-lg border border-border bg-secondary/50 p-4">
             <p className="text-sm font-medium">Recomendaciones</p>
             <div className="mt-3 space-y-2">
               {[
@@ -122,9 +122,9 @@ export default function ReportsPage() {
               ].map((rec, i) => (
                 <div key={i} className="flex items-start gap-3">
                   <span className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${
-                    rec.priority === "Alta" ? "bg-red-500/10 text-red-400" :
-                    rec.priority === "Media" ? "bg-amber-500/10 text-amber-400" :
-                    "bg-blue-500/10 text-blue-400"
+                    rec.priority === "Alta" ? "bg-red-50 text-red-500" :
+                    rec.priority === "Media" ? "bg-amber-500/10 text-amber-600" :
+                    "bg-blue-500/10 text-blue-600"
                   }`}>
                     {rec.priority}
                   </span>
@@ -136,7 +136,7 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-white/5 bg-card p-6">
+      <div className="rounded-xl border border-border bg-card p-6">
         <h3 className="flex items-center gap-2 text-lg font-semibold">
           <Calendar className="h-5 w-5 text-muted-foreground" />
           Reportes Anteriores
@@ -146,7 +146,7 @@ export default function ReportsPage() {
             <button
               key={report.id}
               onClick={() => setExpandedReport(expandedReport === report.id ? null : report.id)}
-              className="w-full rounded-lg border border-white/5 bg-white/[0.02] p-4 text-left transition-colors hover:bg-white/5"
+              className="w-full rounded-lg border border-border bg-white/[0.02] p-4 text-left transition-colors hover:bg-secondary/50"
             >
               <div className="flex items-center justify-between">
                 <div>
@@ -156,7 +156,7 @@ export default function ReportsPage() {
                 <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${expandedReport === report.id ? "rotate-90" : ""}`} />
               </div>
               {expandedReport === report.id && (
-                <p className="mt-3 text-sm text-muted-foreground border-t border-white/5 pt-3">
+                <p className="mt-3 text-sm text-muted-foreground border-t border-border pt-3">
                   {report.summary}
                 </p>
               )}

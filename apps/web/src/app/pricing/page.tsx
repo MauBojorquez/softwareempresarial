@@ -55,7 +55,7 @@ export default function PricingPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="fixed top-0 z-50 w-full glass">
+      <header className="fixed top-0 z-50 w-full border-b border-border bg-card/80 backdrop-blur-sm">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <Link href="/" className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg gradient-bg" />
@@ -76,7 +76,7 @@ export default function PricingPage() {
             14 días de prueba gratis. Sin tarjeta de crédito.
           </p>
 
-          <div className="mt-8 inline-flex items-center rounded-xl border border-white/10 bg-white/5 p-1">
+          <div className="mt-8 inline-flex items-center rounded-xl border border-border bg-secondary/50 p-1">
             <button
               onClick={() => setAnnual(false)}
               className={cn(
@@ -106,7 +106,7 @@ export default function PricingPage() {
                 "relative rounded-2xl border bg-card p-8 transition-all",
                 plan.popular
                   ? "border-primary/30 glow"
-                  : "border-white/5 hover:border-white/10"
+                  : "border-border hover:border-border"
               )}
             >
               {plan.popular && (
@@ -136,7 +136,7 @@ export default function PricingPage() {
                   "mt-6 block w-full rounded-xl py-3 text-center text-sm font-medium transition-all",
                   plan.popular
                     ? "gradient-bg text-white hover:opacity-90"
-                    : "border border-white/10 bg-white/5 hover:bg-white/10"
+                    : "border border-border bg-secondary/50 hover:bg-secondary"
                 )}
               >
                 Comenzar Prueba Gratis

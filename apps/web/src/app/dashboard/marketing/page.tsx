@@ -30,7 +30,7 @@ export default function MarketingPage() {
           <h1 className="text-2xl font-bold tracking-tight">Marketing</h1>
           <p className="text-sm text-muted-foreground">Rendimiento de campañas y adquisición</p>
         </div>
-        <div className="flex flex-col items-center justify-center rounded-xl border border-white/5 bg-card py-20">
+        <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card py-20">
           <LinkIcon className="h-10 w-10 text-muted-foreground mb-4" />
           <h3 className="text-lg font-semibold">Conecta Meta Ads</h3>
           <p className="mt-1 text-sm text-muted-foreground text-center max-w-md">
@@ -87,33 +87,33 @@ export default function MarketingPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-xl border border-white/5 bg-card p-6">
+        <div className="rounded-xl border border-border bg-card p-6">
           <h3 className="text-lg font-semibold">Métricas de Alcance</h3>
           <div className="mt-4 space-y-4">
-            <div className="flex items-center justify-between border-b border-white/5 pb-3">
+            <div className="flex items-center justify-between border-b border-border pb-3">
               <div className="flex items-center gap-3">
-                <Eye className="h-4 w-4 text-blue-400" />
+                <Eye className="h-4 w-4 text-blue-600" />
                 <span className="text-sm font-medium">Impresiones</span>
               </div>
               <span className="text-sm font-semibold">{fmt(current.impressions)}</span>
             </div>
-            <div className="flex items-center justify-between border-b border-white/5 pb-3">
+            <div className="flex items-center justify-between border-b border-border pb-3">
               <div className="flex items-center gap-3">
-                <Megaphone className="h-4 w-4 text-purple-400" />
+                <Megaphone className="h-4 w-4 text-purple-600" />
                 <span className="text-sm font-medium">Alcance</span>
               </div>
               <span className="text-sm font-semibold">{fmt(current.reach)}</span>
             </div>
-            <div className="flex items-center justify-between border-b border-white/5 pb-3">
+            <div className="flex items-center justify-between border-b border-border pb-3">
               <div className="flex items-center gap-3">
-                <MousePointerClick className="h-4 w-4 text-emerald-400" />
+                <MousePointerClick className="h-4 w-4 text-emerald-600" />
                 <span className="text-sm font-medium">Clics</span>
               </div>
               <span className="text-sm font-semibold">{fmt(current.clicks)}</span>
             </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <Target className="h-4 w-4 text-amber-400" />
+                <Target className="h-4 w-4 text-amber-600" />
                 <span className="text-sm font-medium">Conversiones</span>
               </div>
               <span className="text-sm font-semibold">{fmt(current.conversions)}</span>
@@ -121,33 +121,33 @@ export default function MarketingPage() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-white/5 bg-card p-6">
+        <div className="rounded-xl border border-border bg-card p-6">
           <h3 className="text-lg font-semibold">Costos por Resultado</h3>
           <div className="mt-4 space-y-4">
-            <div className="flex items-center justify-between border-b border-white/5 pb-3">
+            <div className="flex items-center justify-between border-b border-border pb-3">
               <div className="flex items-center gap-3">
-                <DollarSign className="h-4 w-4 text-blue-400" />
+                <DollarSign className="h-4 w-4 text-blue-600" />
                 <span className="text-sm font-medium">Costo por Clic (CPC)</span>
               </div>
               <span className="text-sm font-semibold">{fmtMoney(current.cpc)}</span>
             </div>
-            <div className="flex items-center justify-between border-b border-white/5 pb-3">
+            <div className="flex items-center justify-between border-b border-border pb-3">
               <div className="flex items-center gap-3">
-                <BarChart3 className="h-4 w-4 text-purple-400" />
+                <BarChart3 className="h-4 w-4 text-purple-600" />
                 <span className="text-sm font-medium">CPM</span>
               </div>
               <span className="text-sm font-semibold">{fmtMoney(current.cpm)}</span>
             </div>
-            <div className="flex items-center justify-between border-b border-white/5 pb-3">
+            <div className="flex items-center justify-between border-b border-border pb-3">
               <div className="flex items-center gap-3">
-                <DollarSign className="h-4 w-4 text-emerald-400" />
+                <DollarSign className="h-4 w-4 text-emerald-600" />
                 <span className="text-sm font-medium">Gasto Total</span>
               </div>
               <span className="text-sm font-semibold">{fmtMoney(current.spend)}</span>
             </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <Megaphone className="h-4 w-4 text-amber-400" />
+                <Megaphone className="h-4 w-4 text-amber-600" />
                 <span className="text-sm font-medium">ROAS</span>
               </div>
               <span className="text-sm font-semibold">{n(current.roas).toFixed(2)}x</span>

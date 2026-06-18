@@ -22,7 +22,7 @@ export default function FinancePage() {
       <RevenueChart />
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-xl border border-white/5 bg-card p-6">
+        <div className="rounded-xl border border-border bg-card p-6">
           <h3 className="text-lg font-semibold">Cuentas por Cobrar</h3>
           <div className="mt-4 space-y-3">
             {[
@@ -30,7 +30,7 @@ export default function FinancePage() {
               { client: "Corp XYZ", amount: 120000, days: 30 },
               { client: "Tech Solutions", amount: 45000, days: 7 },
             ].map((item, i) => (
-              <div key={i} className="flex items-center justify-between border-b border-white/5 pb-3 last:border-0">
+              <div key={i} className="flex items-center justify-between border-b border-border pb-3 last:border-0">
                 <div>
                   <p className="text-sm font-medium">{item.client}</p>
                   <p className="text-xs text-muted-foreground">Vence en {item.days} días</p>
@@ -43,21 +43,21 @@ export default function FinancePage() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-white/5 bg-card p-6">
+        <div className="rounded-xl border border-border bg-card p-6">
           <h3 className="text-lg font-semibold">Flujo de Caja</h3>
           <div className="mt-4">
-            <p className="text-3xl font-bold text-emerald-400">
+            <p className="text-3xl font-bold text-emerald-600">
               {new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(1850000)}
             </p>
             <p className="mt-1 text-sm text-muted-foreground">Balance disponible</p>
             <div className="mt-4 space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Entradas del mes</span>
-                <span className="font-medium text-emerald-400">+$620,000</span>
+                <span className="font-medium text-emerald-600">+$620,000</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Salidas del mes</span>
-                <span className="font-medium text-red-400">-$360,000</span>
+                <span className="font-medium text-red-500">-$360,000</span>
               </div>
             </div>
           </div>
