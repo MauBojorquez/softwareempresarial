@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && prisma db push && next build",
+    "postbuild": "npx tsx prisma/seed.ts || true",
     "start": "next start",
     "lint": "next lint",
     "db:push": "prisma db push",
