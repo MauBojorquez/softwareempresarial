@@ -9,9 +9,10 @@ interface MetricCardProps {
   change?: number;
   icon: LucideIcon;
   format?: "currency" | "number" | "percentage";
+  trend?: number[];
 }
 
-export function MetricCard({ title, value, change, icon: Icon, format }: MetricCardProps) {
+export function MetricCard({ title, value, change, icon: Icon, format, trend }: MetricCardProps) {
   const formattedValue =
     format === "currency" && typeof value === "number"
       ? formatCurrency(value)
@@ -38,6 +39,27 @@ export function MetricCard({ title, value, change, icon: Icon, format }: MetricC
           >
             {formatPercentage(change)} vs mes anterior
           </p>
+        )}
+        {trend && trend.length > 1 && (
+          <div className="mt-2">
+            <svg viewBox="0 0 100 24" className="w-full h-6" preserveAspectRatio="none">
+              <polyline
+                fill="none"
+                stroke="hsl(var(--primary))"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                points={trend.map((v, i) => {
+                  const min = Math.min(...trend);
+                  const max = Math.max(...trend);
+                  const range = max - min || 1;
+                  const x = (i / (trend.length - 1)) * 100;
+                  const y = 22 - ((v - min) / range) * 20;
+                  return `${x},${y}`;
+                }).join(" ")}
+              />
+            </svg>
+          </div>
         )}
       </div>
     </div>

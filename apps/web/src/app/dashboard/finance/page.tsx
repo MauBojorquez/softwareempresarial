@@ -25,10 +25,12 @@ export default function FinancePage() {
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [search, setSearch] = useState("");
+  const [months, setMonths] = useState(3);
   const [form, setForm] = useState({ name: "Ingresos", value: "", period: new Date().toISOString().split("T")[0] });
 
   const load = () => {
-    fetch("/api/metrics/manual?category=FINANCE&months=3")
+    setLoading(true);
+    fetch(`/api/metrics/manual?category=FINANCE&months=${months}`)
       .then((r) => r.json())
       .then((d) => { setMetrics(d.metrics || []); setLoading(false); })
       .catch(() => setLoading(false));
@@ -36,7 +38,7 @@ export default function FinancePage() {
 
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>(["Ingresos", "Gastos", "Cuentas por Cobrar", "Flujo de Caja"]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [months]);
 
   useEffect(() => {
     const stored = localStorage.getItem("metrixpro-display-FINANCE");
@@ -190,6 +192,21 @@ export default function FinancePage() {
         </div>
       ) : (
         <>
+          <div className="flex items-center gap-1 rounded-lg border border-border bg-secondary/50 p-1 w-fit">
+            {[1, 3, 6, 12].map((m) => (
+              <button
+                key={m}
+                onClick={() => setMonths(m)}
+                className={cn(
+                  "rounded-md px-3 py-1 text-xs font-medium transition-colors",
+                  months === m ? "bg-primary text-white" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {m === 1 ? "1 mes" : `${m} meses`}
+              </button>
+            ))}
+          </div>
+
           <div className="flex flex-wrap gap-1.5 mb-3">
             {METRIC_TEMPLATES.map((t) => (
               <button
