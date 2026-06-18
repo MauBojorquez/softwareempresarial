@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { cn } from "@/lib/utils";
+import { Onboarding } from "@/components/dashboard/onboarding";
 
 type DashboardData = {
   revenue: number; revenueChange: number;
@@ -92,13 +93,15 @@ export default function OverviewPage() {
           <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">Dashboard</h1>
           <p className="text-sm text-muted-foreground">Resumen ejecutivo de tu negocio</p>
         </div>
+        <Onboarding />
         <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
           <MetricCard title="Ingresos" value={0} icon={DollarSign} format="currency" />
           <MetricCard title="Pipeline" value={0} icon={TrendingUp} format="currency" />
           <MetricCard title="Equipo" value={0} icon={Users} format="number" />
           <MetricCard title="Conversión" value={0} icon={ShoppingCart} format="percentage" />
         </div>
-        <div className="rounded-xl border border-border bg-card p-6 sm:p-8">
+        <div className="rounded-xl border border-border bg-card p-6 sm:p-8 overflow-hidden">
+          <div className="w-full h-1 gradient-bg rounded-t-xl -mt-[25px] sm:-mt-[33px] mb-6" />
           <div className="flex flex-col items-center justify-center text-center">
             <LinkIcon className="h-8 w-8 text-muted-foreground mb-3 sm:h-10 sm:w-10 sm:mb-4" />
             <h3 className="text-base font-semibold sm:text-lg">Comienza a agregar tus datos</h3>
@@ -165,6 +168,8 @@ export default function OverviewPage() {
           </button>
         </div>
       </div>
+
+      <Onboarding />
 
       {showGoals && (
         <div className="rounded-xl border border-primary/20 bg-card p-4 sm:p-5">

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { TrendingUp, Target, Users, ShoppingCart, Plus, Loader2, LinkIcon, Trash2, X, Download, Upload } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/metric-card";
+import { DashboardSkeleton } from "@/components/dashboard/skeleton";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/toast";
 
@@ -32,7 +33,14 @@ export default function SalesPage() {
       .catch(() => setLoading(false));
   };
 
+  const [selectedMetrics, setSelectedMetrics] = useState<string[]>(["Ventas del Mes", "Deals Cerrados", "Nuevos Leads", "Pipeline Total"]);
+
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("metrixpro-display-SALES");
+    if (stored) try { setSelectedMetrics(JSON.parse(stored)); } catch {}
+  }, []);
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -75,17 +83,16 @@ export default function SalesPage() {
 
   const fmtMoney = (v: number) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 }).format(v);
 
-  if (loading) {
-    return <div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
-  }
+  if (loading) return <DashboardSkeleton />;
 
-  const latest = (name: string) => metrics.find((m) => m.name === name)?.value ?? 0;
-  const ventas = latest("Ventas del Mes");
-  const deals = latest("Deals Cerrados");
-  const leads = latest("Nuevos Leads");
-  const pipeline = latest("Pipeline Total");
-  const conversion = leads > 0 ? (deals / leads) * 100 : 0;
+  const byName = (name: string) => metrics.filter((m) => m.name === name).sort((a, b) => b.period.localeCompare(a.period));
+  const latest = (name: string) => byName(name)[0]?.value ?? 0;
+  const previous = (name: string) => byName(name)[1]?.value ?? null;
+  const pctChange = (name: string) => { const prev = previous(name); return prev !== null && prev !== 0 ? ((latest(name) - prev) / Math.abs(prev)) * 100 : undefined; };
   const hasData = metrics.length > 0;
+
+  const ICON_MAP: Record<string, typeof TrendingUp> = { "Ventas del Mes": TrendingUp, "Deals Cerrados": Target, "Nuevos Leads": Users, "Pipeline Total": ShoppingCart, "Ticket Promedio": TrendingUp };
+  const formatFor = (unit: string | undefined) => unit === "MXN" ? "currency" as const : unit === "%" ? "percentage" as const : "number" as const;
 
   return (
     <div className="space-y-5">
@@ -182,11 +189,34 @@ export default function SalesPage() {
         </div>
       ) : (
         <>
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {METRIC_TEMPLATES.map((t) => (
+              <button
+                key={t.name}
+                onClick={() => {
+                  const next = selectedMetrics.includes(t.name)
+                    ? selectedMetrics.filter((n) => n !== t.name)
+                    : [...selectedMetrics, t.name].slice(-4);
+                  setSelectedMetrics(next);
+                  localStorage.setItem("metrixpro-display-SALES", JSON.stringify(next));
+                }}
+                className={cn(
+                  "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+                  selectedMetrics.includes(t.name)
+                    ? "gradient-bg text-white"
+                    : "bg-secondary/50 text-muted-foreground hover:bg-secondary"
+                )}
+              >
+                {t.name}
+              </button>
+            ))}
+          </div>
+
           <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-            <MetricCard title="Ventas del Mes" value={ventas} icon={TrendingUp} format="currency" />
-            <MetricCard title="Deals Cerrados" value={deals} icon={Target} format="number" />
-            <MetricCard title="Nuevos Leads" value={leads} icon={Users} format="number" />
-            <MetricCard title="Conversión" value={conversion} icon={ShoppingCart} format="percentage" />
+            {selectedMetrics.map((name) => {
+              const template = METRIC_TEMPLATES.find((t) => t.name === name);
+              return <MetricCard key={name} title={name} value={latest(name)} icon={ICON_MAP[name] || TrendingUp} format={formatFor(template?.unit)} change={pctChange(name)} />;
+            })}
           </div>
 
           <div className="rounded-xl border border-border bg-card">

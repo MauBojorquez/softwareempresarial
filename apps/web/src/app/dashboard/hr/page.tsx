@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { Users, UserPlus, UserMinus, Heart, Plus, Loader2, LinkIcon, Trash2, X, Download, Upload } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/metric-card";
+import { DashboardSkeleton } from "@/components/dashboard/skeleton";
+import { cn } from "@/lib/utils";
 import { useToast } from "@/components/toast";
 
 type MetricEntry = { id: string; name: string; value: number; unit: string | null; period: string };
@@ -32,7 +34,14 @@ export default function HRPage() {
       .catch(() => setLoading(false));
   };
 
+  const [selectedMetrics, setSelectedMetrics] = useState<string[]>(["Headcount", "Nuevas Contrataciones", "Rotación (%)", "Satisfacción (1-10)"]);
+
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("metrixpro-display-HR");
+    if (stored) try { setSelectedMetrics(JSON.parse(stored)); } catch {}
+  }, []);
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -75,17 +84,17 @@ export default function HRPage() {
 
   const fmtMoney = (v: number) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 }).format(v);
 
-  if (loading) {
-    return <div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
-  }
+  if (loading) return <DashboardSkeleton />;
 
-  const latest = (name: string) => metrics.find((m) => m.name === name)?.value ?? 0;
-  const headcount = latest("Headcount");
-  const nuevas = latest("Nuevas Contrataciones");
-  const rotacion = latest("Rotación (%)");
-  const satisfaccion = latest("Satisfacción (1-10)");
+  const byName = (name: string) => metrics.filter((m) => m.name === name).sort((a, b) => b.period.localeCompare(a.period));
+  const latest = (name: string) => byName(name)[0]?.value ?? 0;
+  const previous = (name: string) => byName(name)[1]?.value ?? null;
+  const pctChange = (name: string) => { const prev = previous(name); return prev !== null && prev !== 0 ? ((latest(name) - prev) / Math.abs(prev)) * 100 : undefined; };
   const nomina = latest("Costo Nómina");
   const hasData = metrics.length > 0;
+
+  const ICON_MAP: Record<string, typeof Users> = { "Headcount": Users, "Nuevas Contrataciones": UserPlus, "Bajas": UserMinus, "Rotación (%)": UserMinus, "Satisfacción (1-10)": Heart, "Costo Nómina": Users };
+  const formatFor = (unit: string | undefined) => unit === "MXN" ? "currency" as const : unit === "%" ? "percentage" as const : "number" as const;
 
   return (
     <div className="space-y-5">
@@ -177,11 +186,34 @@ export default function HRPage() {
         </div>
       ) : (
         <>
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {METRIC_TEMPLATES.map((t) => (
+              <button
+                key={t.name}
+                onClick={() => {
+                  const next = selectedMetrics.includes(t.name)
+                    ? selectedMetrics.filter((n) => n !== t.name)
+                    : [...selectedMetrics, t.name].slice(-4);
+                  setSelectedMetrics(next);
+                  localStorage.setItem("metrixpro-display-HR", JSON.stringify(next));
+                }}
+                className={cn(
+                  "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+                  selectedMetrics.includes(t.name)
+                    ? "gradient-bg text-white"
+                    : "bg-secondary/50 text-muted-foreground hover:bg-secondary"
+                )}
+              >
+                {t.name}
+              </button>
+            ))}
+          </div>
+
           <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-            <MetricCard title="Headcount" value={headcount} icon={Users} format="number" />
-            <MetricCard title="Nuevas Contrataciones" value={nuevas} icon={UserPlus} format="number" />
-            <MetricCard title="Rotación" value={rotacion} icon={UserMinus} format="percentage" />
-            <MetricCard title="Satisfacción" value={`${satisfaccion}/10`} icon={Heart} />
+            {selectedMetrics.map((name) => {
+              const template = METRIC_TEMPLATES.find((t) => t.name === name);
+              return <MetricCard key={name} title={name} value={latest(name)} icon={ICON_MAP[name] || Users} format={formatFor(template?.unit)} change={pctChange(name)} />;
+            })}
           </div>
 
           {nomina > 0 && (
