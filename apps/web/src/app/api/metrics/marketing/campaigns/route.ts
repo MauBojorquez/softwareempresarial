@@ -90,32 +90,9 @@ export async function GET(req: NextRequest) {
         if (data.error) return [];
         return (data.data || []).map((c: any) => {
           const insights = c.insights?.data?.[0] || {};
-          // Meta "Results" = the primary action for the campaign objective
-          const objectiveActionMap: Record<string, string[]> = {
-            MESSAGES: ["onsite_conversion.messaging_conversation_started_7d", "onsite_conversion.messaging_first_reply", "messaging_conversation_started_7d"],
-            CONVERSIONS: ["offsite_conversion.fb_pixel_purchase", "offsite_conversion.fb_pixel_lead", "offsite_conversion.fb_pixel_complete_registration", "purchase", "lead", "complete_registration"],
-            LEAD_GENERATION: ["lead", "leadgen.other", "onsite_conversion.lead_grouped"],
-            LINK_CLICKS: ["link_click"],
-            POST_ENGAGEMENT: ["post_engagement"],
-            REACH: ["reach"],
-            OUTCOME_LEADS: ["lead", "leadgen.other", "onsite_conversion.lead_grouped", "onsite_conversion.messaging_conversation_started_7d"],
-            OUTCOME_SALES: ["purchase", "offsite_conversion.fb_pixel_purchase"],
-            OUTCOME_ENGAGEMENT: ["post_engagement", "page_engagement", "link_click"],
-            OUTCOME_AWARENESS: ["reach", "impressions"],
-            OUTCOME_TRAFFIC: ["link_click", "landing_page_view"],
-          };
-          const objective = c.objective || "";
-          const relevantActions = objectiveActionMap[objective] || [];
-          let results = 0;
-          if (Array.isArray(insights.actions) && relevantActions.length > 0) {
-            for (const actionType of relevantActions) {
-              const found = insights.actions.find((a: any) => a.action_type === actionType);
-              if (found) {
-                results = parseInt(found.value || "0");
-                break;
-              }
-            }
-          }
+          const results = Array.isArray(insights.actions) && insights.actions.length > 0
+            ? parseInt(insights.actions[0].value || "0")
+            : 0;
           return {
             id: c.id,
             name: c.name,
