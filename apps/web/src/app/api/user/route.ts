@@ -114,6 +114,7 @@ export async function DELETE(req: NextRequest) {
   if (membership) {
     await db.metric.deleteMany({ where: { organizationId: membership.organizationId } });
     await db.aIReport.deleteMany({ where: { organizationId: membership.organizationId } });
+    await db.aIChatMessage.deleteMany({ where: { organizationId: membership.organizationId } }).catch(() => {});
     await db.integration.deleteMany({ where: { organizationId: membership.organizationId } });
     await db.dashboard.deleteMany({ where: { organizationId: membership.organizationId } });
     await db.subscription.deleteMany({ where: { organizationId: membership.organizationId } });

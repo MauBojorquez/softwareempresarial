@@ -4,7 +4,9 @@ import type { Plan } from "@prisma/client";
 export const PLAN_LIMITS: Record<Plan, {
   integrations: number;
   users: number;
-  aiReportsPerMonth: number;
+  aiReportsPerWeek: number;
+  aiChatEnabled: boolean;
+  aiChatMessagesPerDay: number;
   categories: string[];
   customDashboards: boolean;
   apiAccess: boolean;
@@ -12,7 +14,9 @@ export const PLAN_LIMITS: Record<Plan, {
   STARTER: {
     integrations: 3,
     users: 3,
-    aiReportsPerMonth: 1,
+    aiReportsPerWeek: 1,
+    aiChatEnabled: false,
+    aiChatMessagesPerDay: 0,
     categories: ["FINANCE", "SALES", "MARKETING"],
     customDashboards: false,
     apiAccess: false,
@@ -20,7 +24,9 @@ export const PLAN_LIMITS: Record<Plan, {
   PROFESSIONAL: {
     integrations: 10,
     users: 10,
-    aiReportsPerMonth: 4,
+    aiReportsPerWeek: 3,
+    aiChatEnabled: true,
+    aiChatMessagesPerDay: 20,
     categories: ["FINANCE", "SALES", "OPERATIONS", "HR", "MARKETING"],
     customDashboards: true,
     apiAccess: false,
@@ -28,7 +34,9 @@ export const PLAN_LIMITS: Record<Plan, {
   ENTERPRISE: {
     integrations: 100,
     users: 1000,
-    aiReportsPerMonth: 100,
+    aiReportsPerWeek: 50,
+    aiChatEnabled: true,
+    aiChatMessagesPerDay: 100,
     categories: ["FINANCE", "SALES", "OPERATIONS", "HR", "MARKETING"],
     customDashboards: true,
     apiAccess: true,
@@ -75,16 +83,20 @@ export async function checkFeatureAccess(
     }
   }
 
-  if (feature === "aiReportsPerMonth") {
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1);
-    startOfMonth.setHours(0, 0, 0, 0);
+  if (feature === "aiReportsPerWeek") {
+    const startOfWeek = new Date();
+    startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
     const count = await db.aIReport.count({
-      where: { organizationId, createdAt: { gte: startOfMonth } },
+      where: { organizationId, createdAt: { gte: startOfWeek } },
     });
-    if (count >= limits.aiReportsPerMonth) {
-      return { allowed: false, reason: `Plan ${sub.plan} permite ${limits.aiReportsPerMonth} reporte(s) IA por mes`, limit: limits.aiReportsPerMonth, current: count };
+    if (count >= limits.aiReportsPerWeek) {
+      return { allowed: false, reason: `Plan ${sub.plan} permite ${limits.aiReportsPerWeek} reporte(s) IA por semana`, limit: limits.aiReportsPerWeek, current: count };
     }
+  }
+
+  if (feature === "aiChatEnabled" && !limits.aiChatEnabled) {
+    return { allowed: false, reason: "Chat IA disponible desde plan Professional" };
   }
 
   if (feature === "apiAccess" && !limits.apiAccess) {

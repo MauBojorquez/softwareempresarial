@@ -90,9 +90,10 @@ export async function GET(req: NextRequest) {
         if (data.error) return [];
         return (data.data || []).map((c: any) => {
           const insights = c.insights?.data?.[0] || {};
+          const conversionTypes = new Set(["purchase", "lead", "complete_registration", "offsite_conversion.fb_pixel_purchase", "offsite_conversion.fb_pixel_lead"]);
           const conversions = Array.isArray(insights.actions)
             ? insights.actions
-                .filter((a: any) => ["purchase", "lead", "complete_registration"].some((t) => a.action_type?.includes(t)))
+                .filter((a: any) => conversionTypes.has(a.action_type))
                 .reduce((sum: number, a: any) => sum + parseInt(a.value || "0"), 0)
             : 0;
           return {

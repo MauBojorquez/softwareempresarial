@@ -107,9 +107,14 @@ async function fetchAccountInsights(
 
 function countConversions(insights: any): number {
   if (!insights?.actions) return 0;
-  const conversionActions = ["purchase", "lead", "complete_registration", "add_to_cart"];
+  const conversionActions = new Set([
+    "purchase", "lead", "complete_registration",
+    "offsite_conversion.fb_pixel_purchase",
+    "offsite_conversion.fb_pixel_lead",
+    "offsite_conversion.fb_pixel_complete_registration",
+  ]);
   return insights.actions
-    .filter((a: any) => conversionActions.some((c) => a.action_type?.includes(c)))
+    .filter((a: any) => conversionActions.has(a.action_type))
     .reduce((sum: number, a: any) => sum + parseInt(a.value || "0"), 0);
 }
 

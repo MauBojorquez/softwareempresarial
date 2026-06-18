@@ -19,7 +19,7 @@ export async function POST() {
     return NextResponse.json({ error: "No organization found" }, { status: 404 });
   }
 
-  const access = await checkFeatureAccess(membership.organizationId, "aiReportsPerMonth");
+  const access = await checkFeatureAccess(membership.organizationId, "aiReportsPerWeek");
   if (!access.allowed) {
     return NextResponse.json(
       { error: access.reason, limit: access.limit, current: access.current },

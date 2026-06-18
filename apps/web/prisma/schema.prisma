@@ -26,6 +26,7 @@ model User {
   organization  Organization? @relation("OrganizationOwner")
   memberships   Membership[]
   reports       AIReport[]
+  chatMessages  AIChatMessage[]
   notifications Notification[]
   apiKeys       ApiKey[]
 }
@@ -83,6 +84,7 @@ model Organization {
   metrics       Metric[]
   dashboards    Dashboard[]
   reports       AIReport[]
+  chatMessages  AIChatMessage[]
 }
 
 model Membership {
@@ -186,6 +188,20 @@ model AIReport {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   generatedById  String
   generatedBy    User         @relation(fields: [generatedById], references: [id])
+}
+
+model AIChatMessage {
+  id        String   @id @default(cuid())
+  role      String
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id])
+
+  @@index([organizationId, createdAt])
 }
 
 // ─── Enums ──────────────────────────────────────────────────────────
