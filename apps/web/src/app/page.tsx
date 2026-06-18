@@ -72,29 +72,58 @@ export default function HomePage() {
 
             <div className="relative mx-auto mt-20 max-w-5xl">
               <div className="rounded-2xl border border-border bg-card p-2 shadow-lg">
-                <div className="rounded-xl bg-secondary/30 p-6 sm:p-8">
+                <div className="rounded-xl bg-secondary/30 p-4 sm:p-6">
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-4">
-                    {[65, 45, 80, 55].map((w, i) => (
-                      <div key={i} className="rounded-lg border border-border bg-card p-3 sm:p-4">
-                        <div className="h-2 w-12 rounded bg-muted mb-2" />
-                        <div className="h-4 rounded gradient-bg" style={{ width: `${w}%` }} />
+                    {[
+                      { label: "Ingresos YTD", value: "$2.4M", trend: "+12%" },
+                      { label: "Ventas del Mes", value: "847", trend: "+8%" },
+                      { label: "Gasto en Ads", value: "$45K", trend: "-3%" },
+                      { label: "Margen Neto", value: "23.5%", trend: "+2%" },
+                    ].map((card) => (
+                      <div key={card.label} className="rounded-lg border border-border bg-card p-3 sm:p-4">
+                        <p className="text-[10px] text-muted-foreground sm:text-xs">{card.label}</p>
+                        <p className="mt-1 text-base font-bold text-foreground sm:text-xl">{card.value}</p>
+                        <p className="text-[10px] font-medium text-emerald-600 sm:text-xs">{card.trend} vs mes anterior</p>
                       </div>
                     ))}
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div className="rounded-lg border border-border bg-card p-4">
+                      <p className="text-xs font-medium text-muted-foreground mb-2">Ingresos vs Gastos (12 meses)</p>
                       <div className="flex items-end gap-1 h-24 sm:h-32">
-                        {[40, 65, 50, 80, 60, 75, 90, 55, 70, 85, 60, 45].map((h, i) => (
-                          <div key={i} className="flex-1 rounded-t gradient-bg" style={{ height: `${h}%` }} />
+                        {[40, 65, 50, 80, 60, 75, 90, 55, 70, 85, 60, 78].map((h, i) => (
+                          <div key={i} className="flex-1 flex flex-col gap-0.5 justify-end h-full">
+                            <div className="rounded-t gradient-bg" style={{ height: `${h}%` }} />
+                            <div className="rounded-t bg-destructive/30" style={{ height: `${h * 0.6}%` }} />
+                          </div>
                         ))}
+                      </div>
+                      <div className="flex items-center gap-4 mt-2">
+                        <div className="flex items-center gap-1.5"><div className="h-2 w-2 rounded-full gradient-bg" /><span className="text-[10px] text-muted-foreground">Ingresos</span></div>
+                        <div className="flex items-center gap-1.5"><div className="h-2 w-2 rounded-full bg-destructive/30" /><span className="text-[10px] text-muted-foreground">Gastos</span></div>
                       </div>
                     </div>
                     <div className="rounded-lg border border-border bg-card p-4">
-                      <div className="flex items-end gap-1 h-24 sm:h-32">
-                        {[30, 45, 60, 40, 55, 70, 50, 65, 80, 45, 55, 70].map((h, i) => (
-                          <div key={i} className="flex-1 rounded-t bg-primary/20" style={{ height: `${h}%` }} />
+                      <p className="text-xs font-medium text-muted-foreground mb-2">Campañas Meta Ads</p>
+                      <div className="space-y-2">
+                        {[
+                          { name: "Campaña Verano", status: "Activa", spend: "$12,400", ctr: "3.2%" },
+                          { name: "Retargeting Web", status: "Activa", spend: "$8,700", ctr: "4.1%" },
+                          { name: "Prospección B2B", status: "Pausada", spend: "$5,200", ctr: "1.8%" },
+                        ].map((c) => (
+                          <div key={c.name} className="flex items-center justify-between rounded-md bg-secondary/50 px-2.5 py-2 text-[11px] sm:text-xs">
+                            <div className="flex items-center gap-2">
+                              <div className={`h-1.5 w-1.5 rounded-full ${c.status === "Activa" ? "bg-emerald-500" : "bg-amber-500"}`} />
+                              <span className="font-medium text-foreground">{c.name}</span>
+                            </div>
+                            <div className="flex items-center gap-3 text-muted-foreground">
+                              <span>{c.spend}</span>
+                              <span>CTR {c.ctr}</span>
+                            </div>
+                          </div>
                         ))}
                       </div>
+                      <p className="mt-2 text-[10px] text-muted-foreground text-center">Datos en tiempo real de tu cuenta</p>
                     </div>
                   </div>
                 </div>

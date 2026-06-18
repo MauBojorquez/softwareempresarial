@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Megaphone, MousePointerClick, DollarSign, Eye, Target, BarChart3, Loader2, LinkIcon, TrendingUp, Calendar, Download, X } from "lucide-react";
+import { Megaphone, MousePointerClick, DollarSign, Eye, Target, BarChart3, Loader2, LinkIcon, TrendingUp, Calendar, Download, X, AlertTriangle, RefreshCw } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { cn } from "@/lib/utils";
 
@@ -42,7 +42,10 @@ export default function MarketingPage() {
     </div>
   );
 
-  if (!data?.connected) {
+  const metaConnected = data?.connected || campaigns?.connected;
+  const tokenExpired = campaigns?.tokenExpired;
+
+  if (!metaConnected) {
     return (
       <div className="space-y-6">
         <div>
@@ -84,7 +87,7 @@ export default function MarketingPage() {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Marketing</h1>
-          <p className="text-sm text-muted-foreground">Datos de Meta Ads</p>
+          <p className="text-sm text-muted-foreground">Datos en tiempo real de Meta Ads</p>
         </div>
         {campaigns && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground sm:text-sm">
@@ -116,10 +119,34 @@ export default function MarketingPage() {
         ))}
       </div>
 
-      {fetchError && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400">
-          No se pudo obtener datos de campañas de Meta. Verifica tu conexión en Integraciones.
+      {tokenExpired && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 sm:p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-destructive">Token de Meta Ads expirado</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {campaigns?.error || "Tu token de acceso expiró. Reconecta tu cuenta para ver datos actualizados."}
+              </p>
+              <a href="/dashboard/integrations" className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-destructive/30 px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors">
+                <RefreshCw className="h-3 w-3" />
+                Reconectar
+              </a>
+            </div>
+          </div>
         </div>
+      )}
+
+      {fetchError && !tokenExpired && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400">
+          {fetchError}
+        </div>
+      )}
+
+      {campaigns?.accountName && (
+        <p className="text-xs text-muted-foreground">
+          Cuenta: <span className="font-medium text-foreground">{campaigns.accountName}</span>
+        </p>
       )}
 
       {tab === "overview" && (
@@ -248,9 +275,15 @@ export default function MarketingPage() {
                   <div key={m.month} className="flex items-center gap-2 sm:gap-4">
                     <span className="w-16 text-xs text-muted-foreground shrink-0 sm:w-24 sm:text-sm">{m.month}</span>
                     <div className="flex-1 h-6 bg-secondary/50 rounded-lg overflow-hidden sm:h-8">
-                      <div className="h-full gradient-bg rounded-lg" style={{ width: `${Math.max((n(m.spend) / maxSpend) * 100, 2)}%` }} />
+                      {m.hasData === false && n(m.spend) === 0 ? (
+                        <div className="h-full flex items-center px-2">
+                          <span className="text-[10px] text-muted-foreground">Sin datos</span>
+                        </div>
+                      ) : (
+                        <div className="h-full gradient-bg rounded-lg" style={{ width: `${Math.max((n(m.spend) / maxSpend) * 100, 2)}%` }} />
+                      )}
                     </div>
-                    <span className="w-20 text-xs font-semibold text-right shrink-0 sm:w-28 sm:text-sm">{fmtMoney(m.spend)}</span>
+                    <span className={cn("w-20 text-xs font-semibold text-right shrink-0 sm:w-28 sm:text-sm", m.hasData === false && "text-muted-foreground")}>{fmtMoney(m.spend)}</span>
                   </div>
                 ))}
               </div>
