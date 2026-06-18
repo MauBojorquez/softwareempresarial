@@ -2,10 +2,15 @@
 
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
+import { signOut } from "next-auth/react";
 import { useTheme } from "@/components/theme-provider";
-import { Sun, Moon, Monitor, Bell, User, Building2, Download, Trash2, AlertTriangle } from "lucide-react";
+import { useToast } from "@/components/toast";
+import {
+  Sun, Moon, Monitor, Bell, User, Building2, Download, Trash2,
+  AlertTriangle, Key, Plus, Copy, Eye, EyeOff, Loader2, Save, Lock,
+} from "lucide-react";
 
-const STORAGE_KEY = "metrixpro-notifications";
+const NOTIF_STORAGE_KEY = "metrixpro-notifications-prefs";
 
 function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -13,51 +18,165 @@ function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean
       onClick={() => onChange(!enabled)}
       className={`relative w-10 h-5 rounded-full transition-colors ${enabled ? "bg-primary" : "bg-muted-foreground/30"}`}
     >
-      <span
-        className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition-transform ${enabled ? "translate-x-5" : "translate-x-0"}`}
-      />
+      <span className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition-transform ${enabled ? "translate-x-5" : "translate-x-0"}`} />
     </button>
   );
 }
 
+type ApiKeyItem = { id: string; name: string; key: string; lastUsed: string | null; isActive: boolean; createdAt: string };
+
 export default function SettingsPage() {
-  const { data: session } = useSession();
+  const { data: session, update: updateSession } = useSession();
   const { theme, setTheme } = useTheme();
-  const [orgName, setOrgName] = useState<string | null>(null);
-  const [notifications, setNotifications] = useState({
-    metrics: false,
-    reports: false,
-    goals: false,
-  });
+  const { toast } = useToast();
+
+  const [profile, setProfile] = useState({ name: "", email: "" });
+  const [org, setOrg] = useState({ name: "", industry: "" });
+  const [passwords, setPasswords] = useState({ current: "", new: "", confirm: "" });
+  const [showPasswords, setShowPasswords] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const [notifications, setNotifications] = useState({ metrics: false, reports: false, goals: false });
+
+  const [apiKeys, setApiKeys] = useState<ApiKeyItem[]>([]);
+  const [newKeyName, setNewKeyName] = useState("");
+  const [creatingKey, setCreatingKey] = useState(false);
+  const [newKeyValue, setNewKeyValue] = useState<string | null>(null);
+
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
+    fetch("/api/user")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.user) {
+          setProfile({ name: data.user.name || "", email: data.user.email || "" });
+          if (data.user.theme && data.user.theme !== theme) setTheme(data.user.theme);
+        }
+        if (data.organization) {
+          setOrg({ name: data.organization.name || "", industry: data.organization.industry || "" });
+        }
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+
+    fetch("/api/user/api-keys")
+      .then((r) => r.json())
+      .then((data) => setApiKeys(data.keys || []))
+      .catch(() => {});
+
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
+      const saved = localStorage.getItem(NOTIF_STORAGE_KEY);
       if (saved) setNotifications(JSON.parse(saved));
     } catch {}
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications));
-  }, [notifications]);
+  const handleSaveProfile = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/user", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: profile.name, orgName: org.name, industry: org.industry, theme }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast("Perfil actualizado", "success");
+        await updateSession({ name: profile.name });
+      } else {
+        toast(data.error || "Error al guardar", "error");
+      }
+    } catch {
+      toast("Error de conexión", "error");
+    }
+    setSaving(false);
+  };
 
-  useEffect(() => {
-    fetch("/api/billing/plan")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data?.organizationName) setOrgName(data.organizationName);
-        else if (data?.orgName) setOrgName(data.orgName);
-        else if (data?.name) setOrgName(data.name);
-      })
-      .catch(() => {});
-  }, []);
+  const handleChangePassword = async () => {
+    if (passwords.new !== passwords.confirm) {
+      toast("Las contraseñas no coinciden", "error");
+      return;
+    }
+    if (passwords.new.length < 8) {
+      toast("Mínimo 8 caracteres", "error");
+      return;
+    }
+    setSavingPassword(true);
+    try {
+      const res = await fetch("/api/user", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword: passwords.current, newPassword: passwords.new }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast("Contraseña actualizada", "success");
+        setPasswords({ current: "", new: "", confirm: "" });
+      } else {
+        toast(data.error || "Error al cambiar contraseña", "error");
+      }
+    } catch {
+      toast("Error de conexión", "error");
+    }
+    setSavingPassword(false);
+  };
+
+  const handleThemeChange = async (newTheme: "light" | "dark" | "system") => {
+    setTheme(newTheme);
+    try {
+      await fetch("/api/user", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ theme: newTheme }),
+      });
+    } catch {}
+  };
 
   const handleNotificationToggle = async (key: keyof typeof notifications, value: boolean) => {
     if (value && typeof Notification !== "undefined" && Notification.permission !== "granted") {
       const permission = await Notification.requestPermission();
       if (permission !== "granted") return;
     }
-    setNotifications((prev) => ({ ...prev, [key]: value }));
+    const updated = { ...notifications, [key]: value };
+    setNotifications(updated);
+    localStorage.setItem(NOTIF_STORAGE_KEY, JSON.stringify(updated));
+  };
+
+  const handleCreateKey = async () => {
+    setCreatingKey(true);
+    try {
+      const res = await fetch("/api/user/api-keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newKeyName || "API Key" }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setNewKeyValue(data.key);
+        setNewKeyName("");
+        const keysRes = await fetch("/api/user/api-keys");
+        const keysData = await keysRes.json();
+        setApiKeys(keysData.keys || []);
+        toast("API Key creada", "success");
+      }
+    } catch {
+      toast("Error al crear API Key", "error");
+    }
+    setCreatingKey(false);
+  };
+
+  const handleDeleteKey = async (id: string) => {
+    if (!confirm("¿Eliminar esta API Key?")) return;
+    await fetch("/api/user/api-keys", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    setApiKeys((prev) => prev.filter((k) => k.id !== id));
+    toast("API Key eliminada", "success");
   };
 
   const handleExportCSV = async () => {
@@ -71,19 +190,42 @@ export default function SettingsPage() {
       a.download = `metrixpro-export-${new Date().toISOString().slice(0, 10)}.csv`;
       a.click();
       URL.revokeObjectURL(url);
+      toast("Datos exportados", "success");
     } catch {
-      alert("No se pudo exportar los datos.");
+      toast("No se pudo exportar", "error");
     }
   };
 
-  const handleClearData = () => {
-    if (!confirm("¿Estás seguro de que deseas eliminar todos los datos de métricas? Esta acción no se puede deshacer.")) return;
-    fetch("/api/metrics", { method: "DELETE" })
-      .then((r) => {
-        if (r.ok) alert("Datos eliminados correctamente.");
-        else alert("Error al eliminar los datos.");
-      })
-      .catch(() => alert("Error al eliminar los datos."));
+  const handleClearData = async () => {
+    if (!confirm("¿Eliminar todos los datos de métricas? Esta acción no se puede deshacer.")) return;
+    const res = await fetch("/api/metrics", { method: "DELETE" });
+    if (res.ok) toast("Datos eliminados", "success");
+    else toast("Error al eliminar", "error");
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirm !== "ELIMINAR") {
+      toast("Escribe ELIMINAR para confirmar", "error");
+      return;
+    }
+    setDeleting(true);
+    try {
+      const res = await fetch("/api/user", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmation: "ELIMINAR" }),
+      });
+      if (res.ok) {
+        toast("Cuenta eliminada", "success");
+        signOut({ callbackUrl: "/" });
+      } else {
+        const data = await res.json();
+        toast(data.error || "Error al eliminar", "error");
+      }
+    } catch {
+      toast("Error de conexión", "error");
+    }
+    setDeleting(false);
   };
 
   const themeOptions = [
@@ -91,6 +233,10 @@ export default function SettingsPage() {
     { value: "dark" as const, label: "Oscuro", icon: Moon },
     { value: "system" as const, label: "Sistema", icon: Monitor },
   ];
+
+  if (loading) {
+    return <div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+  }
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -103,22 +249,109 @@ export default function SettingsPage() {
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <p className="text-xs text-muted-foreground">Nombre</p>
-            <p className="text-sm font-medium text-foreground">{session?.user?.name ?? "—"}</p>
+            <label htmlFor="settings-name" className="text-xs text-muted-foreground">Nombre</label>
+            <input
+              id="settings-name"
+              type="text"
+              value={profile.name}
+              onChange={(e) => setProfile({ ...profile, name: e.target.value })}
+              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
+            />
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Correo electrónico</p>
-            <p className="text-sm font-medium text-foreground">{session?.user?.email ?? "—"}</p>
+            <label className="text-xs text-muted-foreground">Correo electrónico</label>
+            <p className="mt-1 rounded-lg border border-border bg-secondary/30 px-3 py-2 text-sm text-muted-foreground">{profile.email}</p>
           </div>
-          <div className="flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-muted-foreground" />
+        </div>
+        <div className="flex items-start gap-2 pt-1">
+          <Building2 className="h-4 w-4 text-muted-foreground mt-6" />
+          <div className="flex-1 grid gap-4 sm:grid-cols-2">
             <div>
-              <p className="text-xs text-muted-foreground">Empresa</p>
-              <p className="text-sm font-medium text-foreground">{orgName ?? session?.user?.name ?? "—"}</p>
+              <label htmlFor="settings-org" className="text-xs text-muted-foreground">Empresa</label>
+              <input
+                id="settings-org"
+                type="text"
+                value={org.name}
+                onChange={(e) => setOrg({ ...org, name: e.target.value })}
+                className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
+              />
+            </div>
+            <div>
+              <label htmlFor="settings-industry" className="text-xs text-muted-foreground">Industria</label>
+              <input
+                id="settings-industry"
+                type="text"
+                value={org.industry}
+                onChange={(e) => setOrg({ ...org, industry: e.target.value })}
+                placeholder="Ej: Tecnología, Retail..."
+                className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
+              />
             </div>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">Puedes actualizar tu información desde tu perfil.</p>
+        <button
+          onClick={handleSaveProfile}
+          disabled={saving}
+          className="flex items-center gap-2 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+        >
+          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+          {saving ? "Guardando..." : "Guardar Cambios"}
+        </button>
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
+        <div className="flex items-center gap-3">
+          <Lock className="h-5 w-5 text-primary" />
+          <h2 className="text-lg font-semibold text-foreground">Contraseña</h2>
+        </div>
+        <div className="grid gap-3">
+          <div>
+            <label htmlFor="current-pw" className="text-xs text-muted-foreground">Contraseña actual</label>
+            <div className="relative mt-1">
+              <input
+                id="current-pw"
+                type={showPasswords ? "text" : "password"}
+                value={passwords.current}
+                onChange={(e) => setPasswords({ ...passwords, current: e.target.value })}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 pr-10 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
+              />
+              <button onClick={() => setShowPasswords(!showPasswords)} className="absolute right-2.5 top-2 text-muted-foreground hover:text-foreground" aria-label={showPasswords ? "Ocultar contraseña" : "Mostrar contraseña"}>
+                {showPasswords ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label htmlFor="new-pw" className="text-xs text-muted-foreground">Nueva contraseña</label>
+              <input
+                id="new-pw"
+                type={showPasswords ? "text" : "password"}
+                value={passwords.new}
+                onChange={(e) => setPasswords({ ...passwords, new: e.target.value })}
+                placeholder="Mínimo 8 caracteres"
+                className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
+              />
+            </div>
+            <div>
+              <label htmlFor="confirm-pw" className="text-xs text-muted-foreground">Confirmar</label>
+              <input
+                id="confirm-pw"
+                type={showPasswords ? "text" : "password"}
+                value={passwords.confirm}
+                onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })}
+                className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
+              />
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={handleChangePassword}
+          disabled={savingPassword || !passwords.current || !passwords.new}
+          className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary transition-colors disabled:opacity-50"
+        >
+          {savingPassword ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Lock className="h-3.5 w-3.5" />}
+          Cambiar Contraseña
+        </button>
       </div>
 
       <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
@@ -127,7 +360,7 @@ export default function SettingsPage() {
           {themeOptions.map((opt) => (
             <button
               key={opt.value}
-              onClick={() => setTheme(opt.value)}
+              onClick={() => handleThemeChange(opt.value)}
               className={`flex flex-col items-center gap-2 rounded-lg border p-4 transition-all ${
                 theme === opt.value
                   ? "border-primary bg-primary/5 text-primary"
@@ -139,6 +372,7 @@ export default function SettingsPage() {
             </button>
           ))}
         </div>
+        <p className="text-xs text-muted-foreground">El tema se sincroniza con tu cuenta en todos los dispositivos.</p>
       </div>
 
       <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
@@ -147,27 +381,91 @@ export default function SettingsPage() {
           <h2 className="text-lg font-semibold text-foreground">Notificaciones</h2>
         </div>
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-foreground">Actualización de métricas</p>
-              <p className="text-xs text-muted-foreground">Recibe alertas cuando tus métricas cambien significativamente</p>
+          {[
+            { key: "metrics" as const, title: "Actualización de métricas", desc: "Alertas cuando tus métricas cambien significativamente" },
+            { key: "reports" as const, title: "Reporte listo", desc: "Notificación cuando un reporte IA esté generado" },
+            { key: "goals" as const, title: "Meta alcanzada", desc: "Aviso cuando se cumpla un objetivo configurado" },
+          ].map((item) => (
+            <div key={item.key} className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-foreground">{item.title}</p>
+                <p className="text-xs text-muted-foreground">{item.desc}</p>
+              </div>
+              <Toggle enabled={notifications[item.key]} onChange={(v) => handleNotificationToggle(item.key, v)} />
             </div>
-            <Toggle enabled={notifications.metrics} onChange={(v) => handleNotificationToggle("metrics", v)} />
-          </div>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-foreground">Reporte listo</p>
-              <p className="text-xs text-muted-foreground">Notificación cuando un reporte de IA esté generado</p>
+          ))}
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
+        <div className="flex items-center gap-3">
+          <Key className="h-5 w-5 text-primary" />
+          <h2 className="text-lg font-semibold text-foreground">API Keys</h2>
+        </div>
+        <p className="text-xs text-muted-foreground">Crea API Keys para enviar métricas desde sistemas externos vía REST API.</p>
+
+        {newKeyValue && (
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10 p-3 space-y-2">
+            <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400">Copia tu API Key — no se mostrará de nuevo:</p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 rounded bg-white dark:bg-background px-3 py-1.5 text-xs font-mono border border-border break-all">{newKeyValue}</code>
+              <button
+                onClick={() => { navigator.clipboard.writeText(newKeyValue); toast("Copiado", "success"); }}
+                className="rounded-lg border border-border p-2 hover:bg-secondary"
+                aria-label="Copiar API Key"
+              >
+                <Copy className="h-3.5 w-3.5" />
+              </button>
             </div>
-            <Toggle enabled={notifications.reports} onChange={(v) => handleNotificationToggle("reports", v)} />
+            <button onClick={() => setNewKeyValue(null)} className="text-xs text-emerald-600 hover:underline">Cerrar</button>
           </div>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-foreground">Meta alcanzada</p>
-              <p className="text-xs text-muted-foreground">Aviso cuando se cumpla un objetivo configurado</p>
-            </div>
-            <Toggle enabled={notifications.goals} onChange={(v) => handleNotificationToggle("goals", v)} />
+        )}
+
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={newKeyName}
+            onChange={(e) => setNewKeyName(e.target.value)}
+            placeholder="Nombre de la key (ej: Mi ERP)"
+            className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
+          />
+          <button
+            onClick={handleCreateKey}
+            disabled={creatingKey}
+            className="flex items-center gap-1.5 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+          >
+            {creatingKey ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+            Crear
+          </button>
+        </div>
+
+        {apiKeys.length > 0 && (
+          <div className="divide-y divide-border rounded-lg border border-border">
+            {apiKeys.map((k) => (
+              <div key={k.id} className="flex items-center justify-between p-3">
+                <div>
+                  <p className="text-sm font-medium">{k.name}</p>
+                  <p className="text-xs text-muted-foreground font-mono">{k.key}</p>
+                  {k.lastUsed && <p className="text-[10px] text-muted-foreground mt-0.5">Último uso: {new Date(k.lastUsed).toLocaleDateString("es-MX")}</p>}
+                </div>
+                <button onClick={() => handleDeleteKey(k.id)} className="text-muted-foreground hover:text-red-500" aria-label="Eliminar key">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
           </div>
+        )}
+
+        <div className="rounded-lg border border-border bg-slate-900 p-3 font-mono text-xs text-slate-300">
+          <p className="text-blue-400">POST /api/v1/metrics</p>
+          <p className="mt-1 text-slate-400">Authorization: Bearer mp_abc...xyz</p>
+          <p className="mt-1 text-slate-400">Content-Type: application/json</p>
+          <p className="mt-2 text-emerald-400">{"{"}</p>
+          <p className="text-emerald-400 pl-4">&quot;category&quot;: &quot;FINANCE&quot;,</p>
+          <p className="text-emerald-400 pl-4">&quot;name&quot;: &quot;Ingresos&quot;,</p>
+          <p className="text-emerald-400 pl-4">&quot;value&quot;: 150000,</p>
+          <p className="text-emerald-400 pl-4">&quot;unit&quot;: &quot;MXN&quot;</p>
+          <p className="text-emerald-400">{"}"}</p>
         </div>
       </div>
 
@@ -202,13 +500,27 @@ export default function SettingsPage() {
         <p className="text-sm text-muted-foreground">
           Eliminar tu cuenta borrará permanentemente todos tus datos, métricas, reportes e integraciones. Esta acción no se puede deshacer.
         </p>
-        <button
-          disabled
-          className="rounded-lg border border-destructive bg-destructive/10 px-4 py-2 text-sm font-medium text-destructive opacity-60 cursor-not-allowed"
-        >
-          Eliminar cuenta
-        </button>
-        <p className="text-xs text-muted-foreground">Contacta a soporte para proceder con la eliminación de tu cuenta.</p>
+        <div className="space-y-3">
+          <div>
+            <label htmlFor="delete-confirm" className="text-xs font-medium text-destructive">Escribe ELIMINAR para confirmar</label>
+            <input
+              id="delete-confirm"
+              type="text"
+              value={deleteConfirm}
+              onChange={(e) => setDeleteConfirm(e.target.value)}
+              placeholder="ELIMINAR"
+              className="mt-1 w-full rounded-lg border border-destructive/30 bg-background px-3 py-2 text-sm focus:border-destructive focus:outline-none focus:ring-1 focus:ring-destructive/30"
+            />
+          </div>
+          <button
+            onClick={handleDeleteAccount}
+            disabled={deleteConfirm !== "ELIMINAR" || deleting}
+            className="flex items-center gap-2 rounded-lg border border-destructive bg-destructive/10 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+            Eliminar mi cuenta
+          </button>
+        </div>
       </div>
     </div>
   );

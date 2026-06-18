@@ -1,12 +1,64 @@
 "use client";
 
-import { Search, Sparkles, Menu } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Search, Sparkles, Menu, FileText, BarChart3 } from "lucide-react";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { NotificationBell } from "@/components/notifications";
+
+type SearchResult = {
+  type: "metric" | "report";
+  id: string;
+  title: string;
+  subtitle: string;
+  href: string;
+  category: string;
+};
 
 export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const { data: session } = useSession();
+  const router = useRouter();
   const initials = session?.user?.name?.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase() || "MP";
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [showResults, setShowResults] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<NodeJS.Timeout>();
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setShowResults(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const handleSearch = (value: string) => {
+    setQuery(value);
+    clearTimeout(debounceRef.current);
+    if (value.trim().length < 2) { setResults([]); setShowResults(false); return; }
+    debounceRef.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(value.trim())}`);
+        const data = await res.json();
+        setResults(data.results || []);
+        setShowResults(true);
+      } catch { setResults([]); }
+      setSearching(false);
+    }, 300);
+  };
+
+  const navigate = (href: string) => {
+    setShowResults(false);
+    setQuery("");
+    router.push(href);
+  };
+
+  const categoryLabel: Record<string, string> = {
+    FINANCE: "Finanzas", SALES: "Ventas", OPERATIONS: "Operaciones", HR: "RRHH", MARKETING: "Marketing", REPORTS: "Reportes",
+  };
 
   return (
     <header className="flex h-14 items-center justify-between border-b border-border bg-card px-4 sm:h-16 sm:px-6">
@@ -14,14 +66,43 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
         <button aria-label="Menú" onClick={onMenuClick} className="rounded-lg p-1.5 text-muted-foreground hover:text-foreground lg:hidden">
           <Menu className="h-5 w-5" />
         </button>
-        <div className="relative hidden sm:block">
+        <div ref={ref} className="relative hidden sm:block">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
-            aria-label="Buscar métricas"
-            placeholder="Buscar métricas..."
+            aria-label="Buscar métricas y reportes"
+            placeholder="Buscar métricas, reportes..."
+            value={query}
+            onChange={(e) => handleSearch(e.target.value)}
+            onFocus={() => results.length > 0 && setShowResults(true)}
             className="h-9 w-56 rounded-lg border border-border bg-secondary/50 pl-9 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30 transition-colors md:w-72"
           />
+          {showResults && (
+            <div className="absolute left-0 top-full mt-1.5 z-50 w-80 max-h-80 overflow-y-auto rounded-xl border border-border bg-card shadow-lg">
+              {searching ? (
+                <div className="p-4 text-center text-xs text-muted-foreground">Buscando...</div>
+              ) : results.length === 0 ? (
+                <div className="p-4 text-center text-xs text-muted-foreground">Sin resultados para &quot;{query}&quot;</div>
+              ) : (
+                results.map((r) => (
+                  <button
+                    key={`${r.type}-${r.id}`}
+                    onClick={() => navigate(r.href)}
+                    className="w-full text-left flex items-start gap-3 px-3 py-2.5 hover:bg-secondary/50 transition-colors border-b border-border last:border-0"
+                  >
+                    <div className="mt-0.5 rounded-md bg-secondary p-1.5">
+                      {r.type === "report" ? <FileText className="h-3.5 w-3.5 text-primary" /> : <BarChart3 className="h-3.5 w-3.5 text-muted-foreground" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{r.title}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">{r.subtitle}</p>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground shrink-0 mt-0.5">{categoryLabel[r.category] || r.category}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
         </div>
       </div>
       <div className="flex items-center gap-2 sm:gap-3">

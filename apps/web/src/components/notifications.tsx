@@ -1,75 +1,71 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Bell, BellOff, X } from "lucide-react";
 
 type AppNotification = {
   id: string;
   title: string;
   message: string;
-  time: Date;
+  type: string;
   read: boolean;
+  createdAt: string;
 };
 
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [permission, setPermission] = useState<NotificationPermission>("default");
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const loadNotifications = useCallback(async () => {
+    try {
+      const res = await fetch("/api/notifications");
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(data.notifications || []);
+        setUnreadCount(data.unreadCount || 0);
+      }
+    } catch {}
+  }, []);
 
   useEffect(() => {
-    if ("Notification" in window) {
-      setPermission(Notification.permission);
-    }
-    const stored = localStorage.getItem("metrixpro-notifications");
-    if (stored) {
-      try { setNotifications(JSON.parse(stored)); } catch {}
-    }
-  }, []);
+    if ("Notification" in window) setPermission(Notification.permission);
+    loadNotifications();
+    const interval = setInterval(loadNotifications, 60000);
+    return () => clearInterval(interval);
+  }, [loadNotifications]);
 
   const requestPermission = async () => {
     if ("Notification" in window) {
       const perm = await Notification.requestPermission();
       setPermission(perm);
-      if (perm === "granted") {
-        addNotification("Notificaciones activadas", "Recibirás alertas cuando se actualicen tus métricas.");
-      }
     }
   };
 
-  const addNotification = (title: string, message: string) => {
-    const notif: AppNotification = {
-      id: Date.now().toString(),
-      title,
-      message,
-      time: new Date(),
-      read: false,
-    };
-    const updated = [notif, ...notifications].slice(0, 20);
-    setNotifications(updated);
-    localStorage.setItem("metrixpro-notifications", JSON.stringify(updated));
-
-    if ("Notification" in window && window.Notification.permission === "granted") {
-      new window.Notification(title, { body: message, icon: "/favicon.ico" });
-    }
+  const markAllRead = async () => {
+    try {
+      await fetch("/api/notifications", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "read_all" }),
+      });
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      setUnreadCount(0);
+    } catch {}
   };
 
-  const markAllRead = () => {
-    const updated = notifications.map((n) => ({ ...n, read: true }));
-    setNotifications(updated);
-    localStorage.setItem("metrixpro-notifications", JSON.stringify(updated));
+  const clearAll = async () => {
+    try {
+      await fetch("/api/notifications", { method: "DELETE" });
+      setNotifications([]);
+      setUnreadCount(0);
+      setOpen(false);
+    } catch {}
   };
 
-  const clearAll = () => {
-    setNotifications([]);
-    localStorage.removeItem("metrixpro-notifications");
-    setOpen(false);
-  };
-
-  const unreadCount = notifications.filter((n) => !n.read).length;
-
-  const timeAgo = (date: Date) => {
-    const d = new Date(date);
-    const diff = Date.now() - d.getTime();
+  const timeAgo = (dateStr: string) => {
+    const diff = Date.now() - new Date(dateStr).getTime();
     const mins = Math.floor(diff / 60000);
     if (mins < 1) return "Ahora";
     if (mins < 60) return `${mins}m`;
@@ -101,9 +97,7 @@ export function NotificationBell() {
               <h3 className="text-sm font-semibold">Notificaciones</h3>
               <div className="flex items-center gap-2">
                 {notifications.length > 0 && (
-                  <button onClick={clearAll} className="text-xs text-muted-foreground hover:text-foreground">
-                    Limpiar
-                  </button>
+                  <button onClick={clearAll} className="text-xs text-muted-foreground hover:text-foreground">Limpiar</button>
                 )}
                 <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground">
                   <X className="h-3.5 w-3.5" />
@@ -111,7 +105,7 @@ export function NotificationBell() {
               </div>
             </div>
 
-            <div className="max-h-64 overflow-y-auto">
+            <div className="max-h-72 overflow-y-auto">
               {notifications.length === 0 ? (
                 <div className="p-6 text-center">
                   <BellOff className="mx-auto h-6 w-6 text-muted-foreground mb-2" />
@@ -119,10 +113,13 @@ export function NotificationBell() {
                 </div>
               ) : (
                 notifications.map((n) => (
-                  <div key={n.id} className="border-b border-border p-3 last:border-0 hover:bg-secondary/30">
+                  <div key={n.id} className={`border-b border-border p-3 last:border-0 hover:bg-secondary/30 ${!n.read ? "bg-primary/5" : ""}`}>
                     <div className="flex items-start justify-between">
-                      <p className="text-xs font-medium">{n.title}</p>
-                      <span className="text-[10px] text-muted-foreground ml-2 shrink-0">{timeAgo(n.time)}</span>
+                      <div className="flex items-center gap-1.5">
+                        {!n.read && <div className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />}
+                        <p className="text-xs font-medium">{n.title}</p>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground ml-2 shrink-0">{timeAgo(n.createdAt)}</span>
                     </div>
                     <p className="mt-0.5 text-xs text-muted-foreground">{n.message}</p>
                   </div>
@@ -145,14 +142,4 @@ export function NotificationBell() {
       )}
     </div>
   );
-}
-
-export function sendMetricNotification(title: string, message: string) {
-  if ("Notification" in window && Notification.permission === "granted") {
-    new Notification(title, { body: message, icon: "/favicon.ico" });
-  }
-  const stored = localStorage.getItem("metrixpro-notifications");
-  const list = stored ? JSON.parse(stored) : [];
-  list.unshift({ id: Date.now().toString(), title, message, time: new Date(), read: false });
-  localStorage.setItem("metrixpro-notifications", JSON.stringify(list.slice(0, 20)));
 }

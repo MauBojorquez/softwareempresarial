@@ -82,6 +82,16 @@ export async function POST(req: NextRequest) {
       },
       data: { lastSyncAt: new Date() },
     });
+
+    const totalMetrics = Object.values(results).reduce((s, r) => s + (r.metricsCount || 0), 0);
+    await db.notification.create({
+      data: {
+        userId: session.user.id,
+        title: "Sincronización completada",
+        message: `${totalMetrics} métricas sincronizadas de ${successTypes.length} integración(es).`,
+        type: "sync",
+      },
+    });
   }
 
   return NextResponse.json({ results, syncedAt: new Date().toISOString() });

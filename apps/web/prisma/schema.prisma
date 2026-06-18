@@ -17,14 +17,17 @@ model User {
   image         String?
   passwordHash  String?
   role          Role      @default(OWNER)
+  theme         String    @default("system")
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts     Account[]
-  sessions     Session[]
-  organization Organization? @relation("OrganizationOwner")
-  memberships  Membership[]
-  reports      AIReport[]
+  accounts      Account[]
+  sessions      Session[]
+  organization  Organization? @relation("OrganizationOwner")
+  memberships   Membership[]
+  reports       AIReport[]
+  notifications Notification[]
+  apiKeys       ApiKey[]
 }
 
 model Account {
@@ -244,4 +247,35 @@ enum ReportStatus {
   GENERATING
   COMPLETED
   FAILED
+}
+
+// ─── Notifications ──────────────────────────────────────────────────
+
+model Notification {
+  id        String   @id @default(cuid())
+  title     String
+  message   String
+  type      String   @default("info")
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+}
+
+// ─── API Keys ───────────────────────────────────────────────────────
+
+model ApiKey {
+  id        String   @id @default(cuid())
+  name      String
+  key       String   @unique
+  lastUsed  DateTime?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String
 }

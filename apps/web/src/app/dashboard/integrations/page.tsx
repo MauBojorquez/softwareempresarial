@@ -249,10 +249,21 @@ export default function IntegrationsPage() {
         </p>
         <div className="mt-4 rounded-lg border border-border bg-slate-900 p-4 font-mono text-xs text-slate-300">
           <p className="text-blue-400">POST /api/v1/metrics</p>
-          <p className="mt-1 text-slate-400">Authorization: Bearer {"<"}api_key{">"}</p>
-          <p className="mt-2 text-emerald-400">{"{}"}</p>
+          <p className="mt-1 text-slate-400">Authorization: Bearer mp_abc...xyz</p>
+          <p className="mt-1 text-slate-400">Content-Type: application/json</p>
+          <p className="mt-2 text-emerald-400">{"{"}</p>
+          <p className="text-emerald-400 pl-4">&quot;category&quot;: &quot;FINANCE&quot;,</p>
+          <p className="text-emerald-400 pl-4">&quot;name&quot;: &quot;Ingresos&quot;,</p>
+          <p className="text-emerald-400 pl-4">&quot;value&quot;: 150000,</p>
+          <p className="text-emerald-400 pl-4">&quot;unit&quot;: &quot;MXN&quot;</p>
+          <p className="text-emerald-400">{"}"}</p>
         </div>
-        <p className="mt-3 text-xs text-muted-foreground">Disponible en planes Professional y Enterprise</p>
+        <a
+          href="/dashboard/settings"
+          className="mt-3 inline-flex items-center gap-1.5 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+        >
+          Crear API Key en Configuración
+        </a>
       </div>
     </div>
   );
