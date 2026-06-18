@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { CheckCircle, RefreshCw, AlertCircle, Loader2 } from "lucide-react";
+import { useToast } from "@/components/toast";
+import { addActivityLog } from "@/components/dashboard/activity-log";
 
 type IntegrationStatus = {
   type: string;
@@ -75,6 +77,7 @@ function timeAgo(dateStr: string) {
 }
 
 export default function IntegrationsPage() {
+  const { toast } = useToast();
   const [statuses, setStatuses] = useState<IntegrationStatus[]>([]);
   const [syncing, setSyncing] = useState<Record<string, boolean>>({});
 
@@ -91,15 +94,26 @@ export default function IntegrationsPage() {
   const handleSync = async (type: string) => {
     setSyncing((p) => ({ ...p, [type]: true }));
     try {
-      await fetch("/api/integrations/sync", {
+      const syncRes = await fetch("/api/integrations/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type }),
       });
+      const syncData = await syncRes.json();
       const res = await fetch("/api/integrations/status");
       const data = await res.json();
       setStatuses(data.integrations ?? []);
-    } catch (e) { console.error(e); }
+      const result = syncData.results?.[type.toLowerCase()];
+      if (result?.success) {
+        toast(`${type} sincronizado: ${result.metricsCount || 0} métricas`, "success");
+        addActivityLog("Sincronización", `${type} sincronizado`, "sync");
+      } else {
+        toast(`Error sincronizando ${type}`, "error");
+      }
+    } catch (e) {
+      console.error(e);
+      toast("Error de conexión al sincronizar", "error");
+    }
     setSyncing((p) => ({ ...p, [type]: false }));
   };
 
@@ -108,6 +122,7 @@ export default function IntegrationsPage() {
   };
 
   const handleDisconnect = async (type: string) => {
+    if (!confirm(`¿Desconectar ${type}? Se dejarán de sincronizar sus métricas.`)) return;
     try {
       await fetch("/api/integrations/disconnect", {
         method: "POST",
@@ -117,7 +132,11 @@ export default function IntegrationsPage() {
       const res = await fetch("/api/integrations/status");
       const data = await res.json();
       setStatuses(data.integrations ?? []);
-    } catch (e) { console.error(e); }
+      toast(`${type} desconectado`, "success");
+    } catch (e) {
+      console.error(e);
+      toast("Error al desconectar", "error");
+    }
   };
 
   return (
