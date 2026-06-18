@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   const metrics = await db.metric.findMany({
     where: { organizationId: orgId },
     orderBy: { period: "desc" },
-    take: 50,
+    take: 100,
   });
 
   const latest = (name: string) => metrics.find((m) => m.name === name);
@@ -23,19 +23,28 @@ export async function GET(req: NextRequest) {
     return { value, change: parseFloat(change.toFixed(1)) };
   };
 
-  const income = calc("income");
-  const pipeline = calc("pipeline_value");
-  const headcount = calc("headcount");
-  const conversion = calc("conversion_rate");
+  const revenue = calc("Ingresos");
+  const pipeline = calc("Pipeline Total");
+  const headcount = calc("Headcount");
+
+  const leads = latest("Nuevos Leads")?.value ?? 0;
+  const deals = latest("Deals Cerrados")?.value ?? 0;
+  const conversion = leads > 0 ? parseFloat(((deals / leads) * 100).toFixed(1)) : 0;
+
+  const prevLeads = previous("Nuevos Leads")?.value ?? 0;
+  const prevDeals = previous("Deals Cerrados")?.value ?? 0;
+  const prevConversion = prevLeads > 0 ? (prevDeals / prevLeads) * 100 : 0;
+  const conversionChange = prevConversion > 0 ? parseFloat(((conversion - prevConversion) / prevConversion * 100).toFixed(1)) : 0;
 
   return NextResponse.json({
-    revenue: income.value,
-    revenueChange: income.change,
+    revenue: revenue.value,
+    revenueChange: revenue.change,
     pipeline: pipeline.value,
     pipelineChange: pipeline.change,
     employees: headcount.value,
     employeesChange: headcount.change,
-    conversion: conversion.value,
-    conversionChange: conversion.change,
+    conversion,
+    conversionChange,
+    hasData: metrics.length > 0,
   });
 }

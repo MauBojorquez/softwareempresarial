@@ -9,16 +9,19 @@ export async function GET(req: NextRequest) {
   const reports = await db.aIReport.findMany({
     where: { organizationId: orgId },
     orderBy: { createdAt: "desc" },
-    take: 10,
+    take: 20,
   });
 
-  return NextResponse.json(
-    reports.map((r) => ({
+  return NextResponse.json({
+    reports: reports.map((r) => ({
       id: r.id,
       title: r.title,
-      createdAt: r.createdAt.toISOString(),
       summary: r.summary,
+      content: r.content,
+      period: r.period.toISOString(),
+      type: r.type,
       status: r.status,
-    }))
-  );
+      createdAt: r.createdAt.toISOString(),
+    })),
+  });
 }
