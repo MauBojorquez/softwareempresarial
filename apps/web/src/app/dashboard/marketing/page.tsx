@@ -19,7 +19,7 @@ export default function MarketingPage() {
     const acct = accountId ?? selectedAccount;
     const acctParam = acct ? `&accountId=${acct}` : "";
     Promise.all([
-      fetch("/api/metrics/marketing").then((r) => r.json()),
+      fetch(`/api/metrics/marketing?${acctParam ? `accountId=${acct}` : ""}`).then((r) => r.json()),
       fetch(`/api/metrics/marketing/campaigns?months=6${acctParam}`).then((r) => r.json()),
     ])
       .then(([d, c]) => {
