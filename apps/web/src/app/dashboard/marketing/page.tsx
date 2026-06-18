@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Megaphone, MousePointerClick, DollarSign, Eye, Target, BarChart3, Loader2, LinkIcon, TrendingUp, Calendar, Download } from "lucide-react";
+import { Megaphone, MousePointerClick, DollarSign, Eye, Target, BarChart3, Loader2, LinkIcon, TrendingUp, Calendar, Download, X } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { cn } from "@/lib/utils";
 
@@ -9,9 +9,12 @@ export default function MarketingPage() {
   const [data, setData] = useState<any>(null);
   const [campaigns, setCampaigns] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"overview" | "campaigns" | "history">("overview");
 
-  useEffect(() => {
+  const load = () => {
+    setLoading(true);
+    setError(null);
     Promise.all([
       fetch("/api/metrics/marketing").then((r) => r.json()),
       fetch("/api/metrics/marketing/campaigns?months=6").then((r) => r.json()),
@@ -21,12 +24,23 @@ export default function MarketingPage() {
         setCampaigns(c);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
-  }, []);
+      .catch((e) => { setError(e.message); setLoading(false); });
+  };
+
+  useEffect(() => { load(); }, []);
 
   if (loading) {
     return <div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
   }
+
+  if (error) return (
+    <div className="flex flex-col items-center justify-center rounded-xl border border-destructive/30 bg-card py-16">
+      <div className="rounded-full bg-destructive/10 p-3 mb-4"><X className="h-6 w-6 text-destructive" /></div>
+      <h3 className="text-lg font-semibold">Error al cargar datos</h3>
+      <p className="mt-1 text-sm text-muted-foreground">{error}</p>
+      <button onClick={load} className="mt-4 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90">Reintentar</button>
+    </div>
+  );
 
   if (!data?.connected) {
     return (
@@ -57,6 +71,7 @@ export default function MarketingPage() {
   const campaignList = campaigns?.campaigns || [];
   const monthlyData = campaigns?.monthly || [];
   const maxSpend = Math.max(...monthlyData.map((m: any) => n(m.spend)), 1);
+  const fetchError = campaigns?.error;
 
   const statusLabel = (s: string) => {
     if (s === "ACTIVE") return { text: "Activa", cls: "text-emerald-600 bg-emerald-50" };
@@ -100,6 +115,12 @@ export default function MarketingPage() {
           </button>
         ))}
       </div>
+
+      {fetchError && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400">
+          No se pudo obtener datos de campañas de Meta. Verifica tu conexión en Integraciones.
+        </div>
+      )}
 
       {tab === "overview" && (
         <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
@@ -160,12 +181,12 @@ export default function MarketingPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                      <th className="p-3 font-medium">Campaña</th>
-                      <th className="p-3 font-medium">Estado</th>
-                      <th className="p-3 font-medium text-right">Gasto</th>
-                      <th className="p-3 font-medium text-right">Clics</th>
-                      <th className="p-3 font-medium text-right">CTR</th>
-                      <th className="p-3 font-medium text-right">CPC</th>
+                      <th scope="col" className="p-3 font-medium">Campaña</th>
+                      <th scope="col" className="p-3 font-medium">Estado</th>
+                      <th scope="col" className="p-3 font-medium text-right">Gasto</th>
+                      <th scope="col" className="p-3 font-medium text-right">Clics</th>
+                      <th scope="col" className="p-3 font-medium text-right">CTR</th>
+                      <th scope="col" className="p-3 font-medium text-right">CPC</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -247,12 +268,12 @@ export default function MarketingPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                    <th className="p-3 font-medium">Mes</th>
-                    <th className="p-3 font-medium text-right">Gasto</th>
-                    <th className="p-3 font-medium text-right">Impresiones</th>
-                    <th className="p-3 font-medium text-right">Clics</th>
-                    <th className="p-3 font-medium text-right">CTR</th>
-                    <th className="p-3 font-medium text-right">CPC</th>
+                    <th scope="col" className="p-3 font-medium">Mes</th>
+                    <th scope="col" className="p-3 font-medium text-right">Gasto</th>
+                    <th scope="col" className="p-3 font-medium text-right">Impresiones</th>
+                    <th scope="col" className="p-3 font-medium text-right">Clics</th>
+                    <th scope="col" className="p-3 font-medium text-right">CTR</th>
+                    <th scope="col" className="p-3 font-medium text-right">CPC</th>
                   </tr>
                 </thead>
                 <tbody>

@@ -40,7 +40,8 @@ export async function GET(req: NextRequest) {
     const campaignsRes = await fetch(
       `https://graph.facebook.com/v21.0/${accountId}/campaigns?` +
       `fields=id,name,status,objective,daily_budget,lifetime_budget,start_time,stop_time,insights.date_preset(this_month){spend,impressions,clicks,ctr,cpc,reach,actions,action_values}` +
-      `&limit=25&access_token=${accessToken}`
+      `&filtering=[{"field":"effective_status","operator":"IN","value":["ACTIVE","PAUSED"]}]` +
+      `&limit=50&access_token=${accessToken}`
     );
 
     let campaigns: any[] = [];
@@ -109,7 +110,8 @@ export async function GET(req: NextRequest) {
       activeCampaigns: campaigns.filter((c) => c.status === "ACTIVE").length,
       totalCampaigns: campaigns.length,
     });
-  } catch {
-    return NextResponse.json({ connected: true, campaigns: [], monthly: [], error: "fetch_failed" });
+  } catch (err: any) {
+    console.error("Meta Ads fetch error:", err);
+    return NextResponse.json({ connected: true, campaigns: [], monthly: [], error: err.message || "fetch_failed" });
   }
 }
