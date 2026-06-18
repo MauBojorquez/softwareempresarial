@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 
   const clientId = process.env.META_APP_ID;
   const redirectUri = `${req.nextUrl.origin}/api/integrations/meta/callback`;
-  const scope = "ads_read,ads_management,read_insights,business_management";
+  const scope = "ads_read,ads_management,business_management";
 
   const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&response_type=code`;
 
