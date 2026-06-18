@@ -17,6 +17,9 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    const origin = process.env.NEXTAUTH_URL || new URL(req.url).origin;
+    const redirectUri = `${origin}/api/integrations/hubspot/callback`;
+
     const tokenResponse = await fetch("https://api.hubapi.com/oauth/v1/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -24,12 +27,14 @@ export async function GET(req: NextRequest) {
         grant_type: "authorization_code",
         client_id: process.env.HUBSPOT_CLIENT_ID!,
         client_secret: process.env.HUBSPOT_CLIENT_SECRET!,
-        redirect_uri: process.env.HUBSPOT_REDIRECT_URI!,
+        redirect_uri: redirectUri,
         code,
       }),
     });
 
     if (!tokenResponse.ok) {
+      const errText = await tokenResponse.text();
+      console.error("HubSpot token exchange failed:", tokenResponse.status, errText);
       return NextResponse.redirect(new URL("/dashboard/integrations?error=token_exchange", req.url));
     }
 
