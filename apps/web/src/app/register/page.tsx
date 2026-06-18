@@ -65,8 +65,9 @@ export default function RegisterPage() {
 
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div>
-            <label className="text-sm font-medium">Nombre</label>
+            <label htmlFor="reg-name" className="text-sm font-medium">Nombre</label>
             <input
+              id="reg-name"
               type="text"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -75,8 +76,9 @@ export default function RegisterPage() {
             />
           </div>
           <div>
-            <label className="text-sm font-medium">Empresa</label>
+            <label htmlFor="reg-company" className="text-sm font-medium">Empresa</label>
             <input
+              id="reg-company"
               type="text"
               value={form.company}
               onChange={(e) => setForm({ ...form, company: e.target.value })}
@@ -85,8 +87,9 @@ export default function RegisterPage() {
             />
           </div>
           <div>
-            <label className="text-sm font-medium">Email</label>
+            <label htmlFor="reg-email" className="text-sm font-medium">Email</label>
             <input
+              id="reg-email"
               type="email"
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
@@ -96,8 +99,9 @@ export default function RegisterPage() {
             />
           </div>
           <div>
-            <label className="text-sm font-medium">Contraseña</label>
+            <label htmlFor="reg-password" className="text-sm font-medium">Contraseña</label>
             <input
+              id="reg-password"
               type="password"
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}

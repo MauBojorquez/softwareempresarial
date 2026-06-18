@@ -21,6 +21,7 @@ export default function SalesPage() {
   const { toast } = useToast();
   const [metrics, setMetrics] = useState<MetricEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -32,10 +33,11 @@ export default function SalesPage() {
 
   const load = () => {
     setLoading(true);
+    setError(null);
     fetch(`/api/metrics/manual?category=SALES&months=${months}`)
-      .then((r) => r.json())
+      .then((r) => { if (!r.ok) throw new Error("Error al cargar datos"); return r.json(); })
       .then((d) => { setMetrics(d.metrics || []); setLoading(false); })
-      .catch(() => setLoading(false));
+      .catch((e) => { setError(e.message); setLoading(false); });
   };
 
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>(["Ventas del Mes", "Deals Cerrados", "Nuevos Leads", "Pipeline Total"]);
@@ -88,13 +90,24 @@ export default function SalesPage() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!confirm("¿Eliminar este registro?")) return;
     await fetch(`/api/metrics/manual?id=${id}`, { method: "DELETE" });
+    toast("Registro eliminado", "success");
     load();
   };
 
   const fmtMoney = (v: number) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 }).format(v);
 
   if (loading) return <DashboardSkeleton />;
+
+  if (error) return (
+    <div className="flex flex-col items-center justify-center rounded-xl border border-destructive/30 bg-card py-16">
+      <div className="rounded-full bg-destructive/10 p-3 mb-4"><X className="h-6 w-6 text-destructive" /></div>
+      <h3 className="text-lg font-semibold">Error al cargar datos</h3>
+      <p className="mt-1 text-sm text-muted-foreground">{error}</p>
+      <button onClick={load} className="mt-4 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90">Reintentar</button>
+    </div>
+  );
 
   const byName = (name: string) => metrics.filter((m) => m.name === name).sort((a, b) => b.period.localeCompare(a.period));
   const latest = (name: string) => byName(name)[0]?.value ?? 0;
@@ -291,7 +304,7 @@ export default function SalesPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                    <th className="p-3 w-8">
+                    <th scope="col" className="p-3 w-8">
                       <input
                         type="checkbox"
                         checked={selected.size === metrics.filter((m) => !search || m.name.toLowerCase().includes(search.toLowerCase())).length && metrics.filter((m) => !search || m.name.toLowerCase().includes(search.toLowerCase())).length > 0}
@@ -302,10 +315,10 @@ export default function SalesPage() {
                         className="rounded border-border"
                       />
                     </th>
-                    <th className="p-3 font-medium">Concepto</th>
-                    <th className="p-3 font-medium text-right">Valor</th>
-                    <th className="p-3 font-medium">Fecha</th>
-                    <th className="p-3 font-medium w-10"></th>
+                    <th scope="col" className="p-3 font-medium">Concepto</th>
+                    <th scope="col" className="p-3 font-medium text-right">Valor</th>
+                    <th scope="col" className="p-3 font-medium">Fecha</th>
+                    <th scope="col" className="p-3 font-medium w-10"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -333,7 +346,7 @@ export default function SalesPage() {
                       </td>
                       <td className="p-3 text-muted-foreground">{new Date(m.period).toLocaleDateString("es-MX")}</td>
                       <td className="p-3">
-                        <button onClick={() => handleDelete(m.id)} className="text-muted-foreground hover:text-red-500">
+                        <button aria-label={`Eliminar ${m.name}`} onClick={() => handleDelete(m.id)} className="text-muted-foreground hover:text-red-500">
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </td>

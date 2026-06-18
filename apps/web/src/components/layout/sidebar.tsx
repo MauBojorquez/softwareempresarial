@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession, signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, DollarSign, TrendingUp, Settings2, Users,
@@ -23,6 +24,8 @@ const navigation = [
 
 export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => void }) {
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const initials = session?.user?.name?.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase() || "MP";
 
   return (
     <>
@@ -73,13 +76,17 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
         <div className="border-t border-border p-3">
           <div className="flex items-center gap-3 rounded-lg px-3 py-2.5">
             <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-              <span className="text-xs font-semibold text-primary">ME</span>
+              <span className="text-xs font-semibold text-primary">{initials}</span>
             </div>
             <div className="flex-1 truncate">
-              <p className="text-sm font-medium text-foreground">Mi Empresa</p>
-              <p className="text-xs text-muted-foreground">Stratium</p>
+              <p className="text-sm font-medium text-foreground">{session?.user?.name || "Usuario"}</p>
+              <p className="text-xs text-muted-foreground">{session?.user?.email || ""}</p>
             </div>
-            <button className="text-muted-foreground transition-colors hover:text-foreground">
+            <button
+              aria-label="Cerrar sesión"
+              onClick={() => signOut({ callbackUrl: "/login" })}
+              className="text-muted-foreground transition-colors hover:text-foreground"
+            >
               <LogOut className="h-4 w-4" />
             </button>
           </div>
