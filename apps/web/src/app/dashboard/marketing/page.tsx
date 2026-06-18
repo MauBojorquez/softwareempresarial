@@ -6,7 +6,6 @@ import { MetricCard } from "@/components/dashboard/metric-card";
 import { cn } from "@/lib/utils";
 
 export default function MarketingPage() {
-  const [data, setData] = useState<any>(null);
   const [campaigns, setCampaigns] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -18,12 +17,10 @@ export default function MarketingPage() {
     setError(null);
     const acct = accountId ?? selectedAccount;
     const acctParam = acct ? `&accountId=${acct}` : "";
-    Promise.all([
-      fetch(`/api/metrics/marketing?${acctParam ? `accountId=${acct}` : ""}`).then((r) => r.json()),
-      fetch(`/api/metrics/marketing/campaigns?months=6${acctParam}`).then((r) => r.json()),
-    ])
-      .then(([d, c]) => {
-        setData(d);
+    // Campaigns are the single source of truth. The overview is computed from them.
+    fetch(`/api/metrics/marketing/campaigns?months=6${acctParam}`)
+      .then((r) => r.json())
+      .then((c) => {
         setCampaigns(c);
         setLoading(false);
       })
@@ -45,7 +42,7 @@ export default function MarketingPage() {
     </div>
   );
 
-  const metaConnected = data?.connected || campaigns?.connected;
+  const metaConnected = campaigns?.connected;
   const tokenExpired = campaigns?.tokenExpired;
 
   if (!metaConnected) {
@@ -69,7 +66,6 @@ export default function MarketingPage() {
     );
   }
 
-  const { current, changes } = data;
   const n = (v: any) => (typeof v === "number" ? v : Number(v) || 0);
   const fmt = (v: any) => new Intl.NumberFormat("es-MX").format(Math.round(n(v)));
   const fmtMoney = (v: any) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 }).format(n(v));
@@ -78,7 +74,10 @@ export default function MarketingPage() {
   const monthlyData = campaigns?.monthly || [];
   const maxSpend = Math.max(...monthlyData.map((m: any) => n(m.spend)), 1);
   const fetchError = campaigns?.error;
-  const totalResults = campaignList.reduce((sum: number, c: any) => sum + n(c.results), 0);
+  // Overview is the sum of the campaigns shown below (single source of truth).
+  const current = campaigns?.summary || { spend: 0, impressions: 0, clicks: 0, reach: 0, results: 0, ctr: 0, cpc: 0, cpm: 0 };
+  const changes = campaigns?.changes || {};
+  const totalResults = n(current.results);
 
   const statusLabel = (s: string) => {
     if (s === "ACTIVE") return { text: "Activa", cls: "text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10" };
@@ -231,10 +230,11 @@ export default function MarketingPage() {
                       <th scope="col" className="p-3 font-medium">Campaña</th>
                       <th scope="col" className="p-3 font-medium">Estado</th>
                       <th scope="col" className="p-3 font-medium text-right">Resultados</th>
+                      <th scope="col" className="p-3 font-medium text-right">Costo/Resultado</th>
                       <th scope="col" className="p-3 font-medium text-right">Gasto</th>
+                      <th scope="col" className="p-3 font-medium text-right">Alcance</th>
                       <th scope="col" className="p-3 font-medium text-right">Clics</th>
                       <th scope="col" className="p-3 font-medium text-right">CTR</th>
-                      <th scope="col" className="p-3 font-medium text-right">CPC</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -248,11 +248,19 @@ export default function MarketingPage() {
                           <td className="p-3">
                             <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", st.cls)}>{st.text}</span>
                           </td>
-                          <td className="p-3 text-right font-semibold">{n(c.results) > 0 ? fmt(c.results) : "—"}</td>
+                          <td className="p-3 text-right">
+                            {n(c.results) > 0 ? (
+                              <>
+                                <span className="block font-semibold">{fmt(c.results)}</span>
+                                <span className="block text-[10px] text-muted-foreground">{c.resultType}</span>
+                              </>
+                            ) : "—"}
+                          </td>
+                          <td className="p-3 text-right">{n(c.costPerResult) > 0 ? fmtMoney(c.costPerResult) : "—"}</td>
                           <td className="p-3 text-right font-medium">{fmtMoney(c.spend)}</td>
+                          <td className="p-3 text-right">{fmt(c.reach)}</td>
                           <td className="p-3 text-right">{fmt(c.clicks)}</td>
                           <td className="p-3 text-right">{n(c.ctr).toFixed(2)}%</td>
-                          <td className="p-3 text-right">{fmtMoney(c.cpc)}</td>
                         </tr>
                       );
                     })}
@@ -269,10 +277,10 @@ export default function MarketingPage() {
                         <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold shrink-0", st.cls)}>{st.text}</span>
                       </div>
                       <div className="grid grid-cols-4 gap-2 text-xs text-muted-foreground">
-                        <div><span className="block font-medium text-foreground">{n(c.results) > 0 ? fmt(c.results) : "—"}</span>Resultados</div>
+                        <div><span className="block font-medium text-foreground">{n(c.results) > 0 ? fmt(c.results) : "—"}</span>{n(c.results) > 0 ? c.resultType : "Resultados"}</div>
+                        <div><span className="block font-medium text-foreground">{n(c.costPerResult) > 0 ? fmtMoney(c.costPerResult) : "—"}</span>Costo/Res.</div>
                         <div><span className="block font-medium text-foreground">{fmtMoney(c.spend)}</span>Gasto</div>
                         <div><span className="block font-medium text-foreground">{fmt(c.clicks)}</span>Clics</div>
-                        <div><span className="block font-medium text-foreground">{n(c.ctr).toFixed(2)}%</span>CTR</div>
                       </div>
                     </div>
                   );

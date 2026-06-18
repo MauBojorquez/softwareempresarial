@@ -13,6 +13,88 @@ async function fetchWithTimeout(url: string, ms = 10000): Promise<Response> {
   }
 }
 
+// Action types grouped by what Meta counts as a "Result" per objective.
+const PURCHASE = ["offsite_conversion.fb_pixel_purchase", "omni_purchase", "purchase"];
+const LEAD = ["offsite_conversion.fb_pixel_lead", "leadgen.other", "onsite_conversion.lead_grouped", "lead"];
+const REGISTRATION = ["offsite_conversion.fb_pixel_complete_registration", "complete_registration"];
+const MESSAGING = ["onsite_conversion.messaging_conversation_started_7d", "onsite_conversion.total_messaging_connection"];
+const LINK = ["link_click"];
+const LANDING = ["landing_page_view"];
+const ENGAGEMENT = ["post_engagement", "page_engagement"];
+const VIDEO = ["video_view"];
+const APP_INSTALL = ["omni_app_install", "mobile_app_install"];
+const PAGE_LIKE = ["like"];
+
+// objective -> ordered list of action groups to check (first non-null wins)
+const OBJECTIVE_RESULTS: Record<string, string[][]> = {
+  OUTCOME_SALES: [PURCHASE, LEAD, REGISTRATION],
+  OUTCOME_LEADS: [LEAD, MESSAGING, REGISTRATION, PURCHASE],
+  OUTCOME_ENGAGEMENT: [MESSAGING, ENGAGEMENT, LINK],
+  OUTCOME_TRAFFIC: [LINK, LANDING],
+  OUTCOME_AWARENESS: [],
+  OUTCOME_APP_PROMOTION: [APP_INSTALL],
+  CONVERSIONS: [PURCHASE, LEAD, REGISTRATION],
+  LEAD_GENERATION: [LEAD, MESSAGING],
+  MESSAGES: [MESSAGING],
+  LINK_CLICKS: [LINK, LANDING],
+  POST_ENGAGEMENT: [ENGAGEMENT],
+  PAGE_LIKES: [PAGE_LIKE],
+  VIDEO_VIEWS: [VIDEO],
+  REACH: [],
+  BRAND_AWARENESS: [],
+  APP_INSTALLS: [APP_INSTALL],
+};
+
+const FALLBACK_PRIORITY = [
+  ...PURCHASE, ...LEAD, ...REGISTRATION, ...MESSAGING, ...APP_INSTALL,
+  ...LANDING, ...LINK, ...ENGAGEMENT, ...VIDEO, ...PAGE_LIKE,
+];
+
+// Extracts the "Results" number for a campaign exactly as Meta Ads Manager would.
+function extractResults(objective: string, actions: any[]): { value: number; type: string | null } {
+  if (!Array.isArray(actions) || actions.length === 0) return { value: 0, type: null };
+  const valueOf = (type: string): number | null => {
+    const a = actions.find((x) => x.action_type === type);
+    return a ? parseInt(a.value || "0") : null;
+  };
+  const firstOf = (types: string[]): { value: number; type: string } | null => {
+    for (const t of types) {
+      const v = valueOf(t);
+      if (v !== null) return { value: v, type: t };
+    }
+    return null;
+  };
+
+  const groups = OBJECTIVE_RESULTS[objective];
+  if (groups) {
+    for (const group of groups) {
+      const hit = firstOf(group);
+      if (hit) return hit;
+    }
+    // Awareness/reach objectives have no action-based result.
+    if (groups.length === 0) return { value: 0, type: null };
+  }
+
+  const fallback = firstOf(FALLBACK_PRIORITY);
+  return fallback ?? { value: 0, type: null };
+}
+
+// Human label for the result type, matching Meta's wording.
+function resultLabel(type: string | null): string {
+  if (!type) return "Resultados";
+  if (MESSAGING.includes(type)) return "Conversaciones";
+  if (PURCHASE.includes(type)) return "Compras";
+  if (LEAD.includes(type)) return "Clientes potenciales";
+  if (REGISTRATION.includes(type)) return "Registros";
+  if (LINK.includes(type)) return "Clics en el enlace";
+  if (LANDING.includes(type)) return "Vistas de página";
+  if (ENGAGEMENT.includes(type)) return "Interacciones";
+  if (VIDEO.includes(type)) return "Reproducciones";
+  if (APP_INSTALL.includes(type)) return "Instalaciones";
+  if (PAGE_LIKE.includes(type)) return "Me gusta";
+  return "Resultados";
+}
+
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
@@ -90,21 +172,22 @@ export async function GET(req: NextRequest) {
         if (data.error) return [];
         return (data.data || []).map((c: any) => {
           const insights = c.insights?.data?.[0] || {};
-          const results = Array.isArray(insights.actions) && insights.actions.length > 0
-            ? parseInt(insights.actions[0].value || "0")
-            : 0;
+          const { value: results, type: resultType } = extractResults(c.objective || "", insights.actions || []);
+          const spend = parseFloat(insights.spend || "0");
           return {
             id: c.id,
             name: c.name,
             status: c.effective_status || c.status,
             objective: c.objective,
-            spend: parseFloat(insights.spend || "0"),
+            spend,
             impressions: parseInt(insights.impressions || "0"),
             clicks: parseInt(insights.clicks || "0"),
             ctr: parseFloat(insights.ctr || "0"),
             cpc: parseFloat(insights.cpc || "0"),
             reach: parseInt(insights.reach || "0"),
             results,
+            resultType: resultLabel(resultType),
+            costPerResult: results > 0 ? Math.round((spend / results) * 100) / 100 : 0,
             accountId: account.id,
             accountName: account.name || account.id,
           };
@@ -173,10 +256,40 @@ export async function GET(req: NextRequest) {
       .map((r) => r.status === "fulfilled" ? r.value : { month: "", spend: 0, impressions: 0, clicks: 0, ctr: 0, cpc: 0, reach: 0, hasData: false })
       .reverse();
 
+    // Overview summary is computed by SUMMING the campaigns (single source of truth).
+    const summary = allCampaigns.reduce(
+      (acc, c) => {
+        acc.spend += c.spend;
+        acc.impressions += c.impressions;
+        acc.clicks += c.clicks;
+        acc.reach += c.reach;
+        acc.results += c.results;
+        return acc;
+      },
+      { spend: 0, impressions: 0, clicks: 0, reach: 0, results: 0, ctr: 0, cpc: 0, cpm: 0 }
+    );
+    summary.ctr = summary.impressions > 0 ? Math.round((summary.clicks / summary.impressions) * 10000) / 100 : 0;
+    summary.cpc = summary.clicks > 0 ? Math.round((summary.spend / summary.clicks) * 100) / 100 : 0;
+    summary.cpm = summary.impressions > 0 ? Math.round((summary.spend / summary.impressions) * 1000 * 100) / 100 : 0;
+
+    // % change vs previous month (from account-level monthly aggregates).
+    const curMonth = monthly[monthly.length - 1];
+    const prevMonth = monthly[monthly.length - 2];
+    const pct = (curr: number, prev: number) =>
+      prev > 0 ? Math.round(((curr - prev) / prev) * 1000) / 10 : null;
+    const changes = {
+      spend: pct(summary.spend, prevMonth?.spend ?? 0),
+      clicks: pct(summary.clicks, prevMonth?.clicks ?? 0),
+      ctr: pct(summary.ctr, prevMonth?.ctr ?? 0),
+    };
+    void curMonth;
+
     return NextResponse.json({
       connected: true,
       campaigns: allCampaigns,
       monthly,
+      summary,
+      changes,
       activeCampaigns: allCampaigns.filter((c) => c.status === "ACTIVE").length,
       totalCampaigns: allCampaigns.length,
       adAccounts: adAccounts.map((a) => ({ id: a.id, name: a.name || a.id })),
