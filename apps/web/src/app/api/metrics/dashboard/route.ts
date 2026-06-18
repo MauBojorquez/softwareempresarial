@@ -6,6 +6,7 @@ export async function GET(req: NextRequest) {
   const orgId = await getOrganizationId(req);
   if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  try {
   const metrics = await db.metric.findMany({
     where: { organizationId: orgId },
     orderBy: { period: "desc" },
@@ -73,7 +74,20 @@ export async function GET(req: NextRequest) {
     orderBy: { period: "desc" },
   });
 
-  const getGoal = (name: string) => goals.find((g) => g.name === `META_${name}`)?.value ?? 0;
+  const uniqueGoals = new Map<string, typeof goals[0]>();
+  for (const g of goals) {
+    if (!uniqueGoals.has(g.name)) uniqueGoals.set(g.name, g);
+  }
+  const goalList = Array.from(uniqueGoals.values()).map((g) => {
+    const metricName = g.name.replace("META_", "");
+    const currentMetric = latest(metricName);
+    return {
+      name: metricName,
+      current: currentMetric?.value ?? 0,
+      target: g.value,
+      unit: currentMetric?.unit || g.unit || "",
+    };
+  });
 
   const metaIntegration = await db.integration.findFirst({
     where: { organizationId: orgId, type: "META_ADS", isActive: true },
@@ -116,14 +130,12 @@ export async function GET(req: NextRequest) {
       utilidad,
       margen: parseFloat(margen.toFixed(1)),
     },
-    goals: {
-      revenue: getGoal("Ingresos"),
-      gastos: getGoal("Gastos"),
-      pipeline: getGoal("Pipeline Total"),
-      employees: getGoal("Headcount"),
-    },
+    goals: goalList,
     monthlyHistory,
     metaSummary,
     metaConnected: !!metaIntegration,
   });
+  } catch {
+    return NextResponse.json({ error: "Error loading dashboard" }, { status: 500 });
+  }
 }

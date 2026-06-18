@@ -72,26 +72,30 @@ export default function HomePage() {
 
             <div className="relative mx-auto mt-20 max-w-5xl">
               <div className="rounded-2xl border border-border bg-card p-2 shadow-lg">
-                <div className="rounded-xl bg-secondary/30 p-6">
-                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                    {[
-                      { label: "Ingresos", value: "$620K", change: "+10.7%" },
-                      { label: "Pipeline", value: "$7.4M", change: "+5.2%" },
-                      { label: "Empleados", value: "48", change: "+4.3%" },
-                      { label: "Conversión", value: "17.8%", change: "-2.1%" },
-                    ].map((m) => (
-                      <div key={m.label} className="rounded-lg border border-border bg-card p-4">
-                        <p className="text-xs text-muted-foreground">{m.label}</p>
-                        <p className="mt-1 text-2xl font-bold text-foreground">{m.value}</p>
-                        <p className={`mt-1 text-xs font-medium ${m.change.startsWith("+") ? "text-emerald-600" : "text-red-500"}`}>
-                          {m.change}
-                        </p>
+                <div className="rounded-xl bg-secondary/30 p-6 sm:p-8">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-4">
+                    {[65, 45, 80, 55].map((w, i) => (
+                      <div key={i} className="rounded-lg border border-border bg-card p-3 sm:p-4">
+                        <div className="h-2 w-12 rounded bg-muted mb-2" />
+                        <div className="h-4 rounded gradient-bg" style={{ width: `${w}%` }} />
                       </div>
                     ))}
                   </div>
-                  <div className="mt-4 grid grid-cols-2 gap-4">
-                    <div className="h-40 rounded-lg border border-border bg-card" />
-                    <div className="h-40 rounded-lg border border-border bg-card" />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-lg border border-border bg-card p-4">
+                      <div className="flex items-end gap-1 h-24 sm:h-32">
+                        {[40, 65, 50, 80, 60, 75, 90, 55, 70, 85, 60, 45].map((h, i) => (
+                          <div key={i} className="flex-1 rounded-t gradient-bg" style={{ height: `${h}%` }} />
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-lg border border-border bg-card p-4">
+                      <div className="flex items-end gap-1 h-24 sm:h-32">
+                        {[30, 45, 60, 40, 55, 70, 50, 65, 80, 45, 55, 70].map((h, i) => (
+                          <div key={i} className="flex-1 rounded-t bg-primary/20" style={{ height: `${h}%` }} />
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -106,16 +110,16 @@ export default function HomePage() {
             </p>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-8 sm:gap-16">
               <div className="text-center">
-                <p className="text-2xl font-bold text-foreground">500+</p>
-                <p className="mt-1 text-sm text-muted-foreground">Métricas</p>
+                <p className="text-2xl font-bold text-foreground">5</p>
+                <p className="mt-1 text-sm text-muted-foreground">Categorías de métricas</p>
               </div>
               <div className="text-center">
-                <p className="text-2xl font-bold text-foreground">6</p>
+                <p className="text-2xl font-bold text-foreground">3</p>
                 <p className="mt-1 text-sm text-muted-foreground">Integraciones</p>
               </div>
               <div className="text-center">
                 <p className="text-2xl font-bold text-foreground">IA</p>
-                <p className="mt-1 text-sm text-muted-foreground">Incluida</p>
+                <p className="mt-1 text-sm text-muted-foreground">con Claude</p>
               </div>
             </div>
           </div>
@@ -163,6 +167,65 @@ export default function HomePage() {
                   </div>
                   <h3 className="mt-4 text-lg font-semibold text-foreground">{feature.title}</h3>
                   <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{feature.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="border-t border-border py-24 bg-secondary/30">
+          <div className="container mx-auto px-4">
+            <div className="text-center">
+              <h2 className="text-3xl font-bold text-foreground sm:text-4xl">
+                Cómo <span className="gradient-text">Funciona</span>
+              </h2>
+              <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
+                Tres pasos para tener el control total de tu empresa.
+              </p>
+            </div>
+
+            <div className="relative mt-16 flex flex-col items-center gap-12 lg:flex-row lg:justify-center lg:gap-0">
+              <div className="hidden lg:block absolute top-10 left-1/2 -translate-x-1/2 w-2/3 h-0.5 bg-border" />
+              <div className="lg:hidden absolute left-1/2 -translate-x-1/2 top-0 bottom-0 w-0.5 bg-border" />
+
+              {[
+                { step: "1", title: "Conecta", description: "Integra tu ERP, CRM y plataformas publicitarias en minutos" },
+                { step: "2", title: "Visualiza", description: "Todas tus métricas en un dashboard centralizado y configurable" },
+                { step: "3", title: "Decide", description: "Recibe reportes con IA y toma decisiones basadas en datos" },
+              ].map((item) => (
+                <div key={item.step} className="relative z-10 flex flex-col items-center text-center lg:flex-1 lg:px-8">
+                  <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-primary bg-card text-2xl font-bold text-primary shadow-sm">
+                    {item.step}
+                  </div>
+                  <h3 className="mt-4 text-xl font-semibold text-foreground">{item.title}</h3>
+                  <p className="mt-2 max-w-xs text-sm text-muted-foreground">{item.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="border-t border-border py-24">
+          <div className="container mx-auto px-4">
+            <div className="text-center">
+              <h2 className="text-3xl font-bold text-foreground sm:text-4xl">
+                Construido para <span className="gradient-text">tu operación</span>
+              </h2>
+              <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
+                Capacidades reales del producto, sin números inflados.
+              </p>
+            </div>
+
+            <div className="mt-16 grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                { stat: "5 Categorías", description: "Finanzas, Ventas, Ops, RH, Marketing" },
+                { stat: "3 Integraciones", description: "Meta Ads, QuickBooks, HubSpot" },
+                { stat: "IA Integrada", description: "Reportes automáticos con Claude" },
+                { stat: "CSV + Manual", description: "Importa datos como quieras" },
+              ].map((item) => (
+                <div key={item.stat} className="rounded-2xl border border-border bg-card p-6 text-center transition-all hover:shadow-md sm:p-8">
+                  <p className="text-2xl font-bold text-foreground">{item.stat}</p>
+                  <p className="mt-2 text-sm text-muted-foreground">{item.description}</p>
                 </div>
               ))}
             </div>

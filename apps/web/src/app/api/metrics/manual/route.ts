@@ -34,6 +34,12 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const origin = req.headers.get("origin");
+  const host = req.headers.get("host");
+  if (origin && host && !origin.includes(host.split(":")[0])) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const membership = await db.membership.findFirst({ where: { userId: session.user.id } });
@@ -72,6 +78,12 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const origin = req.headers.get("origin");
+  const host = req.headers.get("host");
+  if (origin && host && !origin.includes(host.split(":")[0])) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const membership = await db.membership.findFirst({ where: { userId: session.user.id } });

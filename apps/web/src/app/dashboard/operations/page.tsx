@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Settings2, Clock, CheckCircle, AlertTriangle, Plus, Loader2, LinkIcon, Trash2, X } from "lucide-react";
+import { Settings2, Clock, CheckCircle, AlertTriangle, Plus, Loader2, LinkIcon, Trash2, X, Download, Upload, Search, RefreshCw } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/metric-card";
+import { DashboardSkeleton } from "@/components/dashboard/skeleton";
+import { cn } from "@/lib/utils";
+import { useToast } from "@/components/toast";
 
 type MetricEntry = { id: string; name: string; value: number; unit: string | null; period: string };
 
@@ -16,20 +19,59 @@ const METRIC_TEMPLATES = [
 ];
 
 export default function OperationsPage() {
+  const { toast } = useToast();
   const [metrics, setMetrics] = useState<MetricEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [search, setSearch] = useState("");
+  const [months, setMonths] = useState(3);
   const [form, setForm] = useState({ name: "Tareas Completadas", value: "", period: new Date().toISOString().split("T")[0] });
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [autoRefresh, setAutoRefresh] = useState(false);
 
   const load = () => {
-    fetch("/api/metrics/manual?category=OPERATIONS&months=3")
+    setLoading(true);
+    fetch(`/api/metrics/manual?category=OPERATIONS&months=${months}`)
       .then((r) => r.json())
       .then((d) => { setMetrics(d.metrics || []); setLoading(false); })
       .catch(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, []);
+  const [selectedMetrics, setSelectedMetrics] = useState<string[]>(["Eficiencia (%)", "Tiempo Promedio (días)", "Tareas Completadas", "Incidencias"]);
+
+  useEffect(() => { load(); }, [months]);
+
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const interval = setInterval(load, 30000);
+    return () => clearInterval(interval);
+  }, [autoRefresh, months]);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("metrixpro-display-OPERATIONS");
+    if (stored) try { setSelectedMetrics(JSON.parse(stored)); } catch {}
+  }, []);
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("category", "OPERATIONS");
+    const res = await fetch("/api/metrics/import", { method: "POST", body: fd });
+    const data = await res.json();
+    if (data.errors?.length > 0) {
+      toast(`Importados: ${data.imported}/${data.total}. ${data.errors.length} errores.`, "error");
+    } else {
+      toast(`${data.imported} registros importados correctamente`, "success");
+    }
+    setImporting(false);
+    load();
+    e.target.value = "";
+  };
 
   const handleSave = async () => {
     if (!form.value) return;
@@ -53,16 +95,16 @@ export default function OperationsPage() {
 
   const fmtMoney = (v: number) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 }).format(v);
 
-  if (loading) {
-    return <div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
-  }
+  if (loading) return <DashboardSkeleton />;
 
-  const latest = (name: string) => metrics.find((m) => m.name === name)?.value ?? 0;
-  const eficiencia = latest("Eficiencia (%)");
-  const tiempo = latest("Tiempo Promedio (días)");
-  const tareas = latest("Tareas Completadas");
-  const incidencias = latest("Incidencias");
+  const byName = (name: string) => metrics.filter((m) => m.name === name).sort((a, b) => b.period.localeCompare(a.period));
+  const latest = (name: string) => byName(name)[0]?.value ?? 0;
+  const previous = (name: string) => byName(name)[1]?.value ?? null;
+  const pctChange = (name: string) => { const prev = previous(name); return prev !== null && prev !== 0 ? ((latest(name) - prev) / Math.abs(prev)) * 100 : undefined; };
   const hasData = metrics.length > 0;
+
+  const ICON_MAP: Record<string, typeof Settings2> = { "Eficiencia (%)": Settings2, "Tiempo Promedio (días)": Clock, "Tareas Completadas": CheckCircle, "Incidencias": AlertTriangle, "SLA Cumplimiento (%)": Settings2, "Costo por Operación": Settings2 };
+  const formatFor = (unit: string | undefined) => unit === "MXN" ? "currency" as const : unit === "%" ? "percentage" as const : "number" as const;
 
   return (
     <div className="space-y-5">
@@ -71,13 +113,27 @@ export default function OperationsPage() {
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Operaciones</h1>
           <p className="text-sm text-muted-foreground">Eficiencia operativa</p>
         </div>
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 rounded-lg gradient-bg px-3 py-2 sm:px-4 text-sm font-medium text-white transition-opacity hover:opacity-90"
-        >
-          <Plus className="h-4 w-4" />
-          Agregar Dato
-        </button>
+        <div className="flex items-center gap-2">
+          <a
+            href="/api/metrics/template?category=OPERATIONS"
+            className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium transition-colors hover:bg-secondary"
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Plantilla</span>
+          </a>
+          <label className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium transition-colors hover:bg-secondary cursor-pointer">
+            <Upload className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">{importing ? "Importando..." : "Importar"}</span>
+            <input type="file" accept=".csv" onChange={handleImport} className="hidden" />
+          </label>
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-2 rounded-lg gradient-bg px-3 py-2 sm:px-4 text-sm font-medium text-white transition-opacity hover:opacity-90"
+          >
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">Agregar Dato</span>
+          </button>
+        </div>
       </div>
 
       {showForm && (
@@ -145,21 +201,108 @@ export default function OperationsPage() {
         </div>
       ) : (
         <>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 rounded-lg border border-border bg-secondary/50 p-1 w-fit">
+              {[1, 3, 6, 12].map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setMonths(m)}
+                  className={cn(
+                    "rounded-md px-3 py-1 text-xs font-medium transition-colors",
+                    months === m ? "bg-primary text-white" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {m === 1 ? "1 mes" : `${m} meses`}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setAutoRefresh(!autoRefresh)}
+              className={cn(
+                "rounded-lg border border-border px-3 py-1 text-xs font-medium transition-colors",
+                autoRefresh ? "bg-primary/10 text-primary border-primary/30" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <RefreshCw className={cn("h-3 w-3 inline mr-1", autoRefresh && "animate-spin")} />
+              Auto
+            </button>
+          </div>
+
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {METRIC_TEMPLATES.map((t) => (
+              <button
+                key={t.name}
+                onClick={() => {
+                  const next = selectedMetrics.includes(t.name)
+                    ? selectedMetrics.filter((n) => n !== t.name)
+                    : [...selectedMetrics, t.name].slice(-4);
+                  setSelectedMetrics(next);
+                  localStorage.setItem("metrixpro-display-OPERATIONS", JSON.stringify(next));
+                }}
+                className={cn(
+                  "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+                  selectedMetrics.includes(t.name)
+                    ? "gradient-bg text-white"
+                    : "bg-secondary/50 text-muted-foreground hover:bg-secondary"
+                )}
+              >
+                {t.name}
+              </button>
+            ))}
+          </div>
+
           <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-            <MetricCard title="Eficiencia" value={eficiencia} icon={Settings2} format="percentage" />
-            <MetricCard title="Tiempo Promedio" value={`${tiempo} días`} icon={Clock} />
-            <MetricCard title="Tareas Completadas" value={tareas} icon={CheckCircle} format="number" />
-            <MetricCard title="Incidencias" value={incidencias} icon={AlertTriangle} format="number" />
+            {selectedMetrics.map((name) => {
+              const template = METRIC_TEMPLATES.find((t) => t.name === name);
+              return <MetricCard key={name} title={name} value={latest(name)} icon={ICON_MAP[name] || Settings2} format={formatFor(template?.unit)} change={pctChange(name)} />;
+            })}
           </div>
 
           <div className="rounded-xl border border-border bg-card">
-            <div className="border-b border-border p-4">
+            <div className="flex items-center justify-between border-b border-border p-4">
               <h3 className="font-semibold">Registros Recientes</h3>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Buscar..."
+                  className="w-32 sm:w-48 rounded-lg border border-border bg-background pl-8 pr-3 py-1.5 text-xs"
+                />
+              </div>
             </div>
+            {selected.size > 0 && (
+              <div className="flex items-center justify-between border-b border-border bg-primary/5 px-4 py-2">
+                <span className="text-xs font-medium">{selected.size} seleccionado{selected.size > 1 ? "s" : ""}</span>
+                <button
+                  onClick={async () => {
+                    if (!confirm(`¿Eliminar ${selected.size} registro${selected.size > 1 ? "s" : ""}?`)) return;
+                    await Promise.all(Array.from(selected).map((id) => fetch(`/api/metrics/manual?id=${id}`, { method: "DELETE" })));
+                    setSelected(new Set());
+                    load();
+                  }}
+                  className="text-xs font-medium text-red-500 hover:text-red-600"
+                >
+                  Eliminar seleccionados
+                </button>
+              </div>
+            )}
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                    <th className="p-3 w-8">
+                      <input
+                        type="checkbox"
+                        checked={selected.size === metrics.filter((m) => !search || m.name.toLowerCase().includes(search.toLowerCase())).length && metrics.filter((m) => !search || m.name.toLowerCase().includes(search.toLowerCase())).length > 0}
+                        onChange={(e) => {
+                          if (e.target.checked) setSelected(new Set(metrics.filter((m) => !search || m.name.toLowerCase().includes(search.toLowerCase())).map((m) => m.id)));
+                          else setSelected(new Set());
+                        }}
+                        className="rounded border-border"
+                      />
+                    </th>
                     <th className="p-3 font-medium">Métrica</th>
                     <th className="p-3 font-medium text-right">Valor</th>
                     <th className="p-3 font-medium">Fecha</th>
@@ -167,8 +310,24 @@ export default function OperationsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {metrics.map((m) => (
+                  {metrics.filter((m) => !search || m.name.toLowerCase().includes(search.toLowerCase())).length === 0 && (
+                    <tr><td colSpan={5} className="p-6 text-center text-sm text-muted-foreground">Sin resultados</td></tr>
+                  )}
+                  {metrics.filter((m) => !search || m.name.toLowerCase().includes(search.toLowerCase())).map((m) => (
                     <tr key={m.id} className="border-b border-border last:border-0 hover:bg-secondary/30">
+                      <td className="p-3">
+                        <input
+                          type="checkbox"
+                          checked={selected.has(m.id)}
+                          onChange={(e) => {
+                            const next = new Set(selected);
+                            if (e.target.checked) next.add(m.id);
+                            else next.delete(m.id);
+                            setSelected(next);
+                          }}
+                          className="rounded border-border"
+                        />
+                      </td>
                       <td className="p-3 font-medium">{m.name}</td>
                       <td className="p-3 text-right font-semibold">
                         {m.unit === "MXN" ? fmtMoney(m.value) : `${m.value.toLocaleString("es-MX")} ${m.unit || ""}`}

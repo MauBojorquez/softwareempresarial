@@ -82,7 +82,7 @@ export default function IntegrationsPage() {
     fetch("/api/integrations/status")
       .then((r) => r.json())
       .then((d) => setStatuses(d.integrations ?? []))
-      .catch(() => {});
+      .catch((e) => { console.error(e); });
   }, []);
 
   const isConnected = (type: string) => statuses.some((s) => s.type === type && s.isActive);
@@ -99,7 +99,7 @@ export default function IntegrationsPage() {
       const res = await fetch("/api/integrations/status");
       const data = await res.json();
       setStatuses(data.integrations ?? []);
-    } catch {}
+    } catch (e) { console.error(e); }
     setSyncing((p) => ({ ...p, [type]: false }));
   };
 
@@ -117,7 +117,7 @@ export default function IntegrationsPage() {
       const res = await fetch("/api/integrations/status");
       const data = await res.json();
       setStatuses(data.integrations ?? []);
-    } catch {}
+    } catch (e) { console.error(e); }
   };
 
   return (

@@ -9,9 +9,10 @@ interface MetricCardProps {
   change?: number;
   icon: LucideIcon;
   format?: "currency" | "number" | "percentage";
+  trend?: number[];
 }
 
-export function MetricCard({ title, value, change, icon: Icon, format }: MetricCardProps) {
+export function MetricCard({ title, value, change, icon: Icon, format, trend }: MetricCardProps) {
   const formattedValue =
     format === "currency" && typeof value === "number"
       ? formatCurrency(value)
@@ -20,7 +21,7 @@ export function MetricCard({ title, value, change, icon: Icon, format }: MetricC
         : String(value);
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4 transition-all hover:shadow-md sm:p-5">
+    <div role="article" aria-label={`${title}: ${formattedValue}`} className="rounded-xl border border-border bg-card p-4 transition-all hover:shadow-md sm:p-5">
       <div className="flex items-center justify-between">
         <p className="text-xs font-medium text-muted-foreground sm:text-sm">{title}</p>
         <div className="rounded-lg bg-primary/8 p-1.5 sm:p-2">
@@ -38,6 +39,27 @@ export function MetricCard({ title, value, change, icon: Icon, format }: MetricC
           >
             {formatPercentage(change)} vs mes anterior
           </p>
+        )}
+        {trend && trend.length > 1 && (
+          <div className="mt-2">
+            <svg viewBox="0 0 100 24" className="w-full h-6" preserveAspectRatio="none">
+              <polyline
+                fill="none"
+                stroke="hsl(var(--primary))"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                points={trend.map((v, i) => {
+                  const min = Math.min(...trend);
+                  const max = Math.max(...trend);
+                  const range = max - min || 1;
+                  const x = (i / (trend.length - 1)) * 100;
+                  const y = 22 - ((v - min) / range) * 20;
+                  return `${x},${y}`;
+                }).join(" ")}
+              />
+            </svg>
+          </div>
         )}
       </div>
     </div>
