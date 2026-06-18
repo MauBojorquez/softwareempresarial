@@ -53,8 +53,8 @@ export async function POST(req: NextRequest) {
 
   const syncMetaAds = async () => {
     try {
-      const result = await syncMetaAdsMetrics(orgId);
-      results.meta_ads = { success: true, metricsCount: result.metricsCount };
+      const metricsCount = await syncMetaAdsMetrics(orgId);
+      results.meta_ads = { success: true, metricsCount };
     } catch (e: any) {
       results.meta_ads = { success: false, error: e.message };
     }

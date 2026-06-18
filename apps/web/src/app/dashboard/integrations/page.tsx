@@ -33,9 +33,9 @@ const integrationConfig = [
   {
     type: "META_ADS",
     name: "Meta Ads",
-    description: "Métricas de campañas de Facebook e Instagram: gasto, ROAS, leads, conversiones.",
+    description: "Métricas de Facebook e Instagram Ads: gasto, ROAS, conversiones, alcance y más.",
     category: "Publicidad Digital",
-    metrics: ["Ad Spend", "ROAS", "CPC", "CTR", "Leads", "Conversiones", "Alcance"],
+    metrics: ["Gasto", "ROAS", "Conversiones", "CTR", "CPC", "Alcance", "Impresiones"],
     color: "from-blue-500 to-indigo-600",
     connectUrl: "/api/integrations/meta",
   },
@@ -46,6 +46,15 @@ const integrationConfig = [
     category: "Marketing",
     metrics: ["Tráfico Web", "Bounce Rate", "Conversiones", "Sesiones"],
     color: "from-yellow-500 to-amber-500",
+    connectUrl: null,
+  },
+  {
+    type: "SLACK",
+    name: "Slack",
+    description: "Recibe alertas y reportes IA directamente en tus canales de Slack.",
+    category: "Comunicación",
+    metrics: ["Notificaciones", "Alertas", "Reportes"],
+    color: "from-purple-500 to-violet-600",
     connectUrl: null,
   },
 ];
@@ -91,6 +100,19 @@ export default function IntegrationsPage() {
 
   const handleConnect = (url: string) => {
     window.location.href = url;
+  };
+
+  const handleDisconnect = async (type: string) => {
+    try {
+      await fetch("/api/integrations/disconnect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type }),
+      });
+      const res = await fetch("/api/integrations/status");
+      const data = await res.json();
+      setStatuses(data.integrations ?? []);
+    } catch {}
   };
 
   return (
@@ -165,9 +187,11 @@ export default function IntegrationsPage() {
                         {isSyncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
                         {isSyncing ? "Sincronizando..." : "Sincronizar"}
                       </button>
-                      <button className="flex items-center gap-1.5 rounded-lg bg-white/5 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-white/10">
-                        <ExternalLink className="h-3 w-3" />
-                        Config
+                      <button
+                        onClick={() => handleDisconnect(integration.type)}
+                        className="flex items-center gap-1.5 rounded-lg bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-500/20"
+                      >
+                        Desconectar
                       </button>
                     </div>
                   </>

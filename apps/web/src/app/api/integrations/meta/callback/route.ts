@@ -17,17 +17,19 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    const redirectUri = `${req.nextUrl.origin}/api/integrations/meta/callback`;
+
     const tokenResponse = await fetch(
       `https://graph.facebook.com/v21.0/oauth/access_token?` +
       `client_id=${process.env.META_APP_ID}` +
-      `&redirect_uri=${encodeURIComponent(process.env.META_REDIRECT_URI!)}` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
       `&client_secret=${process.env.META_APP_SECRET}` +
       `&code=${code}`,
       { method: "GET" }
     );
 
     if (!tokenResponse.ok) {
-      return NextResponse.redirect(new URL("/dashboard/integrations?error=token_exchange", req.url));
+      return NextResponse.redirect(new URL("/dashboard/integrations?error=meta_token_exchange", req.url));
     }
 
     const tokens = await tokenResponse.json();
@@ -46,7 +48,7 @@ export async function GET(req: NextRequest) {
     const accessToken = longLivedTokens.access_token || tokens.access_token;
     const expiresIn = longLivedTokens.expires_in || tokens.expires_in || 5184000;
 
-    // Get ad accounts
+    // Get ad accounts for this user
     const adAccountsResponse = await fetch(
       `https://graph.facebook.com/v21.0/me/adaccounts?fields=id,name,account_id,currency&access_token=${accessToken}`
     );
