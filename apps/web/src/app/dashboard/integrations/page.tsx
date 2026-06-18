@@ -31,21 +31,21 @@ const integrationConfig = [
     connectUrl: "/api/integrations/hubspot",
   },
   {
+    type: "META_ADS",
+    name: "Meta Ads",
+    description: "Métricas de campañas de Facebook e Instagram: gasto, ROAS, leads, conversiones.",
+    category: "Publicidad Digital",
+    metrics: ["Ad Spend", "ROAS", "CPC", "CTR", "Leads", "Conversiones", "Alcance"],
+    color: "from-blue-500 to-indigo-600",
+    connectUrl: "/api/integrations/meta",
+  },
+  {
     type: "GOOGLE_ANALYTICS",
     name: "Google Analytics",
     description: "Tráfico web, fuentes de adquisición, comportamiento de usuarios y conversiones.",
     category: "Marketing",
     metrics: ["Tráfico Web", "Bounce Rate", "Conversiones", "Sesiones"],
     color: "from-yellow-500 to-amber-500",
-    connectUrl: null,
-  },
-  {
-    type: "SLACK",
-    name: "Slack",
-    description: "Recibe alertas y reportes IA directamente en tus canales de Slack.",
-    category: "Comunicación",
-    metrics: ["Notificaciones", "Alertas", "Reportes"],
-    color: "from-purple-500 to-violet-600",
     connectUrl: null,
   },
 ];
@@ -200,12 +200,7 @@ export default function IntegrationsPage() {
         <div className="mt-4 rounded-lg border border-white/5 bg-black/30 p-4 font-mono text-xs text-muted-foreground">
           <p className="text-primary">POST /api/v1/metrics</p>
           <p className="mt-1">Authorization: Bearer {"<"}api_key{">"}</p>
-          <p className="mt-2 text-emerald-400">{"{"}</p>
-          <p className="ml-4">{'"category": "OPERATIONS",'}</p>
-          <p className="ml-4">{'"name": "delivery_time",'}</p>
-          <p className="ml-4">{'"value": 4.2,'}</p>
-          <p className="ml-4">{'"unit": "days"'}</p>
-          <p className="text-emerald-400">{"}"}</p>
+          <p className="mt-2 text-emerald-400">{"{}"}</p>
         </div>
         <p className="mt-3 text-xs text-muted-foreground">Disponible en planes Professional y Enterprise</p>
       </div>

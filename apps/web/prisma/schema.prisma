@@ -221,6 +221,7 @@ enum BillingInterval {
 enum IntegrationType {
   QUICKBOOKS
   HUBSPOT
+  META_ADS
   CUSTOM_API
 }
 
