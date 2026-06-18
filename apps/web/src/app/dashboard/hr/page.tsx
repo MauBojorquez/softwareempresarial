@@ -66,15 +66,15 @@ export default function HRPage() {
   const hasData = metrics.length > 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Recursos Humanos</h1>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Recursos Humanos</h1>
           <p className="text-sm text-muted-foreground">Métricas de equipo</p>
         </div>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
+          className="flex items-center gap-2 rounded-lg gradient-bg px-3 py-2 sm:px-4 text-sm font-medium text-white transition-opacity hover:opacity-90"
         >
           <Plus className="h-4 w-4" />
           Agregar Dato
@@ -82,12 +82,12 @@ export default function HRPage() {
       </div>
 
       {showForm && (
-        <div className="rounded-xl border border-primary/20 bg-card p-6">
+        <div className="rounded-xl border border-primary/20 bg-card p-4 sm:p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold">Nuevo Registro de RH</h3>
             <button onClick={() => setShowForm(false)} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
           </div>
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
             <div>
               <label className="text-xs font-medium text-muted-foreground">Tipo</label>
               <select
@@ -129,19 +129,19 @@ export default function HRPage() {
       )}
 
       {!hasData ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card py-20">
+        <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card py-14 sm:py-20">
           <LinkIcon className="h-10 w-10 text-muted-foreground mb-4" />
           <h3 className="text-lg font-semibold">Sin datos de RH</h3>
           <p className="mt-1 text-sm text-muted-foreground text-center max-w-md">
             Registra las métricas de tu equipo manualmente para dar seguimiento a headcount, rotación y satisfacción.
           </p>
-          <button onClick={() => setShowForm(true)} className="mt-4 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90">
+          <button onClick={() => setShowForm(true)} className="mt-4 rounded-lg gradient-bg px-3 py-2 sm:px-4 text-sm font-medium text-white hover:opacity-90">
             Entrada Manual
           </button>
         </div>
       ) : (
         <>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
             <MetricCard title="Headcount" value={headcount} icon={Users} format="number" />
             <MetricCard title="Nuevas Contrataciones" value={nuevas} icon={UserPlus} format="number" />
             <MetricCard title="Rotación" value={rotacion} icon={UserMinus} format="percentage" />
@@ -149,7 +149,7 @@ export default function HRPage() {
           </div>
 
           {nomina > 0 && (
-            <div className="rounded-xl border border-border bg-card p-6">
+            <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
               <h3 className="text-lg font-semibold">Costo de Nómina</h3>
               <p className="mt-2 text-3xl font-bold">{fmtMoney(nomina)}</p>
               <p className="text-sm text-muted-foreground">Mensual</p>

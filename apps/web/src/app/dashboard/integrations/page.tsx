@@ -35,9 +35,9 @@ const integrationConfig = [
   {
     type: "META_ADS",
     name: "Meta Ads",
-    description: "Métricas de Facebook e Instagram Ads: gasto, ROAS, conversiones, alcance y más.",
+    description: "Métricas de Facebook e Instagram Ads: gasto, alcance, conversiones y más.",
     category: "Publicidad Digital",
-    metrics: ["Gasto", "ROAS", "Conversiones", "CTR", "CPC", "Alcance", "Impresiones"],
+    metrics: ["Gasto", "Alcance", "Conversiones", "CTR", "CPC", "Impresiones"],
     color: "from-blue-500 to-indigo-600",
     logo: "M",
     connectUrl: "/api/integrations/meta",
@@ -121,13 +121,13 @@ export default function IntegrationsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Integraciones</h1>
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Integraciones</h1>
         <p className="text-sm text-muted-foreground">Conecta tus herramientas para sincronizar métricas</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
         {integrationConfig.map((integration) => {
           const connected = isConnected(integration.type);
           const status = getStatus(integration.type);
@@ -136,7 +136,7 @@ export default function IntegrationsPage() {
           return (
             <div
               key={integration.type}
-              className="rounded-xl border border-border bg-card p-6 transition-all hover:border-border"
+              className="rounded-xl border border-border bg-card p-4 sm:p-6 transition-all hover:border-border"
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
@@ -177,13 +177,13 @@ export default function IntegrationsPage() {
                 </div>
               )}
 
-              <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-border pt-4">
                 {connected ? (
                   <>
                     <span className="text-xs text-muted-foreground">
                       {status?.lastSyncAt ? `Última sync: ${timeAgo(status.lastSyncAt)}` : "Sin sincronizar"}
                     </span>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 w-full sm:w-auto">
                       <button
                         onClick={() => handleSync(integration.type)}
                         disabled={isSyncing}
@@ -221,7 +221,7 @@ export default function IntegrationsPage() {
         })}
       </div>
 
-      <div className="rounded-xl border border-border bg-card p-6">
+      <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
         <h3 className="font-semibold">API Personalizada</h3>
         <p className="mt-1 text-sm text-muted-foreground">
           Conecta cualquier sistema vía REST API para enviar métricas personalizadas.

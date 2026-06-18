@@ -65,15 +65,15 @@ export default function OperationsPage() {
   const hasData = metrics.length > 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Operaciones</h1>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Operaciones</h1>
           <p className="text-sm text-muted-foreground">Eficiencia operativa</p>
         </div>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
+          className="flex items-center gap-2 rounded-lg gradient-bg px-3 py-2 sm:px-4 text-sm font-medium text-white transition-opacity hover:opacity-90"
         >
           <Plus className="h-4 w-4" />
           Agregar Dato
@@ -81,12 +81,12 @@ export default function OperationsPage() {
       </div>
 
       {showForm && (
-        <div className="rounded-xl border border-primary/20 bg-card p-6">
+        <div className="rounded-xl border border-primary/20 bg-card p-4 sm:p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold">Nuevo Registro Operativo</h3>
             <button onClick={() => setShowForm(false)} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
           </div>
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
             <div>
               <label className="text-xs font-medium text-muted-foreground">Tipo</label>
               <select
@@ -128,24 +128,24 @@ export default function OperationsPage() {
       )}
 
       {!hasData ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card py-20">
+        <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card py-14 sm:py-20">
           <LinkIcon className="h-10 w-10 text-muted-foreground mb-4" />
           <h3 className="text-lg font-semibold">Sin datos operativos</h3>
           <p className="mt-1 text-sm text-muted-foreground text-center max-w-md">
             Conecta tu ERP desde integraciones o registra tus métricas operativas manualmente.
           </p>
           <div className="mt-4 flex gap-3">
-            <a href="/dashboard/integrations" className="rounded-lg border border-border bg-secondary/50 px-4 py-2 text-sm font-medium hover:bg-secondary">
+            <a href="/dashboard/integrations" className="rounded-lg border border-border bg-secondary/50 px-3 py-2 sm:px-4 text-sm font-medium hover:bg-secondary">
               Conectar ERP
             </a>
-            <button onClick={() => setShowForm(true)} className="rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90">
+            <button onClick={() => setShowForm(true)} className="rounded-lg gradient-bg px-3 py-2 sm:px-4 text-sm font-medium text-white hover:opacity-90">
               Entrada Manual
             </button>
           </div>
         </div>
       ) : (
         <>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
             <MetricCard title="Eficiencia" value={eficiencia} icon={Settings2} format="percentage" />
             <MetricCard title="Tiempo Promedio" value={`${tiempo} días`} icon={Clock} />
             <MetricCard title="Tareas Completadas" value={tareas} icon={CheckCircle} format="number" />
