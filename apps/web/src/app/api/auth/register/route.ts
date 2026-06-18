@@ -8,6 +8,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Todos los campos son requeridos" }, { status: 400 });
   }
 
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (typeof email !== "string" || !emailRegex.test(email) || email.length > 255) {
+    return NextResponse.json({ error: "Email inválido" }, { status: 400 });
+  }
+
+  const trimmedName = typeof name === "string" ? name.trim().slice(0, 100) : "";
+  const trimmedCompany = typeof company === "string" ? company.trim().slice(0, 100) : "";
+  if (!trimmedName || !trimmedCompany) {
+    return NextResponse.json({ error: "Nombre y empresa son requeridos" }, { status: 400 });
+  }
+
+  if (typeof password !== "string" || password.length < 8) {
+    return NextResponse.json({ error: "La contraseña debe tener al menos 8 caracteres" }, { status: 400 });
+  }
+
   const existing = await db.user.findUnique({ where: { email } });
   if (existing) {
     return NextResponse.json({ error: "Este email ya está registrado" }, { status: 409 });
@@ -18,12 +33,12 @@ export async function POST(req: NextRequest) {
 
   const user = await db.user.create({
     data: {
-      name,
+      name: trimmedName,
       email,
       passwordHash,
       organization: {
         create: {
-          name: company,
+          name: trimmedCompany,
         },
       },
     },

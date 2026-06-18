@@ -6,6 +6,12 @@ import { createCheckoutSession } from "@/server/services/billing/stripe-service"
 import type { Plan, BillingInterval } from "@prisma/client";
 
 export async function POST(req: NextRequest) {
+  const origin = req.headers.get("origin");
+  const host = req.headers.get("host");
+  if (origin && host && !origin.includes(host.split(":")[0])) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -21,7 +27,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No organization found" }, { status: 404 });
   }
 
-  const origin = req.headers.get("origin") || req.nextUrl.origin;
+  const checkoutOrigin = origin || req.nextUrl.origin;
 
   try {
     const checkoutSession = await createCheckoutSession(
@@ -29,7 +35,7 @@ export async function POST(req: NextRequest) {
       plan,
       interval,
       session.user.email!,
-      origin
+      checkoutOrigin
     );
     return NextResponse.json({ url: checkoutSession.url });
   } catch (err: any) {

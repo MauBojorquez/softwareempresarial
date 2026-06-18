@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Users, UserPlus, UserMinus, Heart, Plus, Loader2, LinkIcon, Trash2, X, Download, Upload, Search } from "lucide-react";
+import { Users, UserPlus, UserMinus, Heart, Plus, Loader2, LinkIcon, Trash2, X, Download, Upload, Search, RefreshCw } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { DashboardSkeleton } from "@/components/dashboard/skeleton";
 import { cn } from "@/lib/utils";
@@ -28,6 +28,8 @@ export default function HRPage() {
   const [search, setSearch] = useState("");
   const [months, setMonths] = useState(3);
   const [form, setForm] = useState({ name: "Headcount", value: "", period: new Date().toISOString().split("T")[0] });
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [autoRefresh, setAutoRefresh] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -40,6 +42,12 @@ export default function HRPage() {
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>(["Headcount", "Nuevas Contrataciones", "Rotación (%)", "Satisfacción (1-10)"]);
 
   useEffect(() => { load(); }, [months]);
+
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const interval = setInterval(load, 30000);
+    return () => clearInterval(interval);
+  }, [autoRefresh, months]);
 
   useEffect(() => {
     const stored = localStorage.getItem("metrixpro-display-HR");
@@ -189,19 +197,31 @@ export default function HRPage() {
         </div>
       ) : (
         <>
-          <div className="flex items-center gap-1 rounded-lg border border-border bg-secondary/50 p-1 w-fit">
-            {[1, 3, 6, 12].map((m) => (
-              <button
-                key={m}
-                onClick={() => setMonths(m)}
-                className={cn(
-                  "rounded-md px-3 py-1 text-xs font-medium transition-colors",
-                  months === m ? "bg-primary text-white" : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {m === 1 ? "1 mes" : `${m} meses`}
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 rounded-lg border border-border bg-secondary/50 p-1 w-fit">
+              {[1, 3, 6, 12].map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setMonths(m)}
+                  className={cn(
+                    "rounded-md px-3 py-1 text-xs font-medium transition-colors",
+                    months === m ? "bg-primary text-white" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {m === 1 ? "1 mes" : `${m} meses`}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setAutoRefresh(!autoRefresh)}
+              className={cn(
+                "rounded-lg border border-border px-3 py-1 text-xs font-medium transition-colors",
+                autoRefresh ? "bg-primary/10 text-primary border-primary/30" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <RefreshCw className={cn("h-3 w-3 inline mr-1", autoRefresh && "animate-spin")} />
+              Auto
+            </button>
           </div>
 
           <div className="flex flex-wrap gap-1.5 mb-3">
@@ -256,10 +276,37 @@ export default function HRPage() {
                 />
               </div>
             </div>
+            {selected.size > 0 && (
+              <div className="flex items-center justify-between border-b border-border bg-primary/5 px-4 py-2">
+                <span className="text-xs font-medium">{selected.size} seleccionado{selected.size > 1 ? "s" : ""}</span>
+                <button
+                  onClick={async () => {
+                    if (!confirm(`¿Eliminar ${selected.size} registro${selected.size > 1 ? "s" : ""}?`)) return;
+                    await Promise.all(Array.from(selected).map((id) => fetch(`/api/metrics/manual?id=${id}`, { method: "DELETE" })));
+                    setSelected(new Set());
+                    load();
+                  }}
+                  className="text-xs font-medium text-red-500 hover:text-red-600"
+                >
+                  Eliminar seleccionados
+                </button>
+              </div>
+            )}
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                    <th className="p-3 w-8">
+                      <input
+                        type="checkbox"
+                        checked={selected.size === metrics.filter((m) => !search || m.name.toLowerCase().includes(search.toLowerCase())).length && metrics.filter((m) => !search || m.name.toLowerCase().includes(search.toLowerCase())).length > 0}
+                        onChange={(e) => {
+                          if (e.target.checked) setSelected(new Set(metrics.filter((m) => !search || m.name.toLowerCase().includes(search.toLowerCase())).map((m) => m.id)));
+                          else setSelected(new Set());
+                        }}
+                        className="rounded border-border"
+                      />
+                    </th>
                     <th className="p-3 font-medium">Métrica</th>
                     <th className="p-3 font-medium text-right">Valor</th>
                     <th className="p-3 font-medium">Fecha</th>
@@ -268,10 +315,23 @@ export default function HRPage() {
                 </thead>
                 <tbody>
                   {metrics.filter((m) => !search || m.name.toLowerCase().includes(search.toLowerCase())).length === 0 && (
-                    <tr><td colSpan={4} className="p-6 text-center text-sm text-muted-foreground">Sin resultados</td></tr>
+                    <tr><td colSpan={5} className="p-6 text-center text-sm text-muted-foreground">Sin resultados</td></tr>
                   )}
                   {metrics.filter((m) => !search || m.name.toLowerCase().includes(search.toLowerCase())).map((m) => (
                     <tr key={m.id} className="border-b border-border last:border-0 hover:bg-secondary/30">
+                      <td className="p-3">
+                        <input
+                          type="checkbox"
+                          checked={selected.has(m.id)}
+                          onChange={(e) => {
+                            const next = new Set(selected);
+                            if (e.target.checked) next.add(m.id);
+                            else next.delete(m.id);
+                            setSelected(next);
+                          }}
+                          className="rounded border-border"
+                        />
+                      </td>
                       <td className="p-3 font-medium">{m.name}</td>
                       <td className="p-3 text-right font-semibold">
                         {m.unit === "MXN" ? fmtMoney(m.value) : `${m.value.toLocaleString("es-MX")} ${m.unit || ""}`}
