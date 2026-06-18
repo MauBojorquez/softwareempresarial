@@ -1,30 +1,92 @@
 "use client";
 
-import { CreditCard, Check, Sparkles, ArrowRight } from "lucide-react";
+import { useEffect, useState } from "react";
+import { CreditCard, Check, Sparkles, ArrowRight, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const plans = [
   {
+    key: "STARTER",
     name: "Starter",
     price: 799,
-    current: false,
+    annualPrice: 7990,
     features: ["1 integración", "Métricas básicas", "Reporte IA mensual", "1 usuario"],
   },
   {
+    key: "PROFESSIONAL",
     name: "Professional",
     price: 1999,
-    current: true,
+    annualPrice: 19990,
     features: ["Integraciones ilimitadas", "Todas las métricas", "Reportes IA semanales", "5 usuarios", "Dashboards custom"],
   },
   {
+    key: "ENTERPRISE",
     name: "Enterprise",
     price: 4999,
-    current: false,
+    annualPrice: 49990,
     features: ["Todo en Pro", "API personalizada", "Usuarios ilimitados", "IA on-demand", "SSO/SAML", "Soporte prioritario"],
   },
 ];
 
 export default function BillingPage() {
+  const [currentPlan, setCurrentPlan] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
+  const [portalLoading, setPortalLoading] = useState(false);
+  const [interval, setInterval] = useState<"MONTHLY" | "ANNUAL">("MONTHLY");
+  const [usage, setUsage] = useState<any>(null);
+
+  useEffect(() => {
+    fetch("/api/billing/plan")
+      .then((r) => r.json())
+      .then((data) => {
+        setCurrentPlan(data.plan || null);
+        setUsage(data.usage || null);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const handleCheckout = async (plan: string) => {
+    setCheckoutLoading(plan);
+    try {
+      const res = await fetch("/api/billing/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan, interval }),
+      });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+      else alert(data.error || "Error al crear sesión de pago");
+    } catch {
+      alert("Error de conexión");
+    } finally {
+      setCheckoutLoading(null);
+    }
+  };
+
+  const handlePortal = async () => {
+    setPortalLoading(true);
+    try {
+      const res = await fetch("/api/billing/portal", { method: "POST" });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+      else alert(data.error || "Error al abrir portal");
+    } catch {
+      alert("Error de conexión");
+    } finally {
+      setPortalLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -32,125 +94,131 @@ export default function BillingPage() {
         <p className="text-sm text-muted-foreground">Gestiona tu plan y facturación</p>
       </div>
 
-      <div className="rounded-xl border border-primary/20 bg-card p-6 glow-sm">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-lg font-semibold">Plan Professional</h3>
-              <span className="rounded-full gradient-bg px-2.5 py-0.5 text-[10px] font-bold text-white">ACTIVO</span>
+      {currentPlan && (
+        <div className="rounded-xl border border-primary/20 bg-card p-6 glow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-semibold">Plan {currentPlan}</h3>
+                <span className="rounded-full gradient-bg px-2.5 py-0.5 text-[10px] font-bold text-white">ACTIVO</span>
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground">Facturación mensual</p>
             </div>
-            <p className="mt-1 text-sm text-muted-foreground">Facturación mensual</p>
+            <button
+              onClick={handlePortal}
+              disabled={portalLoading}
+              className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium transition-colors hover:bg-white/10 disabled:opacity-50"
+            >
+              {portalLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+              Gestionar Facturación
+            </button>
           </div>
-          <div className="text-right">
-            <p className="text-3xl font-bold">$1,999</p>
-            <p className="text-sm text-muted-foreground">MXN / mes</p>
-          </div>
-        </div>
 
-        <div className="mt-6 grid gap-4 sm:grid-cols-3">
-          <div className="rounded-lg bg-white/5 p-3">
-            <p className="text-xs text-muted-foreground">Próximo cobro</p>
-            <p className="mt-1 text-sm font-semibold">15 Jul 2024</p>
-          </div>
-          <div className="rounded-lg bg-white/5 p-3">
-            <p className="text-xs text-muted-foreground">Método de pago</p>
-            <div className="mt-1 flex items-center gap-2">
-              <CreditCard className="h-4 w-4 text-muted-foreground" />
-              <p className="text-sm font-semibold">•••• 4242</p>
+          {usage && (
+            <div className="mt-6 grid gap-4 sm:grid-cols-3">
+              <div className="rounded-lg bg-white/5 p-3">
+                <p className="text-xs text-muted-foreground">Integraciones</p>
+                <p className="mt-1 text-sm font-semibold">{usage.integrations} activas</p>
+              </div>
+              <div className="rounded-lg bg-white/5 p-3">
+                <p className="text-xs text-muted-foreground">Usuarios</p>
+                <p className="mt-1 text-sm font-semibold">{usage.users} activos</p>
+              </div>
+              <div className="rounded-lg bg-white/5 p-3">
+                <p className="text-xs text-muted-foreground">Reportes IA este mes</p>
+                <p className="mt-1 text-sm font-semibold">{usage.aiReports} generados</p>
+              </div>
             </div>
-          </div>
-          <div className="rounded-lg bg-white/5 p-3">
-            <p className="text-xs text-muted-foreground">Usuarios activos</p>
-            <p className="mt-1 text-sm font-semibold">3 de 5</p>
-          </div>
+          )}
         </div>
-      </div>
+      )}
 
       <div>
-        <h3 className="text-lg font-semibold">Cambiar Plan</h3>
-        <div className="mt-4 grid gap-4 md:grid-cols-3">
-          {plans.map((plan) => (
-            <div
-              key={plan.name}
-              className={cn(
-                "rounded-xl border p-6 transition-all",
-                plan.current
-                  ? "border-primary/30 bg-primary/5"
-                  : "border-white/5 bg-card hover:border-white/10"
-              )}
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold">{currentPlan ? "Cambiar Plan" : "Selecciona un Plan"}</h3>
+          <div className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 p-1">
+            <button
+              onClick={() => setInterval("MONTHLY")}
+              className={cn("rounded-md px-3 py-1 text-xs font-medium transition-colors", interval === "MONTHLY" ? "bg-primary text-white" : "text-muted-foreground hover:text-foreground")}
             >
-              <h4 className="font-semibold">{plan.name}</h4>
-              <p className="mt-1">
-                <span className="text-2xl font-bold">${plan.price.toLocaleString()}</span>
-                <span className="text-sm text-muted-foreground"> /mes</span>
-              </p>
-              <ul className="mt-4 space-y-2">
-                {plan.features.map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Check className="h-3.5 w-3.5 text-primary" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              {plan.current ? (
-                <div className="mt-4 rounded-lg border border-primary/20 py-2 text-center text-sm font-medium text-primary">
-                  Plan Actual
-                </div>
-              ) : (
-                <button className="mt-4 flex w-full items-center justify-center gap-1 rounded-lg border border-white/10 bg-white/5 py-2 text-sm font-medium transition-colors hover:bg-white/10">
-                  {plan.price > 1999 ? "Upgrade" : "Downgrade"}
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-          ))}
+              Mensual
+            </button>
+            <button
+              onClick={() => setInterval("ANNUAL")}
+              className={cn("rounded-md px-3 py-1 text-xs font-medium transition-colors", interval === "ANNUAL" ? "bg-primary text-white" : "text-muted-foreground hover:text-foreground")}
+            >
+              Anual <span className="text-emerald-400">-17%</span>
+            </button>
+          </div>
         </div>
-      </div>
 
-      <div className="rounded-xl border border-white/5 bg-card p-6">
-        <h3 className="font-semibold">Historial de Facturación</h3>
-        <div className="mt-4">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-white/5 text-left text-muted-foreground">
-                <th className="pb-3 font-medium">Fecha</th>
-                <th className="pb-3 font-medium">Concepto</th>
-                <th className="pb-3 font-medium">Monto</th>
-                <th className="pb-3 font-medium">Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[
-                { date: "15 Jun 2024", concept: "Plan Professional - Mensual", amount: 1999, status: "Pagado" },
-                { date: "15 May 2024", concept: "Plan Professional - Mensual", amount: 1999, status: "Pagado" },
-                { date: "15 Abr 2024", concept: "Plan Professional - Mensual", amount: 1999, status: "Pagado" },
-              ].map((inv, i) => (
-                <tr key={i} className="border-b border-white/5 last:border-0">
-                  <td className="py-3 text-muted-foreground">{inv.date}</td>
-                  <td className="py-3">{inv.concept}</td>
-                  <td className="py-3 font-medium">${inv.amount.toLocaleString()} MXN</td>
-                  <td className="py-3">
-                    <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-400">
-                      {inv.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="mt-4 grid gap-4 md:grid-cols-3">
+          {plans.map((plan) => {
+            const isCurrent = currentPlan === plan.key || currentPlan === plan.name;
+            const price = interval === "MONTHLY" ? plan.price : plan.annualPrice;
+            const isLoading = checkoutLoading === plan.key;
+
+            return (
+              <div
+                key={plan.key}
+                className={cn(
+                  "rounded-xl border p-6 transition-all",
+                  isCurrent ? "border-primary/30 bg-primary/5" : "border-white/5 bg-card hover:border-white/10"
+                )}
+              >
+                <h4 className="font-semibold">{plan.name}</h4>
+                <p className="mt-1">
+                  <span className="text-2xl font-bold">${price.toLocaleString()}</span>
+                  <span className="text-sm text-muted-foreground"> MXN /{interval === "MONTHLY" ? "mes" : "año"}</span>
+                </p>
+                <ul className="mt-4 space-y-2">
+                  {plan.features.map((f) => (
+                    <li key={f} className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Check className="h-3.5 w-3.5 text-primary" />
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+                {isCurrent ? (
+                  <div className="mt-4 rounded-lg border border-primary/20 py-2 text-center text-sm font-medium text-primary">
+                    Plan Actual
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => handleCheckout(plan.key)}
+                    disabled={isLoading}
+                    className="mt-4 flex w-full items-center justify-center gap-1 rounded-lg gradient-bg py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                  >
+                    {isLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <>
+                        Suscribirse
+                        <ArrowRight className="h-3.5 w-3.5" />
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
       <div className="rounded-xl border border-white/5 bg-card p-6">
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-amber-400" />
-          <h3 className="font-semibold">¿Necesitas factura fiscal?</h3>
+          <h3 className="font-semibold">Gestionar método de pago y facturas</h3>
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
-          Configurar datos fiscales para recibir CFDI automáticamente cada mes.
+          Accede al portal de Stripe para ver facturas, cambiar método de pago y descargar recibos.
         </p>
-        <button className="mt-3 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium transition-colors hover:bg-white/10">
-          Configurar Datos Fiscales
+        <button
+          onClick={handlePortal}
+          disabled={portalLoading}
+          className="mt-3 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium transition-colors hover:bg-white/10 disabled:opacity-50"
+        >
+          {portalLoading ? "Abriendo..." : "Abrir Portal de Facturación"}
         </button>
       </div>
     </div>
