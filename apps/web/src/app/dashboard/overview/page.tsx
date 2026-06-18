@@ -8,6 +8,7 @@ import {
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { cn } from "@/lib/utils";
 import { Onboarding } from "@/components/dashboard/onboarding";
+import { ActivityLog } from "@/components/dashboard/activity-log";
 
 type DashboardData = {
   revenue: number; revenueChange: number;
@@ -360,6 +361,8 @@ export default function OverviewPage() {
           </a>
         ))}
       </div>
+
+      <ActivityLog />
     </div>
   );
 }

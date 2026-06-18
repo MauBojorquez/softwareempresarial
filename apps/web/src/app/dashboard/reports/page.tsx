@@ -40,6 +40,7 @@ export default function ReportsPage() {
         toast(data.error || "Error al generar reporte", "error");
       } else {
         load();
+        toast("Reporte generado exitosamente", "success");
       }
     } catch {
       toast("Error al generar reporte", "error");
@@ -57,6 +58,7 @@ export default function ReportsPage() {
       a.download = `Reporte-${id}.html`;
       a.click();
       URL.revokeObjectURL(url);
+      toast("Reporte descargado", "success");
     }
   };
 
@@ -70,6 +72,7 @@ export default function ReportsPage() {
       a.download = `Metricas-${new Date().toISOString().split("T")[0]}.html`;
       a.click();
       URL.revokeObjectURL(url);
+      toast("Métricas exportadas", "success");
     }
   };
 
@@ -83,7 +86,14 @@ export default function ReportsPage() {
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Reportes IA</h1>
+          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">
+            Reportes IA
+            {reports.length > 0 && (
+              <span className="ml-2 inline-flex items-center justify-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                {reports.length}
+              </span>
+            )}
+          </h1>
           <p className="text-sm text-muted-foreground">Análisis inteligente de tu negocio</p>
         </div>
         <div className="flex items-center gap-2">
