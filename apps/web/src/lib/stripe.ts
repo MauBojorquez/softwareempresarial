@@ -23,10 +23,10 @@ export const PLANS = {
     description: "Para emprendedores y negocios pequeños",
     features: [
       "Dashboard ejecutivo",
-      "1 integración (QuickBooks o HubSpot)",
-      "Métricas financieras y ventas",
+      "3 integraciones (CRM, ERP, Meta Ads)",
+      "Finanzas, Ventas y Marketing",
       "Reporte IA mensual",
-      "1 usuario",
+      "3 usuarios",
     ],
     prices: {
       MONTHLY: { amount: 799, priceId: process.env.STRIPE_STARTER_MONTHLY_PRICE_ID! },
@@ -38,10 +38,10 @@ export const PLANS = {
     description: "Para empresas en crecimiento",
     features: [
       "Todo en Starter",
-      "Integraciones ilimitadas",
+      "Hasta 10 integraciones",
       "Todas las categorías de métricas",
       "Reportes IA semanales",
-      "Hasta 5 usuarios",
+      "Hasta 10 usuarios",
       "Dashboards personalizados",
     ],
     prices: {

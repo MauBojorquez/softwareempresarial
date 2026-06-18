@@ -10,16 +10,16 @@ export const PLAN_LIMITS: Record<Plan, {
   apiAccess: boolean;
 }> = {
   STARTER: {
-    integrations: 1,
-    users: 1,
+    integrations: 3,
+    users: 3,
     aiReportsPerMonth: 1,
-    categories: ["FINANCE", "SALES"],
+    categories: ["FINANCE", "SALES", "MARKETING"],
     customDashboards: false,
     apiAccess: false,
   },
   PROFESSIONAL: {
     integrations: 10,
-    users: 5,
+    users: 10,
     aiReportsPerMonth: 4,
     categories: ["FINANCE", "SALES", "OPERATIONS", "HR", "MARKETING"],
     customDashboards: true,

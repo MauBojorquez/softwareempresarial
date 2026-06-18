@@ -10,14 +10,14 @@ const plans = [
     name: "Starter",
     price: 799,
     annualPrice: 7990,
-    features: ["1 integración", "Métricas básicas", "Reporte IA mensual", "1 usuario"],
+    features: ["3 integraciones (CRM, ERP, Meta)", "Finanzas, Ventas y Marketing", "Reporte IA mensual", "3 usuarios"],
   },
   {
     key: "PROFESSIONAL",
     name: "Professional",
     price: 1999,
     annualPrice: 19990,
-    features: ["Integraciones ilimitadas", "Todas las métricas", "Reportes IA semanales", "5 usuarios", "Dashboards custom"],
+    features: ["10 integraciones", "Todas las métricas", "Reportes IA semanales", "10 usuarios", "Dashboards personalizados"],
   },
   {
     key: "ENTERPRISE",
