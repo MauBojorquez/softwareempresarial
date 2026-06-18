@@ -6,6 +6,7 @@ import { MetricCard } from "@/components/dashboard/metric-card";
 import { DashboardSkeleton } from "@/components/dashboard/skeleton";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/toast";
+import { addActivityLog } from "@/components/dashboard/activity-log";
 
 type MetricEntry = { id: string; name: string; value: number; unit: string | null; period: string };
 
@@ -68,6 +69,7 @@ export default function SalesPage() {
       toast(`Importados: ${data.imported}/${data.total}. ${data.errors.length} errores.`, "error");
     } else {
       toast(`${data.imported} registros importados correctamente`, "success");
+      addActivityLog("CSV importado", `${data.imported} registros en Ventas`, "import");
     }
     setImporting(false);
     load();
@@ -83,6 +85,7 @@ export default function SalesPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ category: "SALES", name: form.name, value: parseFloat(form.value), unit: template?.unit || "MXN", period: form.period }),
     });
+    addActivityLog("Métrica registrada", `${form.name}: ${form.value} en Ventas`, "add");
     setShowForm(false);
     setForm({ name: "Ventas del Mes", value: "", period: new Date().toISOString().split("T")[0] });
     setSaving(false);
@@ -92,6 +95,7 @@ export default function SalesPage() {
   const handleDelete = async (id: string) => {
     if (!confirm("¿Eliminar este registro?")) return;
     await fetch(`/api/metrics/manual?id=${id}`, { method: "DELETE" });
+    addActivityLog("Registro eliminado", "Ventas", "delete");
     toast("Registro eliminado", "success");
     load();
   };

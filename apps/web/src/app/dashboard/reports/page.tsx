@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Sparkles, FileText, Calendar, Loader2, ChevronRight, LinkIcon, Download } from "lucide-react";
 import { useToast } from "@/components/toast";
+import { addActivityLog } from "@/components/dashboard/activity-log";
 
 type Report = {
   id: string;
@@ -41,6 +42,7 @@ export default function ReportsPage() {
       } else {
         load();
         toast("Reporte generado exitosamente", "success");
+        addActivityLog("Reporte IA generado", "Análisis mensual con IA", "report");
       }
     } catch {
       toast("Error al generar reporte", "error");

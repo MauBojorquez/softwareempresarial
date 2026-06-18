@@ -6,6 +6,7 @@ import { MetricCard } from "@/components/dashboard/metric-card";
 import { DashboardSkeleton } from "@/components/dashboard/skeleton";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/toast";
+import { addActivityLog } from "@/components/dashboard/activity-log";
 
 type MetricEntry = { id: string; name: string; value: number; unit: string | null; period: string };
 
@@ -69,6 +70,7 @@ export default function OperationsPage() {
       toast(`Importados: ${data.imported}/${data.total}. ${data.errors.length} errores.`, "error");
     } else {
       toast(`${data.imported} registros importados correctamente`, "success");
+      addActivityLog("CSV importado", `${data.imported} registros en Operaciones`, "import");
     }
     setImporting(false);
     load();
@@ -84,6 +86,7 @@ export default function OperationsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ category: "OPERATIONS", name: form.name, value: parseFloat(form.value), unit: template?.unit || "unidades", period: form.period }),
     });
+    addActivityLog("Métrica registrada", `${form.name}: ${form.value} en Operaciones`, "add");
     setShowForm(false);
     setForm({ name: "Tareas Completadas", value: "", period: new Date().toISOString().split("T")[0] });
     setSaving(false);
@@ -93,6 +96,7 @@ export default function OperationsPage() {
   const handleDelete = async (id: string) => {
     if (!confirm("¿Eliminar este registro?")) return;
     await fetch(`/api/metrics/manual?id=${id}`, { method: "DELETE" });
+    addActivityLog("Registro eliminado", "Operaciones", "delete");
     toast("Registro eliminado", "success");
     load();
   };

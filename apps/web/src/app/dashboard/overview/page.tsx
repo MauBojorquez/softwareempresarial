@@ -8,7 +8,7 @@ import {
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { cn } from "@/lib/utils";
 import { Onboarding } from "@/components/dashboard/onboarding";
-import { ActivityLog } from "@/components/dashboard/activity-log";
+import { ActivityLog, addActivityLog } from "@/components/dashboard/activity-log";
 
 type DashboardData = {
   revenue: number; revenueChange: number;
@@ -58,6 +58,7 @@ export default function OverviewPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ metric: goalForm.metric, target: parseFloat(goalForm.target), unit: goalForm.unit }),
     });
+    addActivityLog("Meta establecida", `${goalForm.metric}: ${goalForm.target} ${goalForm.unit}`, "goal");
     setSavingGoal(false);
     setShowGoals(false);
     setGoalForm({ metric: "Ingresos", target: "", unit: "MXN" });
