@@ -26,17 +26,16 @@ export async function GET(req: NextRequest) {
   }
 
   const months = Math.min(Math.max(parseInt(req.nextUrl.searchParams.get("months") || "6"), 1), 12);
+  const selectedAccountId = req.nextUrl.searchParams.get("accountId");
   const accessToken = integration.accessToken;
   const metadata = integration.metadata as any;
-  const adAccounts = metadata?.adAccounts || [];
+  const adAccounts: { id: string; name: string }[] = metadata?.adAccounts || [];
 
   if (adAccounts.length === 0) {
     return NextResponse.json({ connected: true, campaigns: [], monthly: [], adAccounts: [] });
   }
 
   try {
-    const accountId = adAccounts[0].id;
-
     const tokenCheck = await fetch(
       `https://graph.facebook.com/v21.0/debug_token?input_token=${accessToken}&access_token=${accessToken}`
     );
@@ -55,57 +54,79 @@ export async function GET(req: NextRequest) {
         connected: true,
         campaigns: [],
         monthly: [],
+        adAccounts,
         tokenExpired: true,
         error: tokenError || "Tu token de Meta Ads expiró. Reconecta desde Integraciones.",
       });
     }
 
-    const campaignsRes = await fetch(
-      `https://graph.facebook.com/v21.0/${accountId}/campaigns?` +
-      `fields=id,name,status,effective_status,objective,daily_budget,lifetime_budget,start_time,stop_time,` +
-      `insights.date_preset(this_month){spend,impressions,clicks,ctr,cpc,reach,actions,action_values}` +
-      `&filtering=[{"field":"effective_status","operator":"IN","value":["ACTIVE","PAUSED"]}]` +
-      `&limit=50&access_token=${accessToken}`
-    );
+    const accountsToFetch = selectedAccountId
+      ? adAccounts.filter((a) => a.id === selectedAccountId)
+      : adAccounts;
 
-    let campaigns: any[] = [];
-    let apiError = "";
-
-    if (campaignsRes.ok) {
-      const data = await campaignsRes.json();
-
-      if (data.error) {
-        apiError = data.error.message || "Error de API de Meta";
-      } else {
-        campaigns = (data.data || []).map((c: any) => {
-          const insights = c.insights?.data?.[0] || {};
-          const conversions = Array.isArray(insights.actions)
-            ? insights.actions
-                .filter((a: any) => ["purchase", "lead", "complete_registration"].some((t) => a.action_type?.includes(t)))
-                .reduce((sum: number, a: any) => sum + parseInt(a.value || "0"), 0)
-            : 0;
-
-          return {
-            id: c.id,
-            name: c.name,
-            status: c.effective_status || c.status,
-            objective: c.objective,
-            spend: parseFloat(insights.spend || "0"),
-            impressions: parseInt(insights.impressions || "0"),
-            clicks: parseInt(insights.clicks || "0"),
-            ctr: parseFloat(insights.ctr || "0"),
-            cpc: parseFloat(insights.cpc || "0"),
-            reach: parseInt(insights.reach || "0"),
-            conversions,
-          };
-        });
-      }
-    } else {
-      const errData = await campaignsRes.json().catch(() => null);
-      apiError = errData?.error?.message || `Error ${campaignsRes.status} al obtener campañas`;
+    if (accountsToFetch.length === 0) {
+      return NextResponse.json({ connected: true, campaigns: [], monthly: [], adAccounts, error: "Cuenta no encontrada" });
     }
 
+    let allCampaigns: any[] = [];
+    let apiError = "";
+
     const now = new Date();
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const sinceCurrent = thisMonthStart.toISOString().split("T")[0];
+    const untilCurrent = now.toISOString().split("T")[0];
+
+    for (const account of accountsToFetch) {
+      try {
+        const campaignsRes = await fetch(
+          `https://graph.facebook.com/v21.0/${account.id}/campaigns?` +
+          `fields=id,name,status,effective_status,objective,daily_budget,lifetime_budget,start_time,stop_time,` +
+          `insights.time_range({"since":"${sinceCurrent}","until":"${untilCurrent}"}){spend,impressions,clicks,ctr,cpc,reach,actions,action_values}` +
+          `&limit=100&access_token=${accessToken}`
+        );
+
+        if (campaignsRes.ok) {
+          const data = await campaignsRes.json();
+          if (data.error) {
+            apiError = data.error.message || "Error de API de Meta";
+          } else {
+            const mapped = (data.data || []).map((c: any) => {
+              const insights = c.insights?.data?.[0] || {};
+              const conversions = Array.isArray(insights.actions)
+                ? insights.actions
+                    .filter((a: any) => ["purchase", "lead", "complete_registration"].some((t) => a.action_type?.includes(t)))
+                    .reduce((sum: number, a: any) => sum + parseInt(a.value || "0"), 0)
+                : 0;
+
+              return {
+                id: c.id,
+                name: c.name,
+                status: c.effective_status || c.status,
+                objective: c.objective,
+                spend: parseFloat(insights.spend || "0"),
+                impressions: parseInt(insights.impressions || "0"),
+                clicks: parseInt(insights.clicks || "0"),
+                ctr: parseFloat(insights.ctr || "0"),
+                cpc: parseFloat(insights.cpc || "0"),
+                reach: parseInt(insights.reach || "0"),
+                conversions,
+                accountId: account.id,
+                accountName: account.name || account.id,
+              };
+            });
+            allCampaigns.push(...mapped);
+          }
+        } else {
+          const errData = await campaignsRes.json().catch(() => null);
+          apiError = errData?.error?.message || `Error ${campaignsRes.status}`;
+        }
+      } catch {
+        // skip failed account
+      }
+    }
+
+    allCampaigns.sort((a, b) => b.spend - a.spend);
+
     const monthly: any[] = [];
 
     for (let i = 0; i < months; i++) {
@@ -116,44 +137,61 @@ export async function GET(req: NextRequest) {
       const until = end.toISOString().split("T")[0];
       const monthName = start.toLocaleDateString("es-MX", { month: "short", year: "numeric" });
 
-      try {
-        const res = await fetch(
-          `https://graph.facebook.com/v21.0/${accountId}/insights?` +
-          `fields=spend,impressions,clicks,ctr,cpc,cpm,reach` +
-          `&time_range={"since":"${since}","until":"${until}"}` +
-          `&access_token=${accessToken}`
-        );
+      let monthSpend = 0, monthImpressions = 0, monthClicks = 0, monthReach = 0;
+      let monthCtr = 0, monthCpc = 0, hasAnyData = false;
 
-        if (res.ok) {
-          const data = await res.json();
-          const d = data.data?.[0];
+      for (const account of accountsToFetch) {
+        try {
+          const res = await fetch(
+            `https://graph.facebook.com/v21.0/${account.id}/insights?` +
+            `fields=spend,impressions,clicks,ctr,cpc,cpm,reach` +
+            `&time_range={"since":"${since}","until":"${until}"}` +
+            `&access_token=${accessToken}`
+          );
 
-          monthly.push({
-            month: monthName,
-            spend: d ? parseFloat(d.spend || "0") : 0,
-            impressions: d ? parseInt(d.impressions || "0") : 0,
-            clicks: d ? parseInt(d.clicks || "0") : 0,
-            ctr: d ? parseFloat(d.ctr || "0") : 0,
-            cpc: d ? parseFloat(d.cpc || "0") : 0,
-            reach: d ? parseInt(d.reach || "0") : 0,
-            hasData: !!d,
-          });
-        } else {
-          monthly.push({ month: monthName, spend: 0, impressions: 0, clicks: 0, ctr: 0, cpc: 0, reach: 0, hasData: false });
+          if (res.ok) {
+            const data = await res.json();
+            const d = data.data?.[0];
+            if (d) {
+              hasAnyData = true;
+              monthSpend += parseFloat(d.spend || "0");
+              monthImpressions += parseInt(d.impressions || "0");
+              monthClicks += parseInt(d.clicks || "0");
+              monthReach += parseInt(d.reach || "0");
+            }
+          }
+        } catch {
+          // skip
         }
-      } catch {
-        monthly.push({ month: monthName, spend: 0, impressions: 0, clicks: 0, ctr: 0, cpc: 0, reach: 0, hasData: false });
       }
+
+      if (hasAnyData && monthImpressions > 0) {
+        monthCtr = (monthClicks / monthImpressions) * 100;
+        monthCpc = monthClicks > 0 ? monthSpend / monthClicks : 0;
+      }
+
+      monthly.push({
+        month: monthName,
+        spend: monthSpend,
+        impressions: monthImpressions,
+        clicks: monthClicks,
+        ctr: Math.round(monthCtr * 100) / 100,
+        cpc: Math.round(monthCpc * 100) / 100,
+        reach: monthReach,
+        hasData: hasAnyData,
+      });
     }
+
+    const activeCampaigns = allCampaigns.filter((c) => c.status === "ACTIVE");
 
     return NextResponse.json({
       connected: true,
-      campaigns,
+      campaigns: allCampaigns,
       monthly: monthly.reverse(),
-      activeCampaigns: campaigns.filter((c) => c.status === "ACTIVE").length,
-      totalCampaigns: campaigns.length,
-      accountId,
-      accountName: adAccounts[0].name || accountId,
+      activeCampaigns: activeCampaigns.length,
+      totalCampaigns: allCampaigns.length,
+      adAccounts: adAccounts.map((a) => ({ id: a.id, name: a.name || a.id })),
+      selectedAccountId: selectedAccountId || "all",
       error: apiError || undefined,
     });
   } catch (err: any) {
@@ -162,6 +200,7 @@ export async function GET(req: NextRequest) {
       connected: true,
       campaigns: [],
       monthly: [],
+      adAccounts,
       error: err.message || "Error al conectar con Meta Ads",
     });
   }

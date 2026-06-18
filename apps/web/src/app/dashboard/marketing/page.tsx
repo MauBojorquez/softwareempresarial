@@ -11,13 +11,16 @@ export default function MarketingPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"overview" | "campaigns" | "history">("overview");
+  const [selectedAccount, setSelectedAccount] = useState<string>("all");
 
-  const load = () => {
+  const load = (accountId?: string) => {
     setLoading(true);
     setError(null);
+    const acct = accountId ?? selectedAccount;
+    const acctParam = acct && acct !== "all" ? `&accountId=${acct}` : "";
     Promise.all([
       fetch("/api/metrics/marketing").then((r) => r.json()),
-      fetch("/api/metrics/marketing/campaigns?months=6").then((r) => r.json()),
+      fetch(`/api/metrics/marketing/campaigns?months=6${acctParam}`).then((r) => r.json()),
     ])
       .then(([d, c]) => {
         setData(d);
@@ -38,7 +41,7 @@ export default function MarketingPage() {
       <div className="rounded-full bg-destructive/10 p-3 mb-4"><X className="h-6 w-6 text-destructive" /></div>
       <h3 className="text-lg font-semibold">Error al cargar datos</h3>
       <p className="mt-1 text-sm text-muted-foreground">{error}</p>
-      <button onClick={load} className="mt-4 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90">Reintentar</button>
+      <button onClick={() => load()} className="mt-4 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90">Reintentar</button>
     </div>
   );
 
@@ -77,10 +80,14 @@ export default function MarketingPage() {
   const fetchError = campaigns?.error;
 
   const statusLabel = (s: string) => {
-    if (s === "ACTIVE") return { text: "Activa", cls: "text-emerald-600 bg-emerald-50" };
-    if (s === "PAUSED") return { text: "Pausada", cls: "text-amber-600 bg-amber-50" };
-    return { text: s, cls: "text-muted-foreground bg-secondary/50" };
+    if (s === "ACTIVE") return { text: "Activa", cls: "text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10" };
+    if (s === "PAUSED") return { text: "Pausada", cls: "text-amber-600 bg-amber-50 dark:bg-amber-500/10" };
+    if (s === "DELETED" || s === "ARCHIVED") return { text: "Eliminada", cls: "text-red-600 bg-red-50 dark:bg-red-500/10" };
+    if (s === "WITH_ISSUES") return { text: "Con problemas", cls: "text-red-600 bg-red-50 dark:bg-red-500/10" };
+    return { text: s?.replace(/_/g, " ") || "—", cls: "text-muted-foreground bg-secondary/50" };
   };
+
+  const multipleAccounts = campaigns?.adAccounts?.length > 1 && selectedAccount === "all";
 
   return (
     <div className="space-y-5">
@@ -143,9 +150,25 @@ export default function MarketingPage() {
         </div>
       )}
 
-      {campaigns?.accountName && (
+      {campaigns?.adAccounts?.length > 1 && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Cuenta:</span>
+          <select
+            value={selectedAccount}
+            onChange={(e) => { setSelectedAccount(e.target.value); load(e.target.value); }}
+            className="rounded-md border border-border bg-card px-2 py-1 text-xs font-medium text-foreground"
+          >
+            <option value="all">Todas las cuentas</option>
+            {campaigns.adAccounts.map((a: any) => (
+              <option key={a.id} value={a.id}>{a.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {campaigns?.adAccounts?.length === 1 && (
         <p className="text-xs text-muted-foreground">
-          Cuenta: <span className="font-medium text-foreground">{campaigns.accountName}</span>
+          Cuenta: <span className="font-medium text-foreground">{campaigns.adAccounts[0].name}</span>
         </p>
       )}
 
@@ -209,6 +232,7 @@ export default function MarketingPage() {
                   <thead>
                     <tr className="border-b border-border text-left text-xs text-muted-foreground">
                       <th scope="col" className="p-3 font-medium">Campaña</th>
+                      {multipleAccounts && <th scope="col" className="p-3 font-medium">Cuenta</th>}
                       <th scope="col" className="p-3 font-medium">Estado</th>
                       <th scope="col" className="p-3 font-medium text-right">Gasto</th>
                       <th scope="col" className="p-3 font-medium text-right">Clics</th>
@@ -222,8 +246,13 @@ export default function MarketingPage() {
                       return (
                         <tr key={c.id} className="border-b border-border last:border-0 hover:bg-secondary/30">
                           <td className="p-3">
-                            <p className="font-medium truncate max-w-[200px]">{c.name}</p>
+                            <p className="font-medium truncate max-w-[250px]">{c.name}</p>
                           </td>
+                          {multipleAccounts && (
+                            <td className="p-3">
+                              <p className="text-xs text-muted-foreground truncate max-w-[150px]">{c.accountName}</p>
+                            </td>
+                          )}
                           <td className="p-3">
                             <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", st.cls)}>{st.text}</span>
                           </td>
