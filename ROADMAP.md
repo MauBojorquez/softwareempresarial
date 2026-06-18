@@ -51,11 +51,16 @@
 - [x] Meta Ads OAuth conectado y funcionando
 - [x] Stripe con 3 planes live
 - [x] Página de Marketing con datos reales de Meta
-- [ ] Ajuste de planes/límites
-- [ ] Rediseño de estilo
-- [ ] Historial de reportes
-- [ ] Entrada manual de datos
-- [ ] Meta Ads profundidad (campañas, más meses)
-- [ ] Conectar cada pestaña a su fuente
-- [ ] Overview con datos reales agregados
-- [ ] Logos reales
+- [x] Ajuste de planes/límites (Starter: 3 integraciones, 3 usuarios)
+- [x] Rediseño de estilo (tema light corporativo BlackRock-inspired)
+- [x] Historial de reportes (API + UI para ver reportes pasados)
+- [x] Entrada manual de datos (Finanzas, Ventas, Operaciones, RH)
+- [x] Meta Ads profundidad (campañas, 6 meses historial, tabs)
+- [x] Conectar cada pestaña a su fuente (empty states + manual entry)
+- [x] Overview con datos reales agregados
+- [x] Reportes IA generados con Claude API + datos reales
+- [ ] Logo de Stratium (pendiente: el usuario necesita subir el archivo)
+- [ ] Logos reales de integraciones (SVG/PNG de Meta, HubSpot, etc.)
+- [ ] Seguridad: revisar tokens, permisos, validaciones
+- [ ] HubSpot integration con credenciales reales
+- [ ] QuickBooks integration con credenciales reales

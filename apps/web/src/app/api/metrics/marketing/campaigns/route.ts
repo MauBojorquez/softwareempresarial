@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ connected: false });
   }
 
-  const months = parseInt(req.nextUrl.searchParams.get("months") || "3");
+  const months = Math.min(Math.max(parseInt(req.nextUrl.searchParams.get("months") || "3"), 1), 12);
   const accessToken = integration.accessToken;
   const metadata = integration.metadata as any;
   const adAccounts = metadata?.adAccounts || [];
