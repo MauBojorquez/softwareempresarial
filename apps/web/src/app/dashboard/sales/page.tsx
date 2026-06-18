@@ -21,12 +21,12 @@ export default function SalesPage() {
 
       <SalesPipelineChart />
 
-      <div className="rounded-xl border border-white/5 bg-card p-6">
+      <div className="rounded-xl border border-border bg-card p-6">
         <h3 className="text-lg font-semibold">Deals Recientes</h3>
         <div className="mt-4 overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-white/5 text-left text-sm text-muted-foreground">
+              <tr className="border-b border-border text-left text-sm text-muted-foreground">
                 <th className="pb-3 font-medium">Deal</th>
                 <th className="pb-3 font-medium">Etapa</th>
                 <th className="pb-3 font-medium">Valor</th>
@@ -35,12 +35,12 @@ export default function SalesPage() {
             </thead>
             <tbody className="text-sm">
               {[
-                { name: "Proyecto Alpha", stage: "Cerrado", value: 180000, date: "2024-06-15", color: "text-emerald-400" },
-                { name: "Implementación Beta", stage: "Negociación", value: 250000, date: "2024-07-01", color: "text-amber-400" },
+                { name: "Proyecto Alpha", stage: "Cerrado", value: 180000, date: "2024-06-15", color: "text-emerald-600" },
+                { name: "Implementación Beta", stage: "Negociación", value: 250000, date: "2024-07-01", color: "text-amber-600" },
                 { name: "Consultoría Gamma", stage: "Propuesta", value: 95000, date: "2024-07-15", color: "text-primary" },
                 { name: "Licencia Delta", stage: "Calificado", value: 320000, date: "2024-08-01", color: "text-muted-foreground" },
               ].map((deal, i) => (
-                <tr key={i} className="border-b border-white/5 last:border-0">
+                <tr key={i} className="border-b border-border last:border-0">
                   <td className="py-3 font-medium">{deal.name}</td>
                   <td className={`py-3 ${deal.color}`}>{deal.stage}</td>
                   <td className="py-3">

@@ -19,7 +19,7 @@ export default function HRPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-xl border border-white/5 bg-card p-6">
+        <div className="rounded-xl border border-border bg-card p-6">
           <h3 className="text-lg font-semibold">Distribución por Departamento</h3>
           <div className="mt-4 space-y-3">
             {[
@@ -34,7 +34,7 @@ export default function HRPage() {
                   <span>{item.dept}</span>
                   <span className="text-muted-foreground">{item.count} ({item.pct}%)</span>
                 </div>
-                <div className="h-2 rounded-full bg-white/5">
+                <div className="h-2 rounded-full bg-secondary/50">
                   <div className={`h-2 rounded-full bg-gradient-to-r ${item.color}`} style={{ width: `${item.pct}%` }} />
                 </div>
               </div>
@@ -42,7 +42,7 @@ export default function HRPage() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-white/5 bg-card p-6">
+        <div className="rounded-xl border border-border bg-card p-6">
           <h3 className="text-lg font-semibold">Costo de Nómina</h3>
           <div className="mt-4">
             <p className="text-3xl font-bold">

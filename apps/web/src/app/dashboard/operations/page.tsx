@@ -19,7 +19,7 @@ export default function OperationsPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-xl border border-white/5 bg-card p-6">
+        <div className="rounded-xl border border-border bg-card p-6">
           <h3 className="text-lg font-semibold">Proyectos Activos</h3>
           <div className="mt-4 space-y-4">
             {[
@@ -30,11 +30,11 @@ export default function OperationsPage() {
               <div key={i} className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="font-medium">{project.name}</span>
-                  <span className={project.status === "Retrasado" ? "text-red-400" : "text-emerald-400"}>
+                  <span className={project.status === "Retrasado" ? "text-red-500" : "text-emerald-600"}>
                     {project.status}
                   </span>
                 </div>
-                <div className="h-2 rounded-full bg-white/5">
+                <div className="h-2 rounded-full bg-secondary/50">
                   <div className="h-2 rounded-full gradient-bg" style={{ width: `${project.progress}%` }} />
                 </div>
               </div>
@@ -42,7 +42,7 @@ export default function OperationsPage() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-white/5 bg-card p-6">
+        <div className="rounded-xl border border-border bg-card p-6">
           <h3 className="text-lg font-semibold">KPIs Operativos</h3>
           <div className="mt-4 space-y-3">
             {[
@@ -51,7 +51,7 @@ export default function OperationsPage() {
               { kpi: "Utilización de Recursos", value: "82%", target: "85%" },
               { kpi: "Costo por Operación", value: "$1,250", target: "< $1,500" },
             ].map((item, i) => (
-              <div key={i} className="flex items-center justify-between border-b border-white/5 pb-3 last:border-0">
+              <div key={i} className="flex items-center justify-between border-b border-border pb-3 last:border-0">
                 <span className="text-sm">{item.kpi}</span>
                 <div className="text-right">
                   <span className="text-sm font-semibold">{item.value}</span>

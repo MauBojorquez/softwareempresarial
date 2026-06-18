@@ -47,7 +47,7 @@ export default function RegisterPage() {
 
   return (
     <div className="relative flex min-h-screen items-center justify-center bg-background">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(139,92,246,0.08),transparent_60%)]" />
+      <div className="absolute inset-0 " />
 
       <div className="relative w-full max-w-sm space-y-6 px-4">
         <div className="text-center">
@@ -60,7 +60,7 @@ export default function RegisterPage() {
         </div>
 
         {error && (
-          <div className="rounded-lg border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm text-red-400">
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
             {error}
           </div>
         )}
@@ -73,7 +73,7 @@ export default function RegisterPage() {
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               required
-              className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/50 transition-colors"
+              className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2.5 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/50 transition-colors"
             />
           </div>
           <div>
@@ -83,7 +83,7 @@ export default function RegisterPage() {
               value={form.company}
               onChange={(e) => setForm({ ...form, company: e.target.value })}
               required
-              className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/50 transition-colors"
+              className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2.5 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/50 transition-colors"
             />
           </div>
           <div>
@@ -93,7 +93,7 @@ export default function RegisterPage() {
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
               required
-              className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/50 transition-colors"
+              className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2.5 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/50 transition-colors"
               placeholder="tu@empresa.com"
             />
           </div>
@@ -105,7 +105,7 @@ export default function RegisterPage() {
               onChange={(e) => setForm({ ...form, password: e.target.value })}
               required
               minLength={8}
-              className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/50 transition-colors"
+              className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2.5 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/50 transition-colors"
             />
           </div>
           <button

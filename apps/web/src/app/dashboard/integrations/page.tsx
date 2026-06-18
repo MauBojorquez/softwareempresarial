@@ -131,7 +131,7 @@ export default function IntegrationsPage() {
           return (
             <div
               key={integration.type}
-              className="rounded-xl border border-white/5 bg-card p-6 transition-all hover:border-white/10"
+              className="rounded-xl border border-border bg-card p-6 transition-all hover:border-border"
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
@@ -144,12 +144,12 @@ export default function IntegrationsPage() {
                   </div>
                 </div>
                 {connected ? (
-                  <div className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-400">
+                  <div className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-600">
                     <CheckCircle className="h-3 w-3" />
                     Conectado
                   </div>
                 ) : (
-                  <div className="flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                  <div className="flex items-center gap-1.5 rounded-full bg-secondary/50 px-2.5 py-1 text-xs font-medium text-muted-foreground">
                     <AlertCircle className="h-3 w-3" />
                     Desconectado
                   </div>
@@ -160,7 +160,7 @@ export default function IntegrationsPage() {
 
               <div className="mt-4 flex flex-wrap gap-1.5">
                 {integration.metrics.map((metric) => (
-                  <span key={metric} className="rounded-md bg-white/5 px-2 py-0.5 text-[11px] text-muted-foreground">
+                  <span key={metric} className="rounded-md bg-secondary/50 px-2 py-0.5 text-[11px] text-muted-foreground">
                     {metric}
                   </span>
                 ))}
@@ -172,7 +172,7 @@ export default function IntegrationsPage() {
                 </div>
               )}
 
-              <div className="mt-4 flex items-center justify-between border-t border-white/5 pt-4">
+              <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
                 {connected ? (
                   <>
                     <span className="text-xs text-muted-foreground">
@@ -182,14 +182,14 @@ export default function IntegrationsPage() {
                       <button
                         onClick={() => handleSync(integration.type)}
                         disabled={isSyncing}
-                        className="flex items-center gap-1.5 rounded-lg bg-white/5 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-white/10 disabled:opacity-50"
+                        className="flex items-center gap-1.5 rounded-lg bg-secondary/50 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-secondary disabled:opacity-50"
                       >
                         {isSyncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
                         {isSyncing ? "Sincronizando..." : "Sincronizar"}
                       </button>
                       <button
                         onClick={() => handleDisconnect(integration.type)}
-                        className="flex items-center gap-1.5 rounded-lg bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-500/20"
+                        className="flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-500 transition-colors hover:bg-red-500/20"
                       >
                         Desconectar
                       </button>
@@ -205,7 +205,7 @@ export default function IntegrationsPage() {
                 ) : (
                   <button
                     disabled
-                    className="w-full rounded-lg bg-white/5 py-2 text-sm font-medium text-muted-foreground cursor-not-allowed"
+                    className="w-full rounded-lg bg-secondary/50 py-2 text-sm font-medium text-muted-foreground cursor-not-allowed"
                   >
                     Próximamente
                   </button>
@@ -216,15 +216,15 @@ export default function IntegrationsPage() {
         })}
       </div>
 
-      <div className="rounded-xl border border-white/5 bg-card p-6">
+      <div className="rounded-xl border border-border bg-card p-6">
         <h3 className="font-semibold">API Personalizada</h3>
         <p className="mt-1 text-sm text-muted-foreground">
           Conecta cualquier sistema vía REST API para enviar métricas personalizadas.
         </p>
-        <div className="mt-4 rounded-lg border border-white/5 bg-black/30 p-4 font-mono text-xs text-muted-foreground">
+        <div className="mt-4 rounded-lg border border-border bg-black/30 p-4 font-mono text-xs text-muted-foreground">
           <p className="text-primary">POST /api/v1/metrics</p>
           <p className="mt-1">Authorization: Bearer {"<"}api_key{">"}</p>
-          <p className="mt-2 text-emerald-400">{"{}"}</p>
+          <p className="mt-2 text-emerald-600">{"{}"}</p>
         </div>
         <p className="mt-3 text-xs text-muted-foreground">Disponible en planes Professional y Enterprise</p>
       </div>
