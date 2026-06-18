@@ -27,7 +27,10 @@ export async function POST() {
     );
   }
 
-  const reportId = await generateMonthlyReport(membership.organizationId, session.user.id);
-
-  return NextResponse.json({ reportId });
+  try {
+    const reportId = await generateMonthlyReport(membership.organizationId, session.user.id);
+    return NextResponse.json({ reportId });
+  } catch {
+    return NextResponse.json({ error: "Error al generar el reporte. Verifica que tengas datos registrados." }, { status: 500 });
+  }
 }
