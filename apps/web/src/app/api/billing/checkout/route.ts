@@ -21,12 +21,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No organization found" }, { status: 404 });
   }
 
-  const checkoutSession = await createCheckoutSession(
-    membership.organizationId,
-    plan,
-    interval,
-    session.user.email!
-  );
+  const origin = req.headers.get("origin") || req.nextUrl.origin;
 
-  return NextResponse.json({ url: checkoutSession.url });
+  try {
+    const checkoutSession = await createCheckoutSession(
+      membership.organizationId,
+      plan,
+      interval,
+      session.user.email!,
+      origin
+    );
+    return NextResponse.json({ url: checkoutSession.url });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || "Error creating checkout" }, { status: 500 });
+  }
 }

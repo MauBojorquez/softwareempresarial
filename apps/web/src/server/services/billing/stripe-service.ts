@@ -6,7 +6,8 @@ export async function createCheckoutSession(
   organizationId: string,
   plan: Plan,
   interval: BillingInterval,
-  userEmail: string
+  userEmail: string,
+  baseUrl: string
 ) {
   const planConfig = PLANS[plan];
   const priceId = planConfig.prices[interval].priceId;
@@ -17,19 +18,26 @@ export async function createCheckoutSession(
 
   let customerId: string;
 
-  if (subscription) {
+  if (subscription && subscription.stripeCustomerId && !subscription.stripeCustomerId.startsWith("cus_demo")) {
     customerId = subscription.stripeCustomerId;
   } else {
     const customer = await stripe.customers.create({ email: userEmail });
     customerId = customer.id;
-    subscription = await db.subscription.create({
-      data: {
-        organizationId,
-        stripeCustomerId: customerId,
-        plan,
-        interval,
-      },
-    });
+    if (subscription) {
+      await db.subscription.update({
+        where: { organizationId },
+        data: { stripeCustomerId: customerId },
+      });
+    } else {
+      subscription = await db.subscription.create({
+        data: {
+          organizationId,
+          stripeCustomerId: customerId,
+          plan,
+          interval,
+        },
+      });
+    }
   }
 
   const session = await stripe.checkout.sessions.create({
@@ -37,8 +45,8 @@ export async function createCheckoutSession(
     mode: "subscription",
     payment_method_types: ["card"],
     line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${process.env.NEXTAUTH_URL}/dashboard/overview?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${process.env.NEXTAUTH_URL}/pricing`,
+    success_url: `${baseUrl}/dashboard/overview?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${baseUrl}/dashboard/billing`,
     subscription_data: {
       trial_period_days: 14,
     },
