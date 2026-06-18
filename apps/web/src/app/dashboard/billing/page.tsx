@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { CreditCard, Check, Sparkles, ArrowRight, Loader2 } from "lucide-react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/toast";
 
@@ -205,6 +206,39 @@ export default function BillingPage() {
             );
           })}
         </div>
+
+        <div className="hidden lg:block rounded-xl border border-border bg-card overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-secondary/30">
+                <th className="p-3 text-left font-medium text-muted-foreground">Funcionalidad</th>
+                {plans.map((p) => (
+                  <th key={p.key} className="p-3 text-center font-medium">{p.name}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                { name: "Integraciones", values: ["3", "10", "Ilimitadas"] },
+                { name: "Usuarios", values: ["3", "10", "Ilimitados"] },
+                { name: "Reportes IA", values: ["Mensual", "Semanal", "On-demand"] },
+                { name: "Dashboards", values: ["1", "Múltiples", "Ilimitados"] },
+                { name: "API Personalizada", values: ["—", "—", "✓"] },
+                { name: "SSO / SAML", values: ["—", "—", "✓"] },
+                { name: "Soporte", values: ["Email", "Email + Chat", "Prioritario"] },
+              ].map((row) => (
+                <tr key={row.name} className="border-b border-border last:border-0">
+                  <td className="p-3 text-muted-foreground">{row.name}</td>
+                  {row.values.map((v, i) => (
+                    <td key={i} className="p-3 text-center font-medium">
+                      {v === "✓" ? <Check className="h-4 w-4 text-emerald-500 mx-auto" /> : v === "—" ? <span className="text-muted-foreground">—</span> : v}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
@@ -223,6 +257,13 @@ export default function BillingPage() {
           {portalLoading ? "Abriendo..." : "Abrir Portal de Facturación"}
         </button>
       </div>
+
+      <p className="text-center text-sm text-muted-foreground">
+        ¿Tienes dudas? Consulta nuestras{" "}
+        <Link href="/pricing" className="text-primary hover:underline font-medium">
+          preguntas frecuentes
+        </Link>
+      </p>
     </div>
   );
 }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   DollarSign, TrendingUp, Users, ShoppingCart, RefreshCw, LinkIcon, Plus, ArrowRight,
-  Target, Calculator, Download, ChevronDown, Megaphone, BarChart3, Wallet
+  Target, Calculator, Download, ChevronDown, Megaphone, BarChart3, Wallet, FileText, PlusCircle
 } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { cn } from "@/lib/utils";
@@ -140,6 +140,18 @@ export default function OverviewPage() {
 
   return (
     <div className="space-y-5">
+      <div className="hidden lg:flex items-center gap-2">
+        <a href="/dashboard/finance" className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium transition-colors hover:bg-secondary">
+          <PlusCircle className="h-3.5 w-3.5" />Agregar dato
+        </a>
+        <a href="/dashboard/reports" className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium transition-colors hover:bg-secondary">
+          <FileText className="h-3.5 w-3.5" />Generar reporte
+        </a>
+        <button onClick={downloadMetrics} disabled={downloading} className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium transition-colors hover:bg-secondary disabled:opacity-50">
+          <Download className="h-3.5 w-3.5" />{downloading ? "Exportando..." : "Exportar"}
+        </button>
+      </div>
+
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">Dashboard</h1>
@@ -241,15 +253,15 @@ export default function OverviewPage() {
             };
             return (
               <div key={g.name} className="rounded-xl border border-border bg-card p-4">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-medium text-muted-foreground">{g.name}</span>
-                  <span className="font-semibold">{pct?.toFixed(0)}%</span>
-                </div>
-                <div className="mt-2 h-2 rounded-full bg-secondary/50">
+                <div className="text-xs font-medium text-muted-foreground">{g.name}</div>
+                <div className="mt-2 h-5 rounded-full bg-secondary/50 relative">
                   <div
-                    className={cn("h-2 rounded-full transition-all", pct && pct >= 100 ? "bg-emerald-500" : "gradient-bg")}
+                    className={cn("h-5 rounded-full transition-all", pct && pct >= 100 ? "bg-emerald-500" : "gradient-bg")}
                     style={{ width: `${pct || 0}%` }}
                   />
+                  <span className={cn("absolute top-0.5 text-[10px] font-semibold leading-4", (pct || 0) > 30 ? "text-white" : "text-foreground")} style={{ left: (pct || 0) > 30 ? undefined : `${(pct || 0) + 2}%`, right: (pct || 0) > 30 ? 6 : undefined }}>
+                    {pct?.toFixed(0)}%
+                  </span>
                 </div>
                 <p className="mt-1.5 text-[11px] text-muted-foreground">
                   {fmtGoalVal(g.current)} / {fmtGoalVal(g.target)}
@@ -268,15 +280,15 @@ export default function OverviewPage() {
           </div>
           <div className="space-y-3">
             {[
-              { label: "Facturación Anual (YTD)", value: fmtMoney(calculated.ytdRevenue) },
-              { label: "Proyección Anual", value: fmtMoney(calculated.annualProjection) },
-              { label: "Ingreso por Colaborador", value: data.employees > 0 ? fmtMoney(calculated.revenuePerEmployee) : "—" },
-              { label: "Utilidad Neta", value: fmtMoney(calculated.utilidad) },
-              { label: "Margen Neto", value: `${calculated.margen}%` },
+              { label: "Facturación Anual (YTD)", value: fmtMoney(calculated.ytdRevenue), color: "" },
+              { label: "Proyección Anual", value: fmtMoney(calculated.annualProjection), color: "" },
+              { label: "Ingreso por Colaborador", value: data.employees > 0 ? fmtMoney(calculated.revenuePerEmployee) : "—", color: "" },
+              { label: "Utilidad Neta", value: fmtMoney(calculated.utilidad), color: calculated.utilidad >= 0 ? "text-emerald-600" : "text-red-600" },
+              { label: "Margen Neto", value: `${calculated.margen}%`, color: calculated.margen > 10 ? "text-emerald-600" : calculated.margen >= 5 ? "text-yellow-600" : "text-red-600" },
             ].map((kpi) => (
               <div key={kpi.label} className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">{kpi.label}</span>
-                <span className="font-semibold">{kpi.value}</span>
+                <span className={cn("font-semibold", kpi.color)}>{kpi.value}</span>
               </div>
             ))}
           </div>
@@ -296,9 +308,9 @@ export default function OverviewPage() {
                     <span className="text-[10px] text-muted-foreground">{fmtMoney(m.ingresos)}</span>
                   </div>
                   <div className="flex gap-1 h-3">
-                    <div className="h-full rounded gradient-bg" style={{ width: `${(m.ingresos / maxHistory) * 100}%` }} />
+                    <div title={`Ingresos: ${fmtMoney(m.ingresos)}`} className="h-full rounded gradient-bg" style={{ width: `${(m.ingresos / maxHistory) * 100}%` }} />
                     {m.gastos > 0 && (
-                      <div className="h-full rounded bg-red-400/40" style={{ width: `${(m.gastos / maxHistory) * 100}%` }} />
+                      <div title={`Gastos: ${fmtMoney(m.gastos)}`} className="h-full rounded bg-red-400/40" style={{ width: `${(m.gastos / maxHistory) * 100}%` }} />
                     )}
                   </div>
                 </div>
@@ -306,6 +318,10 @@ export default function OverviewPage() {
               <div className="flex items-center gap-4 text-[10px] text-muted-foreground mt-2 pt-2 border-t border-border">
                 <div className="flex items-center gap-1"><div className="h-2 w-2 rounded gradient-bg" /> Ingresos</div>
                 <div className="flex items-center gap-1"><div className="h-2 w-2 rounded bg-red-400/40" /> Gastos</div>
+              </div>
+              <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-1">
+                <span>Total periodo: {fmtMoney(monthlyHistory.reduce((s, m) => s + m.ingresos, 0))} ingresos</span>
+                <span>{fmtMoney(monthlyHistory.reduce((s, m) => s + m.gastos, 0))} gastos</span>
               </div>
             </div>
           ) : (
