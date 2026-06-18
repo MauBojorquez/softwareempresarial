@@ -9,17 +9,21 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const notifications = await db.notification.findMany({
-    where: { userId: session.user.id },
-    orderBy: { createdAt: "desc" },
-    take: 30,
-  });
+  try {
+    const notifications = await db.notification.findMany({
+      where: { userId: session.user.id },
+      orderBy: { createdAt: "desc" },
+      take: 30,
+    });
 
-  const unreadCount = await db.notification.count({
-    where: { userId: session.user.id, read: false },
-  });
+    const unreadCount = await db.notification.count({
+      where: { userId: session.user.id, read: false },
+    });
 
-  return NextResponse.json({ notifications, unreadCount });
+    return NextResponse.json({ notifications, unreadCount });
+  } catch {
+    return NextResponse.json({ notifications: [], unreadCount: 0 });
+  }
 }
 
 export async function PATCH(req: NextRequest) {
@@ -28,19 +32,21 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { action, id } = await req.json();
+  try {
+    const { action, id } = await req.json();
 
-  if (action === "read_all") {
-    await db.notification.updateMany({
-      where: { userId: session.user.id, read: false },
-      data: { read: true },
-    });
-  } else if (action === "read" && id) {
-    await db.notification.updateMany({
-      where: { id, userId: session.user.id },
-      data: { read: true },
-    });
-  }
+    if (action === "read_all") {
+      await db.notification.updateMany({
+        where: { userId: session.user.id, read: false },
+        data: { read: true },
+      });
+    } else if (action === "read" && id) {
+      await db.notification.updateMany({
+        where: { id, userId: session.user.id },
+        data: { read: true },
+      });
+    }
+  } catch {}
 
   return NextResponse.json({ ok: true });
 }
@@ -51,9 +57,11 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  await db.notification.deleteMany({
-    where: { userId: session.user.id },
-  });
+  try {
+    await db.notification.deleteMany({
+      where: { userId: session.user.id },
+    });
+  } catch {}
 
   return NextResponse.json({ ok: true });
 }

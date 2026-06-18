@@ -10,18 +10,22 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const keys = await db.apiKey.findMany({
-    where: { userId: session.user.id },
-    select: { id: true, name: true, key: true, lastUsed: true, isActive: true, createdAt: true },
-    orderBy: { createdAt: "desc" },
-  });
+  try {
+    const keys = await db.apiKey.findMany({
+      where: { userId: session.user.id },
+      select: { id: true, name: true, key: true, lastUsed: true, isActive: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+    });
 
-  const masked = keys.map((k) => ({
-    ...k,
-    key: k.key.slice(0, 8) + "..." + k.key.slice(-4),
-  }));
+    const masked = keys.map((k) => ({
+      ...k,
+      key: k.key.slice(0, 8) + "..." + k.key.slice(-4),
+    }));
 
-  return NextResponse.json({ keys: masked });
+    return NextResponse.json({ keys: masked });
+  } catch {
+    return NextResponse.json({ keys: [] });
+  }
 }
 
 export async function POST(req: NextRequest) {

@@ -130,7 +130,9 @@ export default function OverviewPage() {
     );
   }
 
-  const { calculated, goals, monthlyHistory, metaSummary, metaConnected } = data;
+  const { calculated, goals: rawGoals, monthlyHistory: rawHistory, metaSummary, metaConnected } = data;
+  const goals = Array.isArray(rawGoals) ? rawGoals : [];
+  const monthlyHistory = Array.isArray(rawHistory) ? rawHistory : [];
   const maxHistory = Math.max(...monthlyHistory.map((m) => Math.max(m.ingresos, m.gastos)), 1);
 
   const goalProgress = (current: number, target: number) => {

@@ -81,14 +81,16 @@ export async function POST(req: NextRequest) {
   }
 
   if (imported > 0) {
-    await db.notification.create({
-      data: {
-        userId: session.user.id,
-        title: "Importación completada",
-        message: `${imported} registro(s) importados en ${category.toLowerCase()}.`,
-        type: "import",
-      },
-    });
+    try {
+      await db.notification.create({
+        data: {
+          userId: session.user.id,
+          title: "Importación completada",
+          message: `${imported} registro(s) importados en ${category.toLowerCase()}.`,
+          type: "import",
+        },
+      });
+    } catch {}
   }
 
   return NextResponse.json({ imported, errors, total: rows.length });

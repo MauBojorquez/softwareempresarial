@@ -30,14 +30,16 @@ export async function POST() {
   try {
     const reportId = await generateMonthlyReport(membership.organizationId, session.user.id);
 
-    await db.notification.create({
-      data: {
-        userId: session.user.id,
-        title: "Reporte IA generado",
-        message: "Tu reporte mensual con análisis de IA está listo para revisión.",
-        type: "report",
-      },
-    });
+    try {
+      await db.notification.create({
+        data: {
+          userId: session.user.id,
+          title: "Reporte IA generado",
+          message: "Tu reporte mensual con análisis de IA está listo para revisión.",
+          type: "report",
+        },
+      });
+    } catch {}
 
     return NextResponse.json({ reportId });
   } catch {

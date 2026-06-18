@@ -10,17 +10,31 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const user = await db.user.findUnique({
-    where: { id: session.user.id },
-    select: { id: true, name: true, email: true, theme: true, createdAt: true },
-  });
+  try {
+    const user = await db.user.findUnique({
+      where: { id: session.user.id },
+      select: { id: true, name: true, email: true, theme: true, createdAt: true },
+    });
 
-  const membership = await db.membership.findFirst({
-    where: { userId: session.user.id },
-    include: { organization: { select: { id: true, name: true, industry: true } } },
-  });
+    const membership = await db.membership.findFirst({
+      where: { userId: session.user.id },
+      include: { organization: { select: { id: true, name: true, industry: true } } },
+    });
 
-  return NextResponse.json({ user, organization: membership?.organization ?? null });
+    return NextResponse.json({ user, organization: membership?.organization ?? null });
+  } catch {
+    const user = await db.user.findUnique({
+      where: { id: session.user.id },
+      select: { id: true, name: true, email: true, createdAt: true },
+    });
+
+    const membership = await db.membership.findFirst({
+      where: { userId: session.user.id },
+      include: { organization: { select: { id: true, name: true, industry: true } } },
+    });
+
+    return NextResponse.json({ user: { ...user, theme: "system" }, organization: membership?.organization ?? null });
+  }
 }
 
 export async function PATCH(req: NextRequest) {
