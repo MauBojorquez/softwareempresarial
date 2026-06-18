@@ -48,8 +48,9 @@ export default function MarketingPage() {
   }
 
   const { current, changes } = data;
-  const fmt = (n: number) => new Intl.NumberFormat("es-MX").format(Math.round(n));
-  const fmtMoney = (n: number) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 }).format(n);
+  const n = (v: any) => (typeof v === "number" ? v : Number(v) || 0);
+  const fmt = (v: any) => new Intl.NumberFormat("es-MX").format(Math.round(n(v)));
+  const fmtMoney = (v: any) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 }).format(n(v));
 
   return (
     <div className="space-y-6">
@@ -73,13 +74,13 @@ export default function MarketingPage() {
         />
         <MetricCard
           title="CTR"
-          value={`${current.ctr.toFixed(2)}%`}
+          value={`${n(current.ctr).toFixed(2)}%`}
           change={changes.ctr}
           icon={Target}
         />
         <MetricCard
           title="ROAS"
-          value={`${current.roas.toFixed(2)}x`}
+          value={`${n(current.roas).toFixed(2)}x`}
           change={changes.roas}
           icon={Megaphone}
         />
@@ -149,7 +150,7 @@ export default function MarketingPage() {
                 <Megaphone className="h-4 w-4 text-amber-400" />
                 <span className="text-sm font-medium">ROAS</span>
               </div>
-              <span className="text-sm font-semibold">{current.roas.toFixed(2)}x</span>
+              <span className="text-sm font-semibold">{n(current.roas).toFixed(2)}x</span>
             </div>
           </div>
         </div>
