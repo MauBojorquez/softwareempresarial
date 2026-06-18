@@ -63,25 +63,25 @@ export default function MarketingPage() {
         <MetricCard
           title="Gasto Total"
           value={fmtMoney(current.spend)}
-          change={changes.spend}
+          change={changes.spend ?? undefined}
           icon={DollarSign}
         />
         <MetricCard
           title="Clics"
           value={fmt(current.clicks)}
-          change={changes.clicks}
+          change={changes.clicks ?? undefined}
           icon={MousePointerClick}
         />
         <MetricCard
           title="CTR"
           value={`${n(current.ctr).toFixed(2)}%`}
-          change={changes.ctr}
+          change={changes.ctr ?? undefined}
           icon={Target}
         />
         <MetricCard
           title="ROAS"
           value={`${n(current.roas).toFixed(2)}x`}
-          change={changes.roas}
+          change={changes.roas ?? undefined}
           icon={Megaphone}
         />
       </div>
