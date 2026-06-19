@@ -6,7 +6,7 @@ import { CheckCircle, ArrowRight, Sparkles, Database, Link2, FileBarChart } from
 const STEPS = [
   { id: "profile", label: "Configura tu perfil", description: "Personaliza tu experiencia", href: "/dashboard/settings", icon: Sparkles },
   { id: "data", label: "Agrega tus datos", description: "Manual o importa CSV", href: "/dashboard/finance", icon: Database },
-  { id: "integration", label: "Conecta integraciones", description: "Meta Ads, QuickBooks, HubSpot", href: "/dashboard/integrations", icon: Link2 },
+  { id: "integration", label: "Conecta integraciones", description: "SAT, Meta Ads, HubSpot", href: "/dashboard/integrations", icon: Link2 },
   { id: "report", label: "Genera tu primer reporte", description: "Análisis con IA", href: "/dashboard/reports", icon: FileBarChart },
 ];
 

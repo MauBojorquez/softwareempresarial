@@ -6,7 +6,7 @@ import { CheckCircle, RefreshCw, AlertCircle, Loader2 } from "lucide-react";
 import { useToast } from "@/components/toast";
 import { addActivityLog } from "@/components/dashboard/activity-log";
 import {
-  MetaLogo, HubSpotLogo, QuickBooksLogo, SATLogo,
+  MetaLogo, HubSpotLogo, SATLogo,
 } from "@/components/brand-logos";
 
 type IntegrationStatus = {
@@ -34,15 +34,6 @@ const integrationConfig = [
     metrics: ["Ingresos facturados", "Gastos", "IVA", "Nómina", "Egresos", "Flujo de caja"],
     Logo: SATLogo,
     connectUrl: "/dashboard/integrations/sat",
-  },
-  {
-    type: "QUICKBOOKS",
-    name: "QuickBooks",
-    description: "Sincroniza ingresos, gastos, P&L, balance y flujo de caja automáticamente.",
-    category: "ERP / Contabilidad",
-    metrics: ["Ingresos", "Gastos", "Utilidad Neta", "Flujo de Caja", "Cuentas por Cobrar"],
-    Logo: QuickBooksLogo,
-    connectUrl: "/api/integrations/quickbooks",
   },
   {
     type: "HUBSPOT",
@@ -78,7 +69,6 @@ const ERROR_MESSAGES: Record<string, string> = {
 const SUCCESS_MESSAGES: Record<string, string> = {
   meta: "Meta Ads conectado correctamente",
   hubspot: "HubSpot conectado correctamente",
-  quickbooks: "QuickBooks conectado correctamente",
 };
 
 function timeAgo(dateStr: string) {

@@ -204,11 +204,11 @@ export default function FinancePage() {
           <LinkIcon className="h-10 w-10 text-muted-foreground mb-4" />
           <h3 className="text-lg font-semibold">Sin datos financieros</h3>
           <p className="mt-1 text-sm text-muted-foreground text-center max-w-md">
-            Conecta QuickBooks desde integraciones o agrega tus datos financieros manualmente.
+            Conecta el SAT desde integraciones o agrega tus datos financieros manualmente.
           </p>
           <div className="mt-4 flex gap-3">
             <a href="/dashboard/integrations" className="rounded-lg border border-border bg-secondary/50 px-3 py-2 sm:px-4 text-sm font-medium hover:bg-secondary">
-              Conectar QuickBooks
+              Conectar SAT
             </a>
             <button onClick={() => setShowForm(true)} className="rounded-lg gradient-bg px-3 py-2 sm:px-4 text-sm font-medium text-white hover:opacity-90">
               Entrada Manual
