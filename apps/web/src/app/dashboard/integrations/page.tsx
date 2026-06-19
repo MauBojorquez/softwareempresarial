@@ -5,7 +5,7 @@ import { CheckCircle, RefreshCw, AlertCircle, Loader2 } from "lucide-react";
 import { useToast } from "@/components/toast";
 import { addActivityLog } from "@/components/dashboard/activity-log";
 import {
-  MetaLogo, HubSpotLogo, QuickBooksLogo, StripeLogo, GoogleAnalyticsLogo, SlackLogo,
+  MetaLogo, HubSpotLogo, QuickBooksLogo, StripeLogo, GoogleAnalyticsLogo, SlackLogo, MakeLogo,
 } from "@/components/brand-logos";
 
 type IntegrationStatus = {
@@ -62,6 +62,16 @@ const integrationConfig = [
     metrics: ["Tráfico Web", "Bounce Rate", "Conversiones", "Sesiones"],
     Logo: GoogleAnalyticsLogo,
     connectUrl: null,
+  },
+  {
+    type: "MAKE",
+    name: "Make",
+    description: "Automatiza flujos y envía métricas de cualquier app a tu dashboard vía Make.",
+    category: "Automatización",
+    metrics: ["Webhooks", "Escenarios", "Métricas personalizadas"],
+    Logo: MakeLogo,
+    connectUrl: null,
+    comingSoon: true,
   },
   {
     type: "SLACK",

@@ -4,7 +4,7 @@ import {
   TrendingUp, DollarSign, Sparkles, Trophy, LineChart, Wallet,
 } from "lucide-react";
 import {
-  MetaLogo, GoogleLogo, HubSpotLogo, QuickBooksLogo, StripeLogo, GoogleSheetsLogo,
+  MetaLogo, GoogleLogo, HubSpotLogo, QuickBooksLogo, StripeLogo, GoogleSheetsLogo, MakeLogo,
 } from "@/components/brand-logos";
 
 export default function HomePage() {
@@ -161,6 +161,7 @@ export default function HomePage() {
                 { name: "QuickBooks", node: <QuickBooksLogo className="h-5 w-5" /> },
                 { name: "Stripe", node: <StripeLogo className="h-5 w-5" /> },
                 { name: "Google Sheets", node: <GoogleSheetsLogo className="h-5 w-5" /> },
+                { name: "Make", node: <MakeLogo className="h-5 w-5" /> },
               ].map((b) => (
                 <div key={b.name} className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
                   {b.node}
@@ -297,7 +298,7 @@ export default function HomePage() {
             <div className="grid grid-cols-2 gap-8 text-center sm:grid-cols-4">
               {[
                 { v: "5", l: "Categorías de métricas", c: "from-blue-500 to-indigo-500" },
-                { v: "6+", l: "Integraciones", c: "from-violet-500 to-fuchsia-500" },
+                { v: "+6", l: "Integraciones", c: "from-violet-500 to-fuchsia-500" },
                 { v: "IA", l: "Reportes con Claude", c: "from-amber-500 to-orange-500" },
                 { v: "24/7", l: "Datos en tiempo real", c: "from-emerald-500 to-teal-500" },
               ].map((s, i) => (
