@@ -32,7 +32,7 @@ async function fetchAllPages(
 ): Promise<any[]> {
   const results: any[] = [];
   let after: string | undefined;
-  for (let page = 0; page < 10; page++) {
+  for (let page = 0; page < 100; page++) {
     const url = `${basePath}&limit=${limit}${after ? `&after=${after}` : ""}`;
     const data = await hsFetch(token, url);
     results.push(...(data.results ?? []));

@@ -2,6 +2,18 @@ import { stripe, PLANS } from "@/lib/stripe";
 import { db } from "@/server/db";
 import type { Plan, BillingInterval } from "@prisma/client";
 
+// Map a Stripe price ID back to the Plan + interval stored in our DB.
+function planFromPriceId(priceId: string): { plan: Plan; interval: BillingInterval } | null {
+  for (const [planKey, planConfig] of Object.entries(PLANS)) {
+    for (const [intervalKey, priceConfig] of Object.entries(planConfig.prices)) {
+      if (priceConfig.priceId && priceConfig.priceId === priceId) {
+        return { plan: planKey as Plan, interval: intervalKey as BillingInterval };
+      }
+    }
+  }
+  return null;
+}
+
 export async function createCheckoutSession(
   organizationId: string,
   plan: Plan,
@@ -40,6 +52,27 @@ export async function createCheckoutSession(
     }
   }
 
+  // If the customer already has an active Stripe subscription, update it directly
+  // (proration is handled by Stripe) instead of creating a new checkout session.
+  // This ensures the old plan is cancelled/replaced automatically.
+  if (subscription?.stripeSubscriptionId) {
+    const existingSub = await stripe.subscriptions.retrieve(subscription.stripeSubscriptionId);
+    if (existingSub.status !== "canceled") {
+      const itemId = existingSub.items.data[0]?.id;
+      if (itemId) {
+        await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
+          items: [{ id: itemId, price: priceId }],
+          proration_behavior: "always_invoice",
+        });
+        await db.subscription.update({
+          where: { organizationId },
+          data: { plan, interval, stripePriceId: priceId },
+        });
+        return { url: `${baseUrl}/dashboard/billing?upgraded=1` } as any;
+      }
+    }
+  }
+
   const session = await stripe.checkout.sessions.create({
     customer: customerId,
     mode: "subscription",
@@ -66,6 +99,10 @@ export async function handleSubscriptionUpdated(subscription: {
 }) {
   const stripePriceId = subscription.items.data[0]?.price.id;
 
+  // Resolve the plan and interval from the active price ID so the app
+  // immediately reflects an upgrade or downgrade without manual intervention.
+  const resolved = stripePriceId ? planFromPriceId(stripePriceId) : null;
+
   await db.subscription.update({
     where: { stripeCustomerId: subscription.customer as string },
     data: {
@@ -75,6 +112,8 @@ export async function handleSubscriptionUpdated(subscription: {
       currentPeriodStart: new Date(subscription.current_period_start * 1000),
       currentPeriodEnd: new Date(subscription.current_period_end * 1000),
       cancelAtPeriodEnd: subscription.cancel_at_period_end,
+      // Update plan + interval when Stripe reports a new price (upgrade/downgrade).
+      ...(resolved ? { plan: resolved.plan, interval: resolved.interval } : {}),
     },
   });
 }
