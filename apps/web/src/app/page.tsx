@@ -335,6 +335,82 @@ export default function HomePage() {
           </div>
         </section>
 
+        {/* ── Testimonials ─────────────────────────────────────── */}
+        <section className="border-b border-border py-24">
+          <div className="container mx-auto px-4">
+            <div className="text-center animate-fade-in-up">
+              <h2 className="text-3xl font-bold text-foreground sm:text-4xl">
+                Empresarios que ya <span className="gradient-text">toman mejores decisiones</span>
+              </h2>
+              <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
+                Directores y fundadores que centralizaron sus métricas y dejaron las hojas de cálculo atrás.
+              </p>
+            </div>
+            <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {[
+                {
+                  name: "Carlos Mendoza",
+                  role: "Director General · Distribuidora MX",
+                  avatar: "CM",
+                  color: "from-blue-500 to-indigo-500",
+                  text: "Antes tardaba horas consolidando el reporte del mes. Ahora lo tengo en tiempo real y el reporte con IA me dice exactamente dónde enfocarme.",
+                },
+                {
+                  name: "Sofía Ramírez",
+                  role: "CEO · Agencia Digital SR",
+                  avatar: "SR",
+                  color: "from-fuchsia-500 to-pink-500",
+                  text: "Conecté Meta Ads y HubSpot en menos de 10 minutos. Por fin veo el ROAS real junto con el pipeline de ventas en un solo lugar.",
+                },
+                {
+                  name: "Roberto Vega",
+                  role: "Fundador · TechOps MX",
+                  avatar: "RV",
+                  color: "from-emerald-500 to-teal-500",
+                  text: "La alerta de IA me avisó que mis gastos subieron 40% este mes antes de que me diera cuenta. Eso me salvó el trimestre.",
+                },
+                {
+                  name: "Laura Torres",
+                  role: "CFO · Grupo Constructora",
+                  avatar: "LT",
+                  color: "from-amber-500 to-orange-500",
+                  text: "La integración con el SAT es un game-changer. Mis facturas reales se sincronizan y ya no tengo que pedirle datos al contador cada semana.",
+                },
+                {
+                  name: "Miguel Ángel Ortiz",
+                  role: "Director Comercial · Retail Plus",
+                  avatar: "MO",
+                  color: "from-violet-500 to-purple-500",
+                  text: "El panel de metas gamificado motivó a mi equipo de ventas más que cualquier tabla de Excel. Cerramos el mejor trimestre en 3 años.",
+                },
+                {
+                  name: "Ana Gutiérrez",
+                  role: "Dueña · Consultora AG",
+                  avatar: "AG",
+                  color: "from-sky-500 to-cyan-500",
+                  text: "Soy de las que evitaba los dashboards porque eran complicados. MetrixPro es tan simple que lo uso todos los días desde el celular.",
+                },
+              ].map((t, i) => (
+                <div key={t.name} className={`group rounded-2xl border border-border bg-card p-6 transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/5 card-hover anim-d${(i % 3) + 1}`}>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${t.color} text-sm font-bold text-white`}>{t.avatar}</div>
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">{t.name}</p>
+                      <p className="text-[11px] text-muted-foreground">{t.role}</p>
+                    </div>
+                  </div>
+                  <p className="text-sm leading-relaxed text-muted-foreground">&ldquo;{t.text}&rdquo;</p>
+                  <div className="mt-4 flex gap-0.5">
+                    {Array.from({ length: 5 }).map((_, j) => (
+                      <svg key={j} className="h-3.5 w-3.5 fill-amber-400 text-amber-400" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* ── CTA ──────────────────────────────────────────────── */}
         <section className="py-24">
           <div className="container mx-auto px-4">

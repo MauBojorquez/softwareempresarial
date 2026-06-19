@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { Trophy, Target, Trash2, Flame } from "lucide-react";
+import { Trophy, Target, Trash2, Flame, Clock } from "lucide-react";
 
 const fmtMoney = (v: number) =>
   new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 }).format(v);
@@ -20,6 +20,7 @@ export function GoalProgress({
   target,
   unit,
   compact,
+  deadline,
   onDelete,
 }: {
   name: string;
@@ -27,12 +28,15 @@ export function GoalProgress({
   target: number;
   unit: string;
   compact?: boolean;
+  deadline?: string;
   onDelete?: () => void;
 }) {
   const pct = target > 0 ? Math.min((current / target) * 100, 100) : 0;
   const done = pct >= 100;
   const level = Math.min(Math.floor(pct / 25) + 1, 4); // 1..4
   const remaining = Math.max(target - current, 0);
+  const daysLeft = deadline ? Math.ceil((new Date(deadline).getTime() - Date.now()) / 86400000) : null;
+  const deadlineUrgent = daysLeft !== null && daysLeft <= 7 && !done;
 
   return (
     <div
@@ -85,16 +89,24 @@ export function GoalProgress({
       </div>
 
       {!compact && (
-        <p className="relative mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
-          {done ? (
-            <>🎉 ¡Lograste esta meta!</>
-          ) : (
-            <>
-              <Flame className="h-3 w-3 text-amber-500" />
-              Te falta {fmtGoalValue(remaining, unit)} para completarla
-            </>
+        <div className="relative mt-2 space-y-1">
+          <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
+            {done ? (
+              <>🎉 ¡Lograste esta meta!</>
+            ) : (
+              <>
+                <Flame className="h-3 w-3 text-amber-500" />
+                Te falta {fmtGoalValue(remaining, unit)} para completarla
+              </>
+            )}
+          </p>
+          {daysLeft !== null && !done && (
+            <p className={cn("flex items-center gap-1 text-[11px]", deadlineUrgent ? "text-red-500 font-medium" : "text-muted-foreground")}>
+              <Clock className="h-3 w-3" />
+              {daysLeft < 0 ? "Vencida" : daysLeft === 0 ? "Vence hoy" : `${daysLeft} días restantes`}
+            </p>
           )}
-        </p>
+        </div>
       )}
 
       {onDelete && (

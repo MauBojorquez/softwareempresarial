@@ -6,15 +6,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 function isAuthorized(req: NextRequest): boolean {
-  // Vercel cron requests carry this header.
-  if (req.headers.get("x-vercel-cron")) return true;
-
   const secret = process.env.CRON_SECRET;
-  if (secret) {
-    const auth = req.headers.get("authorization");
-    if (auth === `Bearer ${secret}`) return true;
-  }
-  return false;
+  if (!secret) return false;
+  const auth = req.headers.get("authorization");
+  return auth === `Bearer ${secret}`;
 }
 
 async function handle(req: NextRequest) {

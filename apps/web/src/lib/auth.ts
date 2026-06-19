@@ -15,9 +15,6 @@ export const authOptions: NextAuthOptions = {
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID ?? "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
-      // Allow Google sign-in even if an account with the same email already
-      // exists from email/password registration.
-      allowDangerousEmailAccountLinking: true,
     }),
     CredentialsProvider({
       name: "credentials",

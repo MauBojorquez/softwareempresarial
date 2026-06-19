@@ -27,6 +27,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No organization found" }, { status: 404 });
   }
 
+  if (membership.role !== "ADMIN") {
+    return NextResponse.json({ error: "Solo administradores pueden cambiar el plan" }, { status: 403 });
+  }
+
   const sub = membership.organization.subscription;
 
   // Cancel any active paid Stripe subscription so they stop being billed.
@@ -43,7 +47,6 @@ export async function POST(req: NextRequest) {
     where: { organizationId: membership.organizationId },
     create: {
       organizationId: membership.organizationId,
-      stripeCustomerId: `cus_free_${membership.organizationId}`,
       plan: "FREE",
       status: "ACTIVE",
       interval: "MONTHLY",

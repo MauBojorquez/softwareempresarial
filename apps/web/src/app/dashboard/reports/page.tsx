@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Sparkles, FileText, Calendar, Loader2, ChevronRight, LinkIcon, Download } from "lucide-react";
+import { Sparkles, FileText, Calendar, Loader2, ChevronRight, BarChart3, Download } from "lucide-react";
 import { useToast } from "@/components/toast";
 import { addActivityLog } from "@/components/dashboard/activity-log";
 
@@ -136,7 +136,7 @@ export default function ReportsPage() {
 
       {reports.length === 0 && !generating ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card py-16 sm:py-20 px-4">
-          <LinkIcon className="h-8 w-8 text-muted-foreground mb-3 sm:h-10 sm:w-10 sm:mb-4" />
+          <BarChart3 className="h-8 w-8 text-muted-foreground mb-3 sm:h-10 sm:w-10 sm:mb-4" />
           <h3 className="text-base font-semibold sm:text-lg">Sin reportes generados</h3>
           <p className="mt-1 text-sm text-muted-foreground text-center max-w-md">
             Agrega datos en Finanzas, Ventas u otra sección y genera tu primer reporte.

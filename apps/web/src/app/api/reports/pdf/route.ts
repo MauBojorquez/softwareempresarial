@@ -47,6 +47,10 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ error: "Invalid type" }, { status: 400 });
 }
 
+function esc(s: string) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
 function buildReportHTML(title: string, summary: string, content: string, date: Date) {
   return `<!DOCTYPE html>
 <html lang="es">
@@ -66,15 +70,15 @@ function buildReportHTML(title: string, summary: string, content: string, date: 
 </style>
 </head>
 <body>
-  <h1>${title}</h1>
+  <h1>${esc(title)}</h1>
   <p class="meta">Generado el ${date.toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })} | MetrixPro by Stratium</p>
   <div class="summary">
     <h2>Resumen Ejecutivo</h2>
-    <p>${summary.replace(/\n/g, "<br>")}</p>
+    <p>${esc(summary).replace(/\n/g, "<br>")}</p>
   </div>
   <div class="content">
     <h2>Análisis Detallado</h2>
-    ${content.replace(/\n/g, "<br>")}
+    ${esc(content).replace(/\n/g, "<br>")}
   </div>
   <div class="footer">
     <p>Este reporte fue generado automáticamente por MetrixPro. Los datos reflejan la información disponible al momento de la generación.</p>
@@ -97,7 +101,7 @@ function buildMetricsHTML(orgName: string, metrics: Array<{ name: string; value:
 
   const rows = Object.entries(byCategory).map(([cat, items]) => {
     const tableRows = items.map((m) =>
-      `<tr><td>${m.name}</td><td style="text-align:right">${m.unit === "MXN" ? "$" + m.value.toLocaleString("es-MX") : m.value.toLocaleString("es-MX") + " " + (m.unit || "")}</td><td>${m.period.toLocaleDateString("es-MX")}</td></tr>`
+      `<tr><td>${esc(m.name)}</td><td style="text-align:right">${m.unit === "MXN" ? "$" + m.value.toLocaleString("es-MX") : m.value.toLocaleString("es-MX") + " " + esc(m.unit || "")}</td><td>${m.period.toLocaleDateString("es-MX")}</td></tr>`
     ).join("");
     return `<h2>${categoryNames[cat] || cat}</h2><table>${tableRows}</table>`;
   }).join("");
@@ -106,7 +110,7 @@ function buildMetricsHTML(orgName: string, metrics: Array<{ name: string; value:
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Métricas - ${orgName}</title>
+<title>Métricas - ${esc(orgName)}</title>
 <style>
   @page { margin: 2cm; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1a1a2e; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 40px; }
@@ -120,7 +124,7 @@ function buildMetricsHTML(orgName: string, metrics: Array<{ name: string; value:
 </style>
 </head>
 <body>
-  <h1>Reporte de Métricas — ${orgName}</h1>
+  <h1>Reporte de Métricas — ${esc(orgName)}</h1>
   <p style="color:#64748b;font-size:13px;">Generado el ${new Date().toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })}</p>
   ${rows}
   <div class="footer">

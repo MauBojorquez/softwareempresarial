@@ -5,9 +5,10 @@ import { Target, Plus, X, Trophy, Loader2, Sparkles, RefreshCw } from "lucide-re
 import { GoalProgress } from "@/components/dashboard/goal-progress";
 import { useToast } from "@/components/toast";
 import { addActivityLog } from "@/components/dashboard/activity-log";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { cn } from "@/lib/utils";
 
-type Goal = { name: string; current: number; target: number; unit: string };
+type Goal = { name: string; current: number; target: number; unit: string; deadline?: string };
 
 const METRIC_OPTIONS: Array<{ value: string; unit: string }> = [
   { value: "Ingresos", unit: "MXN" },
@@ -33,7 +34,8 @@ export default function GoalsPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ metric: "Ingresos", target: "", unit: "MXN" });
+  const [form, setForm] = useState({ metric: "Ingresos", target: "", unit: "MXN", deadline: "" });
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const load = async () => {
     try {
@@ -54,21 +56,21 @@ export default function GoalsPage() {
     await fetch("/api/metrics/goals", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ metric: form.metric, target: parseFloat(form.target), unit: form.unit }),
+      body: JSON.stringify({ metric: form.metric, target: parseFloat(form.target), unit: form.unit, deadline: form.deadline || undefined }),
     });
     addActivityLog("Meta establecida", `${form.metric}: ${form.target} ${form.unit}`, "goal");
     toast("Meta guardada", "success");
     setShowForm(false);
-    setForm({ metric: "Ingresos", target: "", unit: "MXN" });
+    setForm({ metric: "Ingresos", target: "", unit: "MXN", deadline: "" });
     setSaving(false);
     setLoading(true);
     load();
   };
 
   const deleteGoal = async (metric: string) => {
-    if (!confirm(`¿Eliminar la meta de ${metric}?`)) return;
     await fetch(`/api/metrics/goals?metric=${encodeURIComponent(metric)}`, { method: "DELETE" });
     setGoals((prev) => prev.filter((g) => g.name !== metric));
+    setConfirmDelete(null);
     toast("Meta eliminada", "success");
   };
 
@@ -149,7 +151,7 @@ export default function GoalsPage() {
             <h3 className="text-sm font-semibold">Nueva Meta</h3>
             <button onClick={() => setShowForm(false)} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
             <select
               value={form.metric}
               onChange={(e) => {
@@ -167,6 +169,12 @@ export default function GoalsPage() {
               value={form.target}
               onChange={(e) => setForm({ ...form, target: e.target.value })}
               placeholder="Valor objetivo"
+              className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
+            />
+            <input
+              type="date"
+              value={form.deadline}
+              onChange={(e) => setForm({ ...form, deadline: e.target.value })}
               className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
             />
             <button
@@ -211,11 +219,21 @@ export default function GoalsPage() {
               current={g.current}
               target={g.target}
               unit={g.unit}
-              onDelete={() => deleteGoal(g.name)}
+              deadline={g.deadline}
+              onDelete={() => setConfirmDelete(g.name)}
             />
           ))}
         </div>
       )}
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        title="Eliminar meta"
+        description={`¿Eliminar la meta de ${confirmDelete}? Esta acción no se puede deshacer.`}
+        confirmLabel="Eliminar"
+        destructive
+        onConfirm={() => confirmDelete && deleteGoal(confirmDelete)}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </div>
   );
 }

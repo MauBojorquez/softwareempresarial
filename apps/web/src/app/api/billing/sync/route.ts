@@ -50,7 +50,8 @@ export async function POST() {
 
     const updated = await db.subscription.findUnique({ where: { organizationId: membership!.organizationId } });
     return NextResponse.json({ success: true, plan: updated?.plan, status: updated?.status });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    console.error("Billing sync error:", err);
+    return NextResponse.json({ error: "Error al sincronizar con Stripe. Intenta de nuevo." }, { status: 500 });
   }
 }

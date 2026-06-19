@@ -44,7 +44,7 @@ export default function BillingPage() {
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
-  const [interval, setInterval] = useState<"MONTHLY" | "ANNUAL">("MONTHLY");
+  const [billingInterval, setBillingInterval] = useState<"MONTHLY" | "ANNUAL">("MONTHLY");
   const [usage, setUsage] = useState<any>(null);
 
   useEffect(() => {
@@ -82,7 +82,7 @@ export default function BillingPage() {
       const res = await fetch("/api/billing/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan, interval }),
+        body: JSON.stringify({ plan, interval: billingInterval }),
       });
       const data = await res.json();
       if (data.url) window.location.href = data.url;
@@ -198,14 +198,14 @@ export default function BillingPage() {
           <h3 className="text-lg font-semibold">{currentPlan ? "Cambiar Plan" : "Selecciona un Plan"}</h3>
           <div className="flex items-center gap-1 rounded-lg border border-border bg-secondary/50 p-1">
             <button
-              onClick={() => setInterval("MONTHLY")}
-              className={cn("rounded-md px-3 py-1 text-xs font-medium transition-colors", interval === "MONTHLY" ? "bg-primary text-white" : "text-muted-foreground hover:text-foreground")}
+              onClick={() => setBillingInterval("MONTHLY")}
+              className={cn("rounded-md px-3 py-1 text-xs font-medium transition-colors", billingInterval === "MONTHLY" ? "bg-primary text-white" : "text-muted-foreground hover:text-foreground")}
             >
               Mensual
             </button>
             <button
-              onClick={() => setInterval("ANNUAL")}
-              className={cn("rounded-md px-3 py-1 text-xs font-medium transition-colors", interval === "ANNUAL" ? "bg-primary text-white" : "text-muted-foreground hover:text-foreground")}
+              onClick={() => setBillingInterval("ANNUAL")}
+              className={cn("rounded-md px-3 py-1 text-xs font-medium transition-colors", billingInterval === "ANNUAL" ? "bg-primary text-white" : "text-muted-foreground hover:text-foreground")}
             >
               Anual <span className="text-emerald-600">-17%</span>
             </button>
@@ -215,7 +215,7 @@ export default function BillingPage() {
         <div className="mt-4 grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
           {plans.map((plan) => {
             const isCurrent = currentPlan === plan.key || currentPlan === plan.name;
-            const price = interval === "MONTHLY" ? plan.price : plan.annualPrice;
+            const price = billingInterval === "MONTHLY" ? plan.price : plan.annualPrice;
             const isLoading = checkoutLoading === plan.key;
             const isFree = plan.key === "FREE";
 
@@ -234,7 +234,7 @@ export default function BillingPage() {
                   ) : (
                     <>
                       <span className="text-2xl font-bold">${price.toLocaleString()}</span>
-                      <span className="text-sm text-muted-foreground"> MXN /{interval === "MONTHLY" ? "mes" : "año"}</span>
+                      <span className="text-sm text-muted-foreground"> MXN /{billingInterval === "MONTHLY" ? "mes" : "año"}</span>
                     </>
                   )}
                 </p>

@@ -34,12 +34,14 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ toast }}>
       {children}
-      <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 max-w-sm">
+      <div aria-live="polite" aria-atomic="false" className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 max-w-sm">
         {toasts.map((t) => {
           const Icon = icons[t.type];
           return (
             <div
               key={t.id}
+              role={t.type === "error" ? "alert" : "status"}
+              aria-live={t.type === "error" ? "assertive" : "polite"}
               className={cn("flex items-start gap-2 rounded-lg border p-3 shadow-lg animate-in slide-in-from-bottom-2 text-sm", colors[t.type])}
             >
               <Icon className="h-4 w-4 mt-0.5 shrink-0" />

@@ -17,7 +17,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { plan, interval } = (await req.json()) as { plan: Plan; interval: BillingInterval };
+  const body = await req.json();
+  const VALID_PLANS: Plan[] = ["STARTER", "PROFESSIONAL", "ENTERPRISE"];
+  const VALID_INTERVALS: BillingInterval[] = ["MONTHLY", "ANNUAL"];
+  if (!VALID_PLANS.includes(body.plan) || !VALID_INTERVALS.includes(body.interval)) {
+    return NextResponse.json({ error: "Plan o intervalo inválido" }, { status: 400 });
+  }
+  const plan = body.plan as Plan;
+  const interval = body.interval as BillingInterval;
 
   const membership = await db.membership.findFirst({
     where: { userId: session.user.id },
@@ -25,6 +32,10 @@ export async function POST(req: NextRequest) {
 
   if (!membership) {
     return NextResponse.json({ error: "No organization found" }, { status: 404 });
+  }
+
+  if (membership.role !== "ADMIN") {
+    return NextResponse.json({ error: "Solo administradores pueden cambiar el plan" }, { status: 403 });
   }
 
   const checkoutOrigin = origin || req.nextUrl.origin;
@@ -38,7 +49,8 @@ export async function POST(req: NextRequest) {
       checkoutOrigin
     );
     return NextResponse.json({ url: checkoutSession.url });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || "Error creating checkout" }, { status: 500 });
+  } catch (err) {
+    console.error("Checkout error:", err);
+    return NextResponse.json({ error: "Error al crear sesión de pago. Intenta de nuevo." }, { status: 500 });
   }
 }
