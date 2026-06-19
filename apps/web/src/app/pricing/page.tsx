@@ -123,7 +123,7 @@ export default function PricingPage() {
               <p className="mt-1 text-sm text-muted-foreground">{plan.description}</p>
               <div className="mt-6">
                 <span className="text-3xl sm:text-4xl font-bold">
-                  ${(annual ? plan.annualPrice / 12 : plan.monthlyPrice).toLocaleString("es-MX")}
+                  ${(annual ? plan.annualPrice / 12 : plan.monthlyPrice).toLocaleString("es-MX", { maximumFractionDigits: 2 })}
                 </span>
                 <span className="text-muted-foreground"> MXN/mes</span>
               </div>
