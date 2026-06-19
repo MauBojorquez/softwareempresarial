@@ -7,3 +7,4 @@ dist/
 .expo/
 ios/
 android/
+.claude/worktrees/
