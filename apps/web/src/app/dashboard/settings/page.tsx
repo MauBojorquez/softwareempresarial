@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { signOut } from "next-auth/react";
 import { useTheme } from "@/components/theme-provider";
 import { useToast } from "@/components/toast";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import {
   Sun, Moon, Monitor, Bell, User, Building2, Download, Trash2,
   AlertTriangle, Key, Plus, Copy, Eye, EyeOff, Loader2, Save, Lock, Users, Mail, X,
@@ -64,6 +65,8 @@ export default function SettingsPage() {
 
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [confirmDeleteKeyId, setConfirmDeleteKeyId] = useState<string | null>(null);
+  const [confirmClearData, setConfirmClearData] = useState(false);
 
   type Invitation = { id: string; email: string; role: string; expiresAt: string; invitedBy: { name: string | null; email: string } };
   const [invitations, setInvitations] = useState<Invitation[]>([]);
@@ -231,13 +234,13 @@ export default function SettingsPage() {
   };
 
   const handleDeleteKey = async (id: string) => {
-    if (!confirm("¿Eliminar esta API Key?")) return;
     await fetch("/api/user/api-keys", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id }),
     });
     setApiKeys((prev) => prev.filter((k) => k.id !== id));
+    setConfirmDeleteKeyId(null);
     toast("API Key eliminada", "success");
   };
 
@@ -259,10 +262,10 @@ export default function SettingsPage() {
   };
 
   const handleClearData = async () => {
-    if (!confirm("¿Eliminar todos los datos de métricas? Esta acción no se puede deshacer.")) return;
     const res = await fetch("/api/metrics", { method: "DELETE" });
     if (res.ok) toast("Datos eliminados", "success");
     else toast("Error al eliminar", "error");
+    setConfirmClearData(false);
   };
 
   const handleInvite = async () => {
@@ -653,7 +656,7 @@ export default function SettingsPage() {
                   <p className="text-xs text-muted-foreground font-mono">{k.key}</p>
                   {k.lastUsed && <p className="text-[10px] text-muted-foreground mt-0.5">Último uso: {new Date(k.lastUsed).toLocaleDateString("es-MX")}</p>}
                 </div>
-                <button onClick={() => handleDeleteKey(k.id)} className="text-muted-foreground hover:text-red-500" aria-label="Eliminar key">
+                <button onClick={() => setConfirmDeleteKeyId(k.id)} className="text-muted-foreground hover:text-red-500" aria-label="Eliminar key">
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </div>
@@ -684,7 +687,7 @@ export default function SettingsPage() {
             <Download className="h-4 w-4" />
             Exportar datos como CSV
           </button>
-          <button onClick={handleClearData} className="flex items-center justify-center gap-2 rounded-lg border border-destructive/50 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors">
+          <button onClick={() => setConfirmClearData(true)} className="flex items-center justify-center gap-2 rounded-lg border border-destructive/50 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors">
             <Trash2 className="h-4 w-4" />
             Limpiar datos de métricas
           </button>
@@ -715,6 +718,24 @@ export default function SettingsPage() {
           </button>
         </div>
       </div>
+      <ConfirmDialog
+        open={confirmDeleteKeyId !== null}
+        title="Eliminar API Key"
+        description="¿Eliminar esta API Key? Cualquier integración que la use dejará de funcionar."
+        confirmLabel="Eliminar"
+        destructive
+        onConfirm={() => confirmDeleteKeyId && handleDeleteKey(confirmDeleteKeyId)}
+        onCancel={() => setConfirmDeleteKeyId(null)}
+      />
+      <ConfirmDialog
+        open={confirmClearData}
+        title="Eliminar todos los datos"
+        description="¿Eliminar todos los datos de métricas? Esta acción no se puede deshacer y perderás toda tu información."
+        confirmLabel="Eliminar todo"
+        destructive
+        onConfirm={handleClearData}
+        onCancel={() => setConfirmClearData(false)}
+      />
     </div>
   );
 }

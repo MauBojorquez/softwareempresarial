@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CreditCard, Check, Sparkles, ArrowRight, Loader2, RefreshCw, X } from "lucide-react";
+import { CreditCard, Check, Sparkles, ArrowRight, Loader2, RefreshCw, X, FileText, Download } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/toast";
@@ -46,6 +46,9 @@ export default function BillingPage() {
   const [syncLoading, setSyncLoading] = useState(false);
   const [billingInterval, setBillingInterval] = useState<"MONTHLY" | "ANNUAL">("MONTHLY");
   const [usage, setUsage] = useState<any>(null);
+  type Invoice = { id: string; number: string | null; amount: number; currency: string; status: string | null; date: number; pdf: string | null };
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [invoicesLoading, setInvoicesLoading] = useState(false);
 
   useEffect(() => {
     fetch("/api/billing/plan")
@@ -56,6 +59,13 @@ export default function BillingPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
+
+    setInvoicesLoading(true);
+    fetch("/api/billing/invoices")
+      .then((r) => r.json())
+      .then((data) => setInvoices(data.invoices || []))
+      .catch(() => {})
+      .finally(() => setInvoicesLoading(false));
   }, []);
 
   const handleSelectFree = async () => {
@@ -333,6 +343,47 @@ export default function BillingPage() {
           {portalLoading ? "Abriendo..." : "Abrir Portal de Facturación"}
         </button>
       </div>
+
+      {/* Invoice History */}
+      {(invoices.length > 0 || invoicesLoading) && (
+        <div className="rounded-xl border border-border bg-card">
+          <div className="flex items-center gap-2 border-b border-border p-4">
+            <FileText className="h-4 w-4 text-muted-foreground" />
+            <h3 className="font-semibold text-sm">Historial de Facturas</h3>
+          </div>
+          {invoicesLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <div className="divide-y divide-border">
+              {invoices.map((inv) => (
+                <div key={inv.id} className="flex items-center justify-between p-4">
+                  <div>
+                    <p className="text-sm font-medium">{inv.number || inv.id.slice(-8).toUpperCase()}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(inv.date * 1000).toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-semibold">
+                      {new Intl.NumberFormat("es-MX", { style: "currency", currency: inv.currency || "MXN", maximumFractionDigits: 0 }).format(inv.amount)}
+                    </span>
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${inv.status === "paid" ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600"}`}>
+                      {inv.status === "paid" ? "Pagada" : inv.status || "—"}
+                    </span>
+                    {inv.pdf && (
+                      <a href={inv.pdf} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground">
+                        <Download className="h-3.5 w-3.5" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <p className="text-center text-sm text-muted-foreground">
         ¿Tienes dudas? Consulta nuestras{" "}
