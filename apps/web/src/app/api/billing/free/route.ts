@@ -50,6 +50,7 @@ export async function POST(req: NextRequest) {
       plan: "FREE",
       status: "ACTIVE",
       interval: "MONTHLY",
+      stripeCustomerId: "",
     },
     update: {
       plan: "FREE",
