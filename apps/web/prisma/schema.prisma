@@ -79,14 +79,15 @@ model Organization {
   ownerId String @unique
   owner   User   @relation("OrganizationOwner", fields: [ownerId], references: [id])
 
-  subscription  Subscription?
-  memberships   Membership[]
-  integrations  Integration[]
-  metrics       Metric[]
-  dashboards    Dashboard[]
-  reports       AIReport[]
-  chatMessages  AIChatMessage[]
-  invitations   Invitation[]
+  subscription   Subscription?
+  memberships    Membership[]
+  integrations   Integration[]
+  metrics        Metric[]
+  dashboards     Dashboard[]
+  reports        AIReport[]
+  chatMessages   AIChatMessage[]
+  invitations    Invitation[]
+  satCredential  SatCredential?
 }
 
 model Membership {
@@ -316,4 +317,19 @@ model ApiKey {
   userId         String
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   organizationId String
+}
+
+// ─── SAT / Facturapi ────────────────────────────────────────────────
+
+model SatCredential {
+  id             String       @id @default(cuid())
+  organizationId String       @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  rfc            String
+  facturapiOrgId String
+  syncStatus     String       @default("pending") // pending | syncing | synced | error
+  lastSyncAt     DateTime?
+  lastError      String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 }
