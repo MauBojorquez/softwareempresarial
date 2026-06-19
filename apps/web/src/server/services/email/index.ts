@@ -1,16 +1,24 @@
-const FROM = process.env.EMAIL_FROM ?? "MetrixPro <noreply@metrixpro.app>";
+// EMAIL_FROM must use a domain verified in Resend (resend.com → Domains).
+// For testing without a verified domain, use "onboarding@resend.dev" but
+// Resend only allows sending to the account owner's email in that case.
+const FROM = process.env.EMAIL_FROM ?? "MetrixPro <onboarding@resend.dev>";
 
 export async function sendEmail(to: string, subject: string, html: string) {
   if (!process.env.RESEND_API_KEY) {
-    console.warn("RESEND_API_KEY not set — email skipped:", subject);
+    console.error("[email] RESEND_API_KEY not set — email NOT sent:", subject, "→", to);
     return;
   }
   try {
     const { Resend } = await import("resend");
     const resend = new Resend(process.env.RESEND_API_KEY);
-    await resend.emails.send({ from: FROM, to, subject, html });
+    const result = await resend.emails.send({ from: FROM, to, subject, html });
+    if (result.error) {
+      console.error("[email] Resend error:", result.error, "subject:", subject, "to:", to);
+    } else {
+      console.log("[email] Sent OK id:", result.data?.id, "→", to);
+    }
   } catch (err) {
-    console.error("Email send error:", err);
+    console.error("[email] Exception sending email:", err, "subject:", subject, "to:", to);
   }
 }
 

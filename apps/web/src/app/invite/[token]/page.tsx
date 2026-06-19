@@ -71,13 +71,13 @@ export default function InvitePage() {
           <>
             <h2 className="mt-6 text-xl font-semibold">Invitación a {orgName}</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Inicia sesión o crea una cuenta para unirte a este equipo.
+              Inicia sesión o crea una contraseña para unirte a este equipo.
             </p>
             <div className="mt-6 flex flex-col gap-3">
               <a href={`/login?callbackUrl=/invite/${token}`} className="rounded-xl gradient-bg px-6 py-2.5 text-sm font-medium text-white">
                 Iniciar sesión
               </a>
-              <a href={`/register?callbackUrl=/invite/${token}`} className="rounded-xl border border-border bg-secondary/50 px-6 py-2.5 text-sm font-medium hover:bg-secondary">
+              <a href={`/invite/${token}/setup`} className="rounded-xl border border-border bg-secondary/50 px-6 py-2.5 text-sm font-medium hover:bg-secondary">
                 Crear cuenta nueva
               </a>
             </div>
