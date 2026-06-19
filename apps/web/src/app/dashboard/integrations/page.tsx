@@ -5,7 +5,7 @@ import { CheckCircle, RefreshCw, AlertCircle, Loader2 } from "lucide-react";
 import { useToast } from "@/components/toast";
 import { addActivityLog } from "@/components/dashboard/activity-log";
 import {
-  MetaLogo, HubSpotLogo, QuickBooksLogo, SlackLogo, SATLogo,
+  MetaLogo, HubSpotLogo, QuickBooksLogo, SATLogo,
 } from "@/components/brand-logos";
 
 type IntegrationStatus = {
@@ -53,15 +53,6 @@ const integrationConfig = [
     metrics: ["Gasto", "Alcance", "Conversiones", "CTR", "CPC", "Impresiones"],
     Logo: MetaLogo,
     connectUrl: "/api/integrations/meta",
-  },
-  {
-    type: "SLACK",
-    name: "Slack",
-    description: "Recibe alertas y reportes IA directamente en tus canales de Slack.",
-    category: "Comunicación",
-    metrics: ["Notificaciones", "Alertas", "Reportes"],
-    Logo: SlackLogo,
-    connectUrl: null,
   },
 ];
 
