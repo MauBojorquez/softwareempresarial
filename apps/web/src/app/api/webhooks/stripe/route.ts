@@ -37,9 +37,9 @@ export async function POST(req: NextRequest) {
         if (stripeCustomerId) {
           const dbSub = await db.subscription.findUnique({
             where: { stripeCustomerId },
-            include: { organization: { include: { members: { take: 1, include: { user: true } } } } },
+            include: { organization: { include: { memberships: { take: 1, include: { user: true } } } } },
           });
-          const adminUser = dbSub?.organization?.members?.[0]?.user;
+          const adminUser = dbSub?.organization?.memberships?.[0]?.user;
           if (adminUser?.email) {
             const planName = dbSub?.plan ?? "STARTER";
             const emailEvent: Parameters<typeof billingEmail>[1] =
