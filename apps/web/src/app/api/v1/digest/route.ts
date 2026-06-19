@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { rateLimit } from "@/lib/rate-limit";
 import { detectAnomalies } from "@/server/services/metrics/insights";
+import { metricLabel } from "@/lib/metric-labels";
 
 // GET /api/v1/digest — returns a ready-to-send business summary for the org
 // tied to the API key. Designed for Make (Integromat) → WhatsApp delivery:
@@ -50,7 +51,7 @@ export async function GET(req: NextRequest) {
       ? new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 }).format(v)
       : `${new Intl.NumberFormat("es-MX", { maximumFractionDigits: 1 }).format(v)}${unit ? " " + unit : ""}`;
 
-  const kpis = latest.slice(0, 8).map((m) => ({ label: m.name, value: fmt(m.value, m.unit) }));
+  const kpis = latest.slice(0, 8).map((m) => ({ label: metricLabel(m.name), value: fmt(m.value, m.unit) }));
 
   let anomalies: { metric: string; message: string; severity: string }[] = [];
   try {
@@ -58,7 +59,12 @@ export async function GET(req: NextRequest) {
     anomalies = detected
       .filter((a) => a.severity === "critical" || a.severity === "warning")
       .slice(0, 5)
-      .map((a) => ({ metric: a.metric, message: a.message, severity: a.severity }));
+      .map((a) => ({
+        metric: metricLabel(a.metric),
+        // Swap the raw metric name inside the message for the friendly label.
+        message: a.message.replace(a.metric, metricLabel(a.metric)),
+        severity: a.severity,
+      }));
   } catch {
     // anomalies are best-effort
   }
