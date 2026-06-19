@@ -4,6 +4,9 @@ import { useState, useEffect } from "react";
 import { CheckCircle, RefreshCw, AlertCircle, Loader2 } from "lucide-react";
 import { useToast } from "@/components/toast";
 import { addActivityLog } from "@/components/dashboard/activity-log";
+import {
+  MetaLogo, HubSpotLogo, QuickBooksLogo, StripeLogo, GoogleAnalyticsLogo, SlackLogo,
+} from "@/components/brand-logos";
 
 type IntegrationStatus = {
   type: string;
@@ -15,13 +18,22 @@ type IntegrationStatus = {
 
 const integrationConfig = [
   {
+    type: "STRIPE",
+    name: "Stripe",
+    description: "Ingresos, cobros, suscripciones (MRR/ARR) y reembolsos directo de tu Stripe.",
+    category: "Finanzas / Pagos",
+    metrics: ["Ingresos", "MRR", "ARR", "Cobros", "Reembolsos", "Churn"],
+    Logo: StripeLogo,
+    connectUrl: null,
+    comingSoon: true,
+  },
+  {
     type: "QUICKBOOKS",
     name: "QuickBooks",
     description: "Sincroniza ingresos, gastos, P&L, balance y flujo de caja automáticamente.",
     category: "ERP / Contabilidad",
     metrics: ["Ingresos", "Gastos", "Utilidad Neta", "Flujo de Caja", "Cuentas por Cobrar"],
-    color: "from-green-500 to-emerald-600",
-    logo: "QB",
+    Logo: QuickBooksLogo,
     connectUrl: "/api/integrations/quickbooks",
   },
   {
@@ -30,8 +42,7 @@ const integrationConfig = [
     description: "Pipeline de ventas, deals, contactos y métricas de conversión en tiempo real.",
     category: "CRM",
     metrics: ["Pipeline", "Deals", "Conversión", "Leads", "Revenue"],
-    color: "from-orange-500 to-red-500",
-    logo: "HS",
+    Logo: HubSpotLogo,
     connectUrl: "/api/integrations/hubspot",
   },
   {
@@ -40,8 +51,7 @@ const integrationConfig = [
     description: "Métricas de Facebook e Instagram Ads: gasto, alcance, conversiones y más.",
     category: "Publicidad Digital",
     metrics: ["Gasto", "Alcance", "Conversiones", "CTR", "CPC", "Impresiones"],
-    color: "from-blue-500 to-indigo-600",
-    logo: "M",
+    Logo: MetaLogo,
     connectUrl: "/api/integrations/meta",
   },
   {
@@ -50,8 +60,7 @@ const integrationConfig = [
     description: "Tráfico web, fuentes de adquisición, comportamiento de usuarios y conversiones.",
     category: "Marketing",
     metrics: ["Tráfico Web", "Bounce Rate", "Conversiones", "Sesiones"],
-    color: "from-yellow-500 to-amber-500",
-    logo: "GA",
+    Logo: GoogleAnalyticsLogo,
     connectUrl: null,
   },
   {
@@ -60,8 +69,7 @@ const integrationConfig = [
     description: "Recibe alertas y reportes IA directamente en tus canales de Slack.",
     category: "Comunicación",
     metrics: ["Notificaciones", "Alertas", "Reportes"],
-    color: "from-purple-500 to-violet-600",
-    logo: "S",
+    Logo: SlackLogo,
     connectUrl: null,
   },
 ];
@@ -205,8 +213,8 @@ export default function IntegrationsPage() {
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
-                  <div className={`h-10 w-10 rounded-xl bg-gradient-to-br ${integration.color} flex items-center justify-center text-white text-xs font-bold`}>
-                    {integration.logo}
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-white shadow-sm">
+                    <integration.Logo className="h-6 w-6" />
                   </div>
                   <div>
                     <h3 className="font-semibold">{integration.name}</h3>
