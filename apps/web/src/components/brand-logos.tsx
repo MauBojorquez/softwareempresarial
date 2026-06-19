@@ -39,17 +39,13 @@ export function MakeLogo({ className = "h-6 w-6" }: Props) {
       <defs>
         <linearGradient id="make-g" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0%" stopColor="#6D00CC" />
-          <stop offset="100%" stopColor="#A100FF" />
+          <stop offset="100%" stopColor="#C800FF" />
         </linearGradient>
       </defs>
-      <rect width="24" height="24" rx="5.5" fill="url(#make-g)" />
-      <g fill="#fff">
-        {/* Make logomark: four leaning strokes (origami-style M) */}
-        <path d="M5.4 6.2h1.9v11.6H5.4z" />
-        <path d="M9.7 6.2h1.9L9.9 17.8H8z" />
-        <path d="M14.3 6.2h1.9l1.7 11.6h-1.9z" />
-        <path d="M18.6 6.2h1.9v11.6h-1.9z" transform="translate(-2 0)" />
-      </g>
+      <path
+        fill="url(#make-g)"
+        d="M13.38 3.498c-.27 0-.511.19-.566.465L9.85 18.986a.578.578 0 0 0 .453.678l4.095.826a.58.58 0 0 0 .682-.455l2.963-15.021a.578.578 0 0 0-.453-.678l-4.096-.826a.589.589 0 0 0-.113-.012zm-5.876.098a.576.576 0 0 0-.516.318L.062 17.697a.575.575 0 0 0 .256.774l3.733 1.877a.578.578 0 0 0 .775-.258l6.926-13.781a.577.577 0 0 0-.256-.776L7.762 3.658a.571.571 0 0 0-.258-.062zm11.74.115a.576.576 0 0 0-.576.576v15.426c0 .318.258.578.576.578h4.178a.58.58 0 0 0 .578-.578V4.287a.578.578 0 0 0-.578-.576Z"
+      />
     </svg>
   );
 }
