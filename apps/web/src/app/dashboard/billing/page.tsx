@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CreditCard, Check, Sparkles, ArrowRight, Loader2 } from "lucide-react";
+import { CreditCard, Check, Sparkles, ArrowRight, Loader2, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/toast";
@@ -36,6 +36,7 @@ export default function BillingPage() {
   const [loading, setLoading] = useState(true);
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
+  const [syncLoading, setSyncLoading] = useState(false);
   const [interval, setInterval] = useState<"MONTHLY" | "ANNUAL">("MONTHLY");
   const [usage, setUsage] = useState<any>(null);
 
@@ -82,6 +83,24 @@ export default function BillingPage() {
     }
   };
 
+  const handleSyncStripe = async () => {
+    setSyncLoading(true);
+    try {
+      const res = await fetch("/api/billing/sync", { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        setCurrentPlan(data.plan);
+        toast(`Plan actualizado a ${data.plan}`, "success");
+      } else {
+        toast(data.error || "Error al sincronizar", "error");
+      }
+    } catch {
+      toast("Error de conexión", "error");
+    } finally {
+      setSyncLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -92,9 +111,20 @@ export default function BillingPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Suscripción</h1>
-        <p className="text-sm text-muted-foreground">Gestiona tu plan y facturación</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Suscripción</h1>
+          <p className="text-sm text-muted-foreground">Gestiona tu plan y facturación</p>
+        </div>
+        <button
+          onClick={handleSyncStripe}
+          disabled={syncLoading}
+          className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-secondary disabled:opacity-50 transition-colors"
+          title="Sincronizar estado real desde Stripe"
+        >
+          {syncLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+          Sincronizar con Stripe
+        </button>
       </div>
 
       {currentPlan && (

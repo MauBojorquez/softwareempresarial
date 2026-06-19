@@ -52,26 +52,33 @@ export async function createCheckoutSession(
     }
   }
 
-  // If the customer already has an active Stripe subscription, update it directly
-  // (proration is handled by Stripe) instead of creating a new checkout session.
-  // This ensures the old plan is cancelled/replaced automatically.
+  // If the customer already has an active Stripe subscription, update it in place
+  // (Stripe handles proration). This replaces the old plan without creating a new one.
   if (subscription?.stripeSubscriptionId) {
-    const existingSub = await stripe.subscriptions.retrieve(subscription.stripeSubscriptionId);
-    if (existingSub.status !== "canceled") {
-      const itemId = existingSub.items.data[0]?.id;
-      if (itemId) {
-        await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
-          items: [{ id: itemId, price: priceId }],
-          proration_behavior: "always_invoice",
-        });
-        await db.subscription.update({
-          where: { organizationId },
-          data: { plan, interval, stripePriceId: priceId },
-        });
-        return { url: `${baseUrl}/dashboard/billing?upgraded=1` } as any;
+    try {
+      const existingSub = await stripe.subscriptions.retrieve(subscription.stripeSubscriptionId);
+      if (existingSub.status !== "canceled") {
+        const itemId = existingSub.items.data[0]?.id;
+        if (itemId) {
+          await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
+            items: [{ id: itemId, price: priceId }],
+            proration_behavior: "always_invoice",
+          });
+          await db.subscription.update({
+            where: { organizationId },
+            data: { plan, interval, stripePriceId: priceId },
+          });
+          return { url: `${baseUrl}/dashboard/billing?upgraded=1` } as any;
+        }
       }
+    } catch {
+      // Sub not found or already canceled — fall through to new checkout.
     }
   }
+
+  // Determine if this customer has ever had a real subscription (used their trial).
+  // Trial is only offered on the very first checkout.
+  const hasUsedTrial = !!(subscription?.stripeSubscriptionId);
 
   const session = await stripe.checkout.sessions.create({
     customer: customerId,
@@ -80,9 +87,7 @@ export async function createCheckoutSession(
     line_items: [{ price: priceId, quantity: 1 }],
     success_url: `${baseUrl}/dashboard/overview?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${baseUrl}/dashboard/billing`,
-    subscription_data: {
-      trial_period_days: 14,
-    },
+    ...(!hasUsedTrial ? { subscription_data: { trial_period_days: 14 } } : {}),
   });
 
   return session;
