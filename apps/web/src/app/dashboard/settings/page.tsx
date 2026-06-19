@@ -7,7 +7,7 @@ import { useTheme } from "@/components/theme-provider";
 import { useToast } from "@/components/toast";
 import {
   Sun, Moon, Monitor, Bell, User, Building2, Download, Trash2,
-  AlertTriangle, Key, Plus, Copy, Eye, EyeOff, Loader2, Save, Lock,
+  AlertTriangle, Key, Plus, Copy, Eye, EyeOff, Loader2, Save, Lock, Users, Mail, X,
 } from "lucide-react";
 
 const NOTIF_STORAGE_KEY = "metrixpro-notifications-prefs";
@@ -48,6 +48,12 @@ export default function SettingsPage() {
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleting, setDeleting] = useState(false);
 
+  type Invitation = { id: string; email: string; role: string; expiresAt: string; invitedBy: { name: string | null; email: string } };
+  const [invitations, setInvitations] = useState<Invitation[]>([]);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<"VIEWER" | "EDITOR" | "ADMIN">("VIEWER");
+  const [inviting, setInviting] = useState(false);
+
   useEffect(() => {
     fetch("/api/user")
       .then((r) => { if (!r.ok) throw new Error("fetch failed"); return r.json(); })
@@ -72,6 +78,11 @@ export default function SettingsPage() {
       const saved = localStorage.getItem(NOTIF_STORAGE_KEY);
       if (saved) setNotifications(JSON.parse(saved));
     } catch {}
+
+    fetch("/api/invitations")
+      .then((r) => r.json())
+      .then((d) => setInvitations(Array.isArray(d.invitations) ? d.invitations : []))
+      .catch(() => {});
   }, []);
 
   const handleSaveProfile = async () => {
@@ -201,6 +212,36 @@ export default function SettingsPage() {
     const res = await fetch("/api/metrics", { method: "DELETE" });
     if (res.ok) toast("Datos eliminados", "success");
     else toast("Error al eliminar", "error");
+  };
+
+  const handleInvite = async () => {
+    if (!inviteEmail) return;
+    setInviting(true);
+    try {
+      const res = await fetch("/api/invitations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: inviteEmail, role: inviteRole }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast("Invitación enviada a " + inviteEmail, "success");
+        setInviteEmail("");
+        const updated = await fetch("/api/invitations").then((r) => r.json());
+        setInvitations(Array.isArray(updated.invitations) ? updated.invitations : []);
+      } else {
+        toast(data.error || "Error al invitar", "error");
+      }
+    } catch {
+      toast("Error de conexión", "error");
+    }
+    setInviting(false);
+  };
+
+  const handleRevokeInvite = async (id: string) => {
+    await fetch(`/api/invitations?id=${id}`, { method: "DELETE" });
+    setInvitations((prev) => prev.filter((inv) => inv.id !== id));
+    toast("Invitación revocada", "success");
   };
 
   const handleDeleteAccount = async () => {
@@ -395,6 +436,58 @@ export default function SettingsPage() {
             </div>
           ))}
         </div>
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
+        <div className="flex items-center gap-3">
+          <Users className="h-5 w-5 text-primary" />
+          <h2 className="text-lg font-semibold text-foreground">Invitar Usuarios</h2>
+        </div>
+        <p className="text-xs text-muted-foreground">Invita a miembros de tu equipo. Recibirán un correo con el enlace de acceso.</p>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <input
+            type="email"
+            value={inviteEmail}
+            onChange={(e) => setInviteEmail(e.target.value)}
+            placeholder="correo@empresa.com"
+            className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
+          />
+          <select
+            value={inviteRole}
+            onChange={(e) => setInviteRole(e.target.value as "VIEWER" | "EDITOR" | "ADMIN")}
+            className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none"
+          >
+            <option value="VIEWER">Viewer</option>
+            <option value="EDITOR">Editor</option>
+            <option value="ADMIN">Admin</option>
+          </select>
+          <button
+            onClick={handleInvite}
+            disabled={inviting || !inviteEmail}
+            className="flex items-center gap-1.5 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+          >
+            {inviting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
+            Invitar
+          </button>
+        </div>
+        {invitations.length > 0 && (
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground">Invitaciones pendientes</p>
+            <div className="divide-y divide-border rounded-lg border border-border">
+              {invitations.map((inv) => (
+                <div key={inv.id} className="flex items-center justify-between px-3 py-2">
+                  <div>
+                    <p className="text-sm font-medium">{inv.email}</p>
+                    <p className="text-xs text-muted-foreground">{inv.role} · Expira {new Date(inv.expiresAt).toLocaleDateString("es-MX")}</p>
+                  </div>
+                  <button onClick={() => handleRevokeInvite(inv.id)} className="text-muted-foreground hover:text-red-500" aria-label="Revocar invitación">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">

@@ -21,14 +21,15 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts      Account[]
-  sessions      Session[]
-  organization  Organization? @relation("OrganizationOwner")
-  memberships   Membership[]
-  reports       AIReport[]
-  chatMessages  AIChatMessage[]
-  notifications Notification[]
-  apiKeys       ApiKey[]
+  accounts         Account[]
+  sessions         Session[]
+  organization     Organization? @relation("OrganizationOwner")
+  memberships      Membership[]
+  reports          AIReport[]
+  chatMessages     AIChatMessage[]
+  notifications    Notification[]
+  apiKeys          ApiKey[]
+  sentInvitations  Invitation[]  @relation("SentInvitations")
 }
 
 model Account {
@@ -85,6 +86,7 @@ model Organization {
   dashboards    Dashboard[]
   reports       AIReport[]
   chatMessages  AIChatMessage[]
+  invitations   Invitation[]
 }
 
 model Membership {
@@ -202,6 +204,26 @@ model AIChatMessage {
   user           User         @relation(fields: [userId], references: [id])
 
   @@index([organizationId, createdAt])
+}
+
+// ─── Invitations ────────────────────────────────────────────────────
+
+model Invitation {
+  id             String         @id @default(cuid())
+  email          String
+  role           MembershipRole @default(VIEWER)
+  token          String         @unique @default(cuid())
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  createdAt      DateTime       @default(now())
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedById    String
+  invitedBy      User         @relation("SentInvitations", fields: [invitedById], references: [id])
+
+  @@unique([organizationId, email])
+  @@index([token])
 }
 
 // ─── Enums ──────────────────────────────────────────────────────────

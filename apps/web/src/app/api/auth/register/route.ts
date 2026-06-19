@@ -53,5 +53,10 @@ export async function POST(req: NextRequest) {
     },
   });
 
+  // Send welcome email (fire and forget)
+  const { sendEmail, welcomeEmail } = await import("@/server/services/email");
+  const { subject, html } = welcomeEmail(trimmedName, email);
+  sendEmail(email, subject, html).catch(() => {});
+
   return NextResponse.json({ id: user.id, email: user.email }, { status: 201 });
 }

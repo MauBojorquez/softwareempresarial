@@ -56,6 +56,9 @@ export default function SalesPage() {
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [search, setSearch] = useState("");
+  const [sheetsUrl, setSheetsUrl] = useState("");
+  const [sheetsImporting, setSheetsImporting] = useState(false);
+  const [showSheetsInput, setShowSheetsInput] = useState(false);
   const [form, setForm] = useState({ name: "Ventas del Mes", value: "", period: new Date().toISOString().split("T")[0] });
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -113,6 +116,31 @@ export default function SalesPage() {
     loadManual();
   };
 
+  const handleSheetsImport = async () => {
+    if (!sheetsUrl) return;
+    setSheetsImporting(true);
+    try {
+      const res = await fetch("/api/metrics/sheets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: sheetsUrl, category: "SALES" }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast(`${data.imported} registros importados desde Google Sheets`, "success");
+        addActivityLog("Google Sheets importado", `${data.imported} registros en Ventas`, "import");
+        setSheetsUrl("");
+        setShowSheetsInput(false);
+        loadManual();
+      } else {
+        toast(data.error || "Error al importar", "error");
+      }
+    } catch {
+      toast("Error de conexión", "error");
+    }
+    setSheetsImporting(false);
+  };
+
   const handleDelete = async (id: string) => {
     if (!confirm("¿Eliminar este registro?")) return;
     await fetch(`/api/metrics/manual?id=${id}`, { method: "DELETE" });
@@ -160,6 +188,14 @@ export default function SalesPage() {
             <span className="hidden sm:inline">{importing ? "Importando..." : "Importar CSV"}</span>
             <input type="file" accept=".csv" onChange={handleImport} className="hidden" />
           </label>
+          <button
+            onClick={() => setShowSheetsInput((v) => !v)}
+            className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium transition-colors hover:bg-secondary"
+            title="Importar desde Google Sheets"
+          >
+            <LinkIcon className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Google Sheets</span>
+          </button>
           {hubspotConnected && (
             <button
               onClick={loadHubSpot}
@@ -178,6 +214,37 @@ export default function SalesPage() {
           </button>
         </div>
       </div>
+
+      {/* Google Sheets import */}
+      {showSheetsInput && (
+        <div className="rounded-xl border border-primary/20 bg-card p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="font-semibold text-sm">Importar desde Google Sheets</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">La hoja debe tener columnas: <strong>Nombre</strong> y <strong>Valor</strong>. Puedes incluir Unidad y Fecha.</p>
+            </div>
+            <button onClick={() => setShowSheetsInput(false)} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="url"
+              value={sheetsUrl}
+              onChange={(e) => setSheetsUrl(e.target.value)}
+              placeholder="https://docs.google.com/spreadsheets/d/..."
+              className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
+            />
+            <button
+              onClick={handleSheetsImport}
+              disabled={sheetsImporting || !sheetsUrl}
+              className="flex items-center gap-1.5 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+            >
+              {sheetsImporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+              Importar
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">La hoja debe estar compartida como &quot;Cualquier persona con el enlace puede ver&quot;.</p>
+        </div>
+      )}
 
       {/* Manual form */}
       {showForm && (
