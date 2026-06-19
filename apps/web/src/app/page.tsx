@@ -36,6 +36,63 @@ export default function HomePage() {
 
       <main className="flex-1 pt-16">
         <section className="relative overflow-hidden">
+          <style>{`
+            @keyframes drawLine1 {
+              from { stroke-dashoffset: 2000; }
+              to { stroke-dashoffset: 0; }
+            }
+            @keyframes drawLine2 {
+              from { stroke-dashoffset: 2500; }
+              to { stroke-dashoffset: 0; }
+            }
+            @keyframes drawLine3 {
+              from { stroke-dashoffset: 3000; }
+              to { stroke-dashoffset: 0; }
+            }
+            .chart-line-1 {
+              stroke-dasharray: 2000;
+              stroke-dashoffset: 2000;
+              animation: drawLine1 20s linear infinite;
+            }
+            .chart-line-2 {
+              stroke-dasharray: 2500;
+              stroke-dashoffset: 2500;
+              animation: drawLine2 25s linear infinite;
+            }
+            .chart-line-3 {
+              stroke-dasharray: 3000;
+              stroke-dashoffset: 3000;
+              animation: drawLine3 30s linear infinite;
+            }
+          `}</style>
+          <div style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none" }}>
+            <svg width="100%" height="100%" viewBox="0 0 1200 400" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+              <polyline
+                className="chart-line-1"
+                fill="none"
+                stroke="#8b5cf6"
+                strokeWidth="2"
+                opacity="0.05"
+                points="0,320 80,300 160,310 240,270 320,280 400,240 480,255 560,210 640,225 720,180 800,195 880,150 960,165 1040,120 1120,135 1200,90"
+              />
+              <polyline
+                className="chart-line-2"
+                fill="none"
+                stroke="#8b5cf6"
+                strokeWidth="2"
+                opacity="0.05"
+                points="0,360 100,340 200,355 300,315 380,330 460,295 540,310 620,265 700,280 780,235 860,250 940,205 1020,220 1100,170 1200,140"
+              />
+              <polyline
+                className="chart-line-3"
+                fill="none"
+                stroke="#8b5cf6"
+                strokeWidth="1.5"
+                opacity="0.05"
+                points="0,380 60,365 140,375 220,345 300,360 400,320 480,335 560,290 660,305 760,255 840,270 920,225 1000,240 1100,190 1200,160"
+              />
+            </svg>
+          </div>
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(37,99,168,0.06),transparent_60%)]" />
 
           <div className="container relative mx-auto px-4 py-20 text-center sm:py-32">

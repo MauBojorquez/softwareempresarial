@@ -21,7 +21,7 @@ export function MetricCard({ title, value, change, icon: Icon, format, trend }: 
         : String(value);
 
   return (
-    <div role="article" aria-label={`${title}: ${formattedValue}`} className="rounded-xl border border-border bg-card p-4 transition-all hover:shadow-md sm:p-5">
+    <div role="article" aria-label={`${title}: ${formattedValue}`} className="rounded-xl border border-border bg-card p-4 transition-all hover:shadow-md sm:p-5 card-hover">
       <div className="flex items-center justify-between">
         <p className="text-xs font-medium text-muted-foreground sm:text-sm">{title}</p>
         <div className="rounded-lg bg-primary/8 p-1.5 sm:p-2">

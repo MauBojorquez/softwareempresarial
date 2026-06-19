@@ -130,3 +130,24 @@
     background: linear-gradient(135deg, hsl(220, 65%, 43%), hsl(220, 50%, 33%));
   }
 }
+
+/* Button press feedback */
+button:not(:disabled):active {
+  transform: scale(0.96);
+  transition: transform 0.1s ease;
+}
+
+/* Smooth transition for all buttons */
+button {
+  transition: transform 0.15s ease, opacity 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Card hover lift */
+.card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px -5px rgba(139, 92, 246, 0.15);
+  border-color: rgba(139, 92, 246, 0.3);
+}
