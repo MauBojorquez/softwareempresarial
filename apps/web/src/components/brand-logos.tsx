@@ -96,6 +96,26 @@ export function GoogleAnalyticsLogo({ className = "h-6 w-6" }: Props) {
   );
 }
 
+export function SATLogo({ className = "h-6 w-6" }: Props) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden>
+      <rect width="24" height="24" rx="5" fill="#611232" />
+      <text
+        x="12"
+        y="15.5"
+        textAnchor="middle"
+        fontSize="8"
+        fontWeight="700"
+        fontFamily="Arial, sans-serif"
+        fill="#fff"
+        letterSpacing="0.3"
+      >
+        SAT
+      </text>
+    </svg>
+  );
+}
+
 export function SlackLogo({ className = "h-6 w-6" }: Props) {
   return (
     <svg className={className} viewBox="0 0 122.8 122.8" aria-hidden>

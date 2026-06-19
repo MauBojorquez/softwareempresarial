@@ -4,7 +4,7 @@ import {
   TrendingUp, DollarSign, Sparkles, Trophy, LineChart, Wallet,
 } from "lucide-react";
 import {
-  MetaLogo, GoogleLogo, HubSpotLogo, QuickBooksLogo, StripeLogo, GoogleSheetsLogo, MakeLogo,
+  MetaLogo, GoogleLogo, HubSpotLogo, QuickBooksLogo, StripeLogo, GoogleSheetsLogo, SATLogo,
 } from "@/components/brand-logos";
 
 export default function HomePage() {
@@ -155,13 +155,13 @@ export default function HomePage() {
             <p className="text-center text-xs font-medium uppercase tracking-widest text-muted-foreground">Se conecta con tus herramientas favoritas</p>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-3 sm:gap-4">
               {[
+                { name: "SAT", node: <SATLogo className="h-5 w-5" /> },
                 { name: "Meta Ads", node: <MetaLogo className="h-5 w-5" /> },
                 { name: "Google", node: <GoogleLogo className="h-5 w-5" /> },
                 { name: "HubSpot", node: <HubSpotLogo className="h-5 w-5" /> },
                 { name: "QuickBooks", node: <QuickBooksLogo className="h-5 w-5" /> },
                 { name: "Stripe", node: <StripeLogo className="h-5 w-5" /> },
                 { name: "Google Sheets", node: <GoogleSheetsLogo className="h-5 w-5" /> },
-                { name: "Make", node: <MakeLogo className="h-5 w-5" /> },
               ].map((b) => (
                 <div key={b.name} className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
                   {b.node}

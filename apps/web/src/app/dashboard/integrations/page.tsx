@@ -5,7 +5,7 @@ import { CheckCircle, RefreshCw, AlertCircle, Loader2 } from "lucide-react";
 import { useToast } from "@/components/toast";
 import { addActivityLog } from "@/components/dashboard/activity-log";
 import {
-  MetaLogo, HubSpotLogo, QuickBooksLogo, StripeLogo, GoogleAnalyticsLogo, SlackLogo, MakeLogo,
+  MetaLogo, HubSpotLogo, QuickBooksLogo, StripeLogo, SlackLogo, SATLogo,
 } from "@/components/brand-logos";
 
 type IntegrationStatus = {
@@ -17,6 +17,16 @@ type IntegrationStatus = {
 };
 
 const integrationConfig = [
+  {
+    type: "SAT",
+    name: "SAT",
+    description: "Tus finanzas reales desde tu CFDI: ingresos y gastos facturados automáticamente, sin captura manual.",
+    category: "Finanzas / Fiscal",
+    metrics: ["Ingresos facturados", "Gastos", "IVA", "Nómina", "Egresos", "Flujo de caja"],
+    Logo: SATLogo,
+    connectUrl: null,
+    comingSoon: true,
+  },
   {
     type: "STRIPE",
     name: "Stripe",
@@ -53,25 +63,6 @@ const integrationConfig = [
     metrics: ["Gasto", "Alcance", "Conversiones", "CTR", "CPC", "Impresiones"],
     Logo: MetaLogo,
     connectUrl: "/api/integrations/meta",
-  },
-  {
-    type: "GOOGLE_ANALYTICS",
-    name: "Google Analytics",
-    description: "Tráfico web, fuentes de adquisición, comportamiento de usuarios y conversiones.",
-    category: "Marketing",
-    metrics: ["Tráfico Web", "Bounce Rate", "Conversiones", "Sesiones"],
-    Logo: GoogleAnalyticsLogo,
-    connectUrl: null,
-  },
-  {
-    type: "MAKE",
-    name: "Make",
-    description: "Automatiza flujos y envía métricas de cualquier app a tu dashboard vía Make.",
-    category: "Automatización",
-    metrics: ["Webhooks", "Escenarios", "Métricas personalizadas"],
-    Logo: MakeLogo,
-    connectUrl: null,
-    comingSoon: true,
   },
   {
     type: "SLACK",
