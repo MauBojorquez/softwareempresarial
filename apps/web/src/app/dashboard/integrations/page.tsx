@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { CheckCircle, RefreshCw, AlertCircle, Loader2 } from "lucide-react";
 import { useToast } from "@/components/toast";
 import { addActivityLog } from "@/components/dashboard/activity-log";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import {
   MetaLogo, HubSpotLogo, SATLogo,
 } from "@/components/brand-logos";
@@ -87,6 +88,7 @@ export default function IntegrationsPage() {
   const [statuses, setStatuses] = useState<IntegrationStatus[]>([]);
   const [syncing, setSyncing] = useState<Record<string, boolean>>({});
   const [satStatus, setSatStatus] = useState<SatStatus>({ connected: false });
+  const [confirmDisconnect, setConfirmDisconnect] = useState<string | null>(null);
 
   const fetchSatStatus = () => {
     fetch("/api/integrations/sat/status")
@@ -147,10 +149,10 @@ export default function IntegrationsPage() {
   };
 
   const handleSatDisconnect = async () => {
-    if (!confirm("¿Desconectar SAT? Se dejará de sincronizar tus CFDIs.")) return;
     try {
       await fetch("/api/integrations/sat/disconnect", { method: "DELETE" });
       setSatStatus({ connected: false });
+      setConfirmDisconnect(null);
       toast("SAT desconectado", "success");
     } catch (e) {
       console.error(e);
@@ -193,7 +195,6 @@ export default function IntegrationsPage() {
   };
 
   const handleDisconnect = async (type: string) => {
-    if (!confirm(`¿Desconectar ${type}? Se dejarán de sincronizar sus métricas.`)) return;
     try {
       await fetch("/api/integrations/disconnect", {
         method: "POST",
@@ -203,6 +204,7 @@ export default function IntegrationsPage() {
       const res = await fetch("/api/integrations/status");
       const data = await res.json();
       setStatuses(data.integrations ?? []);
+      setConfirmDisconnect(null);
       toast(`${type} desconectado`, "success");
     } catch (e) {
       console.error(e);
@@ -326,7 +328,7 @@ export default function IntegrationsPage() {
                           {isSyncing ? "Sincronizando..." : "Sincronizar"}
                         </button>
                         <button
-                          onClick={handleSatDisconnect}
+                          onClick={() => setConfirmDisconnect("SAT")}
                           className="flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-500 transition-colors hover:bg-red-500/20"
                         >
                           Desconectar
@@ -348,7 +350,7 @@ export default function IntegrationsPage() {
                           {isSyncing ? "Sincronizando..." : "Sincronizar"}
                         </button>
                         <button
-                          onClick={() => handleDisconnect(integration.type)}
+                          onClick={() => setConfirmDisconnect(integration.type)}
                           className="flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-500 transition-colors hover:bg-red-500/20"
                         >
                           Desconectar
@@ -400,6 +402,23 @@ export default function IntegrationsPage() {
           Crear API Key en Configuración
         </a>
       </div>
+
+      <ConfirmDialog
+        open={confirmDisconnect !== null}
+        title={`Desconectar ${confirmDisconnect}`}
+        description={
+          confirmDisconnect === "SAT"
+            ? "¿Desconectar SAT? Se dejará de sincronizar tus CFDIs automáticamente."
+            : `¿Desconectar ${confirmDisconnect}? Se dejarán de sincronizar sus métricas.`
+        }
+        confirmLabel="Desconectar"
+        destructive
+        onConfirm={() => {
+          if (confirmDisconnect === "SAT") handleSatDisconnect();
+          else if (confirmDisconnect) handleDisconnect(confirmDisconnect);
+        }}
+        onCancel={() => setConfirmDisconnect(null)}
+      />
     </div>
   );
 }
