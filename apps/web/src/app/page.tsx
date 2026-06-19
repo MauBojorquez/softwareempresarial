@@ -4,7 +4,7 @@ import {
   TrendingUp, DollarSign, Sparkles, Trophy, LineChart, Wallet,
 } from "lucide-react";
 import {
-  MetaLogo, GoogleLogo, HubSpotLogo, QuickBooksLogo, StripeLogo, GoogleSheetsLogo, SATLogo,
+  MetaLogo, GoogleLogo, HubSpotLogo, QuickBooksLogo, GoogleSheetsLogo, SATLogo,
 } from "@/components/brand-logos";
 
 export default function HomePage() {
@@ -160,7 +160,6 @@ export default function HomePage() {
                 { name: "Google", node: <GoogleLogo className="h-5 w-5" /> },
                 { name: "HubSpot", node: <HubSpotLogo className="h-5 w-5" /> },
                 { name: "QuickBooks", node: <QuickBooksLogo className="h-5 w-5" /> },
-                { name: "Stripe", node: <StripeLogo className="h-5 w-5" /> },
                 { name: "Google Sheets", node: <GoogleSheetsLogo className="h-5 w-5" /> },
               ].map((b) => (
                 <div key={b.name} className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">

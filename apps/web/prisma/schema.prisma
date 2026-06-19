@@ -264,6 +264,7 @@ enum IntegrationType {
   QUICKBOOKS
   HUBSPOT
   META_ADS
+  SAT
   CUSTOM_API
 }
 

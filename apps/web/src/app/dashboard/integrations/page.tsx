@@ -5,7 +5,7 @@ import { CheckCircle, RefreshCw, AlertCircle, Loader2 } from "lucide-react";
 import { useToast } from "@/components/toast";
 import { addActivityLog } from "@/components/dashboard/activity-log";
 import {
-  MetaLogo, HubSpotLogo, QuickBooksLogo, StripeLogo, SlackLogo, SATLogo,
+  MetaLogo, HubSpotLogo, QuickBooksLogo, SlackLogo, SATLogo,
 } from "@/components/brand-logos";
 
 type IntegrationStatus = {
@@ -24,16 +24,6 @@ const integrationConfig = [
     category: "Finanzas / Fiscal",
     metrics: ["Ingresos facturados", "Gastos", "IVA", "Nómina", "Egresos", "Flujo de caja"],
     Logo: SATLogo,
-    connectUrl: null,
-    comingSoon: true,
-  },
-  {
-    type: "STRIPE",
-    name: "Stripe",
-    description: "Ingresos, cobros, suscripciones (MRR/ARR) y reembolsos directo de tu Stripe.",
-    category: "Finanzas / Pagos",
-    metrics: ["Ingresos", "MRR", "ARR", "Cobros", "Reembolsos", "Churn"],
-    Logo: StripeLogo,
     connectUrl: null,
     comingSoon: true,
   },
