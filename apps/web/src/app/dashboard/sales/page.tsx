@@ -64,6 +64,9 @@ export default function SalesPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [bulkDeleteCount, setBulkDeleteCount] = useState(0);
+  const [editEntry, setEditEntry] = useState<MetricEntry | null>(null);
+  const [editForm, setEditForm] = useState({ value: "", period: "" });
+  const [editSaving, setEditSaving] = useState(false);
 
   const loadHubSpot = useCallback(() => {
     setHsLoading(true);
@@ -157,6 +160,25 @@ export default function SalesPage() {
     setSelected(new Set());
     setBulkDeleteCount(0);
     loadManual();
+  };
+
+  const openEdit = (entry: MetricEntry) => {
+    setEditEntry(entry);
+    setEditForm({ value: String(entry.value), period: entry.period.slice(0, 10) });
+  };
+
+  const handleEdit = async () => {
+    if (!editEntry) return;
+    setEditSaving(true);
+    await fetch("/api/metrics/manual", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: editEntry.id, value: editForm.value, period: editForm.period }),
+    });
+    setEditEntry(null);
+    setEditSaving(false);
+    loadManual();
+    toast("Registro actualizado", "success");
   };
 
   if (hsLoading) return <DashboardSkeleton />;
@@ -445,7 +467,7 @@ export default function SalesPage() {
                     <th className="p-3 font-medium">Concepto</th>
                     <th className="p-3 font-medium text-right">Valor</th>
                     <th className="p-3 font-medium">Fecha</th>
-                    <th className="p-3 font-medium w-10"></th>
+                    <th className="p-3 font-medium w-20"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -460,9 +482,14 @@ export default function SalesPage() {
                       </td>
                       <td className="p-3 text-muted-foreground">{new Date(m.period).toLocaleDateString("es-MX")}</td>
                       <td className="p-3">
-                        <button aria-label={`Eliminar ${m.name}`} onClick={() => setDeleteId(m.id)} className="text-muted-foreground hover:text-red-500">
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button aria-label={`Editar ${m.name}`} onClick={() => openEdit(m)} className="text-muted-foreground hover:text-primary">
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button aria-label={`Eliminar ${m.name}`} onClick={() => setDeleteId(m.id)} className="text-muted-foreground hover:text-red-500">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -488,6 +515,52 @@ export default function SalesPage() {
             <button onClick={() => setShowForm(true)} className="rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90">
               Entrada Manual
             </button>
+          </div>
+        </div>
+      )}
+
+      {editEntry && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={() => setEditEntry(null)} />
+          <div className="relative w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xl animate-in fade-in zoom-in-95">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="font-semibold text-sm">Editar: {editEntry.name}</h3>
+              <button onClick={() => setEditEntry(null)} className="text-muted-foreground hover:text-foreground">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Valor</label>
+                <input
+                  type="number"
+                  value={editForm.value}
+                  onChange={(e) => setEditForm({ ...editForm, value: e.target.value })}
+                  className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Período</label>
+                <input
+                  type="date"
+                  value={editForm.period}
+                  onChange={(e) => setEditForm({ ...editForm, period: e.target.value })}
+                  className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
+                />
+              </div>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button onClick={() => setEditEntry(null)} className="rounded-lg border border-border px-4 py-2 text-sm font-medium transition-colors hover:bg-secondary">
+                Cancelar
+              </button>
+              <button
+                onClick={handleEdit}
+                disabled={editSaving || !editForm.value}
+                className="rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+              >
+                {editSaving ? "Guardando..." : "Guardar"}
+              </button>
+            </div>
           </div>
         </div>
       )}
