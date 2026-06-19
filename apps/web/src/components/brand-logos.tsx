@@ -36,12 +36,19 @@ export function MetaLogo({ className = "h-6 w-6" }: Props) {
 export function MakeLogo({ className = "h-6 w-6" }: Props) {
   return (
     <svg className={className} viewBox="0 0 24 24" aria-hidden>
-      <rect width="24" height="24" rx="5" fill="#6D00CC" />
+      <defs>
+        <linearGradient id="make-g" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#6D00CC" />
+          <stop offset="100%" stopColor="#A100FF" />
+        </linearGradient>
+      </defs>
+      <rect width="24" height="24" rx="5.5" fill="url(#make-g)" />
       <g fill="#fff">
-        <path d="M5.2 6.8 7 6.3l1.7 6.4-1.8.5-1.7-6.4Z" />
-        <path d="m9.4 6 1.8.2-.8 6.6-1.8-.2.8-6.6Z" />
-        <path d="m13.7 5.9 1.6.9-3.1 5.9-1.6-.9 3.1-5.9Z" />
-        <rect x="5" y="15.4" width="14" height="2.2" rx="1.1" />
+        {/* Make logomark: four leaning strokes (origami-style M) */}
+        <path d="M5.4 6.2h1.9v11.6H5.4z" />
+        <path d="M9.7 6.2h1.9L9.9 17.8H8z" />
+        <path d="M14.3 6.2h1.9l1.7 11.6h-1.9z" />
+        <path d="M18.6 6.2h1.9v11.6h-1.9z" transform="translate(-2 0)" />
       </g>
     </svg>
   );
