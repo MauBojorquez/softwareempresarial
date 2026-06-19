@@ -77,6 +77,30 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ metric }, { status: 201 });
 }
 
+export async function PATCH(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const membership = await db.membership.findFirst({ where: { userId: session.user.id } });
+  if (!membership) return NextResponse.json({ error: "No organization" }, { status: 404 });
+
+  const body = await req.json();
+  const { id, value, period } = body;
+  if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
+
+  const metric = await db.metric.findFirst({ where: { id, organizationId: membership.organizationId } });
+  if (!metric) return NextResponse.json({ error: "Metric not found" }, { status: 404 });
+
+  const updated = await db.metric.update({
+    where: { id },
+    data: {
+      ...(value !== undefined && { value: parseFloat(value) }),
+      ...(period !== undefined && { period: new Date(period) }),
+    },
+  });
+
+  return NextResponse.json({ success: true, metric: updated });
+}
+
 export async function DELETE(req: NextRequest) {
   const origin = req.headers.get("origin");
   const host = req.headers.get("host");
