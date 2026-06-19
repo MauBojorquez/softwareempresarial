@@ -23,6 +23,7 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [show, setShow] = useState(false);
+  const [plan, setPlan] = useState<"STARTER" | "FREE">("STARTER");
   const router = useRouter();
 
   const passwordsMatch = form.password.length > 0 && form.password === form.confirm;
@@ -45,7 +46,7 @@ export default function RegisterPage() {
     const res = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: form.name, company: form.company, email: form.email, password: form.password }),
+      body: JSON.stringify({ name: form.name, company: form.company, email: form.email, password: form.password, plan }),
     });
 
     if (!res.ok) {
@@ -80,7 +81,33 @@ export default function RegisterPage() {
             <span className="text-xl font-bold">MetrixPro</span>
           </Link>
           <h1 className="mt-8 text-2xl font-bold">Crear Cuenta</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Comienza tu prueba gratis de 14 días</p>
+          <p className="mt-1 text-sm text-muted-foreground">Elige cómo quieres empezar</p>
+        </div>
+
+        {/* Plan selector */}
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setPlan("STARTER")}
+            className={cn(
+              "rounded-xl border p-3 text-left transition-all",
+              plan === "STARTER" ? "border-primary bg-primary/5 ring-2 ring-primary/20" : "border-border bg-card hover:border-primary/40"
+            )}
+          >
+            <p className="text-sm font-semibold">Prueba 14 días</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">Todo Starter. Cancela cuando quieras, no se te cobra.</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => setPlan("FREE")}
+            className={cn(
+              "rounded-xl border p-3 text-left transition-all",
+              plan === "FREE" ? "border-primary bg-primary/5 ring-2 ring-primary/20" : "border-border bg-card hover:border-primary/40"
+            )}
+          >
+            <p className="text-sm font-semibold">Gratis</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">1 usuario, captura manual. Sin tarjeta.</p>
+          </button>
         </div>
 
         {error && (

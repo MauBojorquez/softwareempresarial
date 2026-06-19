@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Check, Sparkles } from "lucide-react";
+import { Check, Sparkles, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const plans = [
@@ -164,14 +164,17 @@ export default function PricingPage() {
                 {plan.free ? "Comenzar Gratis" : "Comenzar Prueba Gratis"}
               </Link>
               <ul className="mt-8 space-y-3">
-                {plan.features.map((feature) => (
-                  <li key={feature} className="flex items-center gap-2.5 text-sm">
-                    <div className="rounded-full bg-primary/10 p-0.5">
-                      <Check className="h-3 w-3 text-primary" />
-                    </div>
-                    <span className="text-muted-foreground">{feature}</span>
-                  </li>
-                ))}
+                {plan.features.map((feature) => {
+                  const negative = feature.startsWith("Sin ");
+                  return (
+                    <li key={feature} className="flex items-center gap-2.5 text-sm">
+                      <div className={cn("rounded-full p-0.5", negative ? "bg-red-500/10" : "bg-primary/10")}>
+                        {negative ? <X className="h-3 w-3 text-red-500" /> : <Check className="h-3 w-3 text-primary" />}
+                      </div>
+                      <span className="text-muted-foreground">{feature}</span>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           ))}

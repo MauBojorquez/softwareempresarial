@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CreditCard, Check, Sparkles, ArrowRight, Loader2, RefreshCw } from "lucide-react";
+import { CreditCard, Check, Sparkles, ArrowRight, Loader2, RefreshCw, X } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/toast";
@@ -237,12 +237,15 @@ export default function BillingPage() {
                   )}
                 </p>
                 <ul className="mt-4 space-y-2">
-                  {plan.features.map((f) => (
-                    <li key={f} className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Check className="h-3.5 w-3.5 text-primary" />
-                      {f}
-                    </li>
-                  ))}
+                  {plan.features.map((f) => {
+                    const negative = f.startsWith("Sin ");
+                    return (
+                      <li key={f} className="flex items-center gap-2 text-sm text-muted-foreground">
+                        {negative ? <X className="h-3.5 w-3.5 text-red-500 shrink-0" /> : <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                        {f}
+                      </li>
+                    );
+                  })}
                 </ul>
                 {isCurrent ? (
                   <div className="mt-4 rounded-lg border border-primary/15 py-2 text-center text-sm font-medium text-primary">
