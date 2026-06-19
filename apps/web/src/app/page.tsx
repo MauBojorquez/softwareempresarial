@@ -411,6 +411,36 @@ export default function HomePage() {
           </div>
         </section>
 
+        {/* ── FAQ ──────────────────────────────────────────────── */}
+        <section className="border-b border-border py-24">
+          <div className="container mx-auto px-4">
+            <div className="mx-auto max-w-3xl">
+              <div className="text-center mb-12">
+                <span className="inline-block rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-xs font-medium text-primary mb-4">Preguntas frecuentes</span>
+                <h2 className="text-3xl font-bold sm:text-4xl">Todo lo que necesitas saber</h2>
+              </div>
+              <div className="space-y-4">
+                {[
+                  { q: "¿Necesito conocimientos técnicos para usar MetrixPro?", a: "No. MetrixPro está diseñado para dueños de negocio y directivos. La interfaz es intuitiva y puedes comenzar a ver tus métricas en minutos, sin necesidad de configuración técnica compleja." },
+                  { q: "¿Mis datos financieros están seguros?", a: "Sí. Usamos cifrado AES-256 para todas las credenciales, conexiones TLS en tránsito, y nunca almacenamos contraseñas de SAT o bancarias. Solo leemos datos mediante APIs oficiales." },
+                  { q: "¿Puedo conectar mi empresa con el SAT?", a: "Sí. MetrixPro se conecta directamente al SAT mediante el servicio de descarga masiva de CFDIs. Solo necesitas tu e.firma (.cer y .key) para autenticarte de forma segura." },
+                  { q: "¿Qué pasa si tengo datos en Excel o CSV?", a: "Puedes importar datos manualmente desde archivos CSV con nuestra plantilla predefinida. También puedes conectar HubSpot, Meta Ads y más integraciones según tu plan." },
+                  { q: "¿Puedo cancelar en cualquier momento?", a: "Sí, sin penalizaciones ni contratos de permanencia. Puedes cancelar tu suscripción desde el panel de facturación y tu cuenta volverá al plan gratuito automáticamente." },
+                  { q: "¿Cuántos usuarios puede tener mi equipo?", a: "El plan Starter incluye 3 usuarios, Professional 10 usuarios, y Enterprise usuarios ilimitados. Puedes invitar a tu equipo con diferentes roles: Admin, Editor o Viewer." },
+                ].map(({ q, a }, i) => (
+                  <details key={i} className="group rounded-xl border border-border bg-card">
+                    <summary className="flex cursor-pointer items-center justify-between gap-4 p-5 text-sm font-semibold marker:content-none">
+                      {q}
+                      <span className="shrink-0 text-muted-foreground transition-transform group-open:rotate-45">+</span>
+                    </summary>
+                    <p className="border-t border-border px-5 pb-5 pt-4 text-sm text-muted-foreground leading-relaxed">{a}</p>
+                  </details>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* ── CTA ──────────────────────────────────────────────── */}
         <section className="py-24">
           <div className="container mx-auto px-4">

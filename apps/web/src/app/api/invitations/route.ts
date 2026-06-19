@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/server/db";
 import { sendEmail, inviteEmail } from "@/server/services/email";
 import type { MembershipRole } from "@prisma/client";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 // GET /api/invitations — list pending invitations for the org
 export async function GET() {
@@ -27,6 +28,12 @@ export async function GET() {
 
 // POST /api/invitations — send an invitation
 export async function POST(req: NextRequest) {
+  const ip = getClientIp(req);
+  const rl = rateLimit(`invite:${ip}`, 10, 60_000);
+  if (!rl.success) {
+    return NextResponse.json({ error: "Demasiadas solicitudes. Intenta más tarde." }, { status: 429 });
+  }
+
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

@@ -1,11 +1,18 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/server/db";
 import { generateMonthlyReport } from "@/server/services/ai/report-generator";
 import { checkFeatureAccess } from "@/server/services/billing/plan-limits";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
-export async function POST() {
+export async function POST(req: NextRequest) {
+  const ip = getClientIp(req);
+  const rl = rateLimit(`report-gen:${ip}`, 5, 60 * 60_000); // 5 per hour
+  if (!rl.success) {
+    return NextResponse.json({ error: "Límite de generación alcanzado. Espera una hora." }, { status: 429 });
+  }
+
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
