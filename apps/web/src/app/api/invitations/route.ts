@@ -59,8 +59,8 @@ export async function POST(req: NextRequest) {
   const pendingInvites = await db.invitation.count({
     where: { organizationId: membership.organizationId, acceptedAt: null, expiresAt: { gt: new Date() } },
   });
-  if (currentMembers + pendingInvites >= limits.maxUsers) {
-    return NextResponse.json({ error: `Tu plan ${plan} permite máximo ${limits.maxUsers} usuarios` }, { status: 403 });
+  if (currentMembers + pendingInvites >= limits.users) {
+    return NextResponse.json({ error: `Tu plan ${plan} permite máximo ${limits.users} usuarios` }, { status: 403 });
   }
 
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
