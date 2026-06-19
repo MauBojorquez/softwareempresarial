@@ -82,9 +82,12 @@ export default function MarketingPage() {
   const statusLabel = (s: string) => {
     if (s === "ACTIVE") return { text: "Activa", cls: "text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10" };
     if (s === "PAUSED") return { text: "Pausada", cls: "text-amber-600 bg-amber-50 dark:bg-amber-500/10" };
-    if (s === "DELETED" || s === "ARCHIVED") return { text: "Eliminada", cls: "text-red-600 bg-red-50 dark:bg-red-500/10" };
+    if (s === "DELETED" || s === "ARCHIVED") return { text: "Archivada", cls: "text-red-600 bg-red-50 dark:bg-red-500/10" };
     if (s === "WITH_ISSUES") return { text: "Con problemas", cls: "text-red-600 bg-red-50 dark:bg-red-500/10" };
-    return { text: s?.replace(/_/g, " ") || "—", cls: "text-muted-foreground bg-secondary/50" };
+    if (s === "INACTIVE") return { text: "Inactiva", cls: "text-muted-foreground bg-secondary/50" };
+    if (s === "COMPLETED") return { text: "Completada", cls: "text-blue-600 bg-blue-50 dark:bg-blue-500/10" };
+    if (s === "IN_PROCESS") return { text: "En proceso", cls: "text-purple-600 bg-purple-50 dark:bg-purple-500/10" };
+    return { text: "—", cls: "text-muted-foreground bg-secondary/50" };
   };
 
 
@@ -95,12 +98,23 @@ export default function MarketingPage() {
           <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Marketing</h1>
           <p className="text-sm text-muted-foreground">Datos en tiempo real de Meta Ads</p>
         </div>
-        {campaigns && (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground sm:text-sm">
-            <Megaphone className="h-4 w-4" />
-            <span>{campaigns.activeCampaigns || 0} activas de {campaigns.totalCampaigns || 0}</span>
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          {campaigns && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground sm:text-sm">
+              <Megaphone className="h-4 w-4" />
+              <span>{campaigns.activeCampaigns || 0} activas de {campaigns.totalCampaigns || 0}</span>
+            </div>
+          )}
+          <button
+            onClick={() => load()}
+            disabled={loading}
+            className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium transition-colors hover:bg-secondary disabled:opacity-50"
+            title="Actualizar datos"
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+            <span className="hidden sm:inline">Actualizar</span>
+          </button>
+        </div>
       </div>
 
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">

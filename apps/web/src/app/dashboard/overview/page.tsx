@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   DollarSign, TrendingUp, Users, ShoppingCart, RefreshCw, LinkIcon, Plus, ArrowRight,
   Target, Calculator, Download, Megaphone, BarChart3, Wallet, FileText, PlusCircle,
@@ -14,6 +14,7 @@ import { cn, formatCurrency } from "@/lib/utils";
 import { Onboarding } from "@/components/dashboard/onboarding";
 import { ActivityLog } from "@/components/dashboard/activity-log";
 import { InsightsWidget } from "@/components/dashboard/insights-widget";
+import { useToast } from "@/components/toast";
 
 type DashboardData = {
   satIngresos: number; satIngresosChange: number;
@@ -62,6 +63,7 @@ const ORDER_KEY = "metrixpro-overview-order-v1";
 
 export default function OverviewPage() {
   const { data: session } = useSession();
+  const { toast } = useToast();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
@@ -73,12 +75,14 @@ export default function OverviewPage() {
   const [dragId, setDragId] = useState<string | null>(null);
   const [orgs, setOrgs] = useState<OrgItem[]>([]);
   const [showOrgDropdown, setShowOrgDropdown] = useState(false);
+  const orgDropdownRef = useRef<HTMLDivElement>(null);
 
   const load = async () => {
     try {
       const res = await fetch("/api/metrics/dashboard");
       if (res.ok) setData(await res.json());
-    } catch (e) { console.error(e); }
+      else toast("Error al cargar el dashboard", "error");
+    } catch { toast("Error de conexión", "error"); }
     setLoading(false);
   };
 
@@ -100,6 +104,14 @@ export default function OverviewPage() {
     fetch("/api/organizations").then((r) => r.json()).then((d) => {
       if (Array.isArray(d.organizations)) setOrgs(d.organizations);
     }).catch(() => {});
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (orgDropdownRef.current && !orgDropdownRef.current.contains(e.target as Node)) {
+        setShowOrgDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const toggleWidget = (id: string) => {
@@ -140,15 +152,22 @@ export default function OverviewPage() {
 
   const downloadMetrics = async () => {
     setDownloading(true);
-    const res = await fetch("/api/reports/pdf?type=metrics");
-    if (res.ok) {
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `Metricas-${new Date().toISOString().split("T")[0]}.html`;
-      a.click();
-      URL.revokeObjectURL(url);
+    try {
+      const res = await fetch("/api/reports/pdf?type=metrics");
+      if (!res.ok) {
+        toast("No se pudo exportar las métricas", "error");
+      } else {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `Metricas-${new Date().toISOString().split("T")[0]}.html`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast("Métricas exportadas", "success");
+      }
+    } catch {
+      toast("Error al exportar métricas", "error");
     }
     setDownloading(false);
   };
@@ -434,7 +453,7 @@ export default function OverviewPage() {
 
       {/* Multi-company switcher */}
       {orgs.length > 1 && (
-        <div className="relative inline-block">
+        <div ref={orgDropdownRef} className="relative inline-block">
           <button onClick={() => setShowOrgDropdown((v) => !v)} className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-secondary transition-colors">
             <Building2 className="h-4 w-4 text-muted-foreground" />
             <span>{activeOrg?.name || "Empresa"}</span>

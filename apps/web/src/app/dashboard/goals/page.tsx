@@ -53,25 +53,47 @@ export default function GoalsPage() {
   const saveGoal = async () => {
     if (!form.target) return;
     setSaving(true);
-    await fetch("/api/metrics/goals", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ metric: form.metric, target: parseFloat(form.target), unit: form.unit, deadline: form.deadline || undefined }),
-    });
-    addActivityLog("Meta establecida", `${form.metric}: ${form.target} ${form.unit}`, "goal");
-    toast("Meta guardada", "success");
-    setShowForm(false);
-    setForm({ metric: "Ingresos", target: "", unit: "MXN", deadline: "" });
-    setSaving(false);
-    setLoading(true);
-    load();
+    try {
+      const res = await fetch("/api/metrics/goals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ metric: form.metric, target: parseFloat(form.target), unit: form.unit, deadline: form.deadline || undefined }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast(data.error || "Error al guardar la meta", "error");
+        setSaving(false);
+        return;
+      }
+      addActivityLog("Meta establecida", `${form.metric}: ${form.target} ${form.unit}`, "goal");
+      toast("Meta guardada", "success");
+      setShowForm(false);
+      setForm({ metric: "Ingresos", target: "", unit: "MXN", deadline: "" });
+      setSaving(false);
+      setLoading(true);
+      load();
+    } catch {
+      toast("Error de conexión", "error");
+      setSaving(false);
+    }
   };
 
   const deleteGoal = async (metric: string) => {
-    await fetch(`/api/metrics/goals?metric=${encodeURIComponent(metric)}`, { method: "DELETE" });
-    setGoals((prev) => prev.filter((g) => g.name !== metric));
-    setConfirmDelete(null);
-    toast("Meta eliminada", "success");
+    try {
+      const res = await fetch(`/api/metrics/goals?metric=${encodeURIComponent(metric)}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast(data.error || "Error al eliminar la meta", "error");
+        setConfirmDelete(null);
+        return;
+      }
+      setGoals((prev) => prev.filter((g) => g.name !== metric));
+      setConfirmDelete(null);
+      toast("Meta eliminada", "success");
+    } catch {
+      toast("Error de conexión", "error");
+      setConfirmDelete(null);
+    }
   };
 
   const completed = goals.filter((g) => g.target > 0 && g.current >= g.target).length;
@@ -152,39 +174,53 @@ export default function GoalsPage() {
             <button onClick={() => setShowForm(false)} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-            <select
-              value={form.metric}
-              onChange={(e) => {
-                const opt = METRIC_OPTIONS.find((o) => o.value === e.target.value);
-                setForm({ ...form, metric: e.target.value, unit: opt?.unit || "" });
-              }}
-              className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
-            >
-              {METRIC_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.value} ({o.unit})</option>
-              ))}
-            </select>
-            <input
-              type="number"
-              value={form.target}
-              onChange={(e) => setForm({ ...form, target: e.target.value })}
-              placeholder="Valor objetivo"
-              className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
-            />
-            <input
-              type="date"
-              value={form.deadline}
-              onChange={(e) => setForm({ ...form, deadline: e.target.value })}
-              className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
-            />
-            <button
-              onClick={saveGoal}
-              disabled={saving || !form.target}
-              className="flex items-center justify-center gap-2 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-            >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Target className="h-4 w-4" />}
-              {saving ? "Guardando..." : "Guardar Meta"}
-            </button>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-muted-foreground">Métrica</label>
+              <select
+                value={form.metric}
+                onChange={(e) => {
+                  const opt = METRIC_OPTIONS.find((o) => o.value === e.target.value);
+                  setForm({ ...form, metric: e.target.value, unit: opt?.unit || "" });
+                }}
+                className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
+              >
+                {METRIC_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.value} ({o.unit})</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-muted-foreground">Valor objetivo</label>
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={form.target}
+                onChange={(e) => setForm({ ...form, target: e.target.value })}
+                placeholder="Ej: 500000"
+                className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-muted-foreground">Fecha límite (opcional)</label>
+              <input
+                type="date"
+                value={form.deadline}
+                onChange={(e) => setForm({ ...form, deadline: e.target.value })}
+                className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
+              />
+            </div>
+            <div className="flex flex-col gap-1 sm:justify-end">
+              <span className="hidden sm:block text-xs text-transparent select-none">Acción</span>
+              <button
+                onClick={saveGoal}
+                disabled={saving || !form.target}
+                className="flex items-center justify-center gap-2 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Target className="h-4 w-4" />}
+                {saving ? "Guardando..." : "Guardar Meta"}
+              </button>
+            </div>
           </div>
         </div>
       )}

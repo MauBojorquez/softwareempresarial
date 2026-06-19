@@ -39,6 +39,12 @@ type AlertRuleItem = {
   createdAt: string;
 };
 
+const ROLE_LABELS: Record<string, string> = {
+  VIEWER: "Visor",
+  EDITOR: "Editor",
+  ADMIN: "Administrador",
+};
+
 const CONDITION_LABELS: Record<string, string> = {
   below: "Cae por debajo de",
   above: "Sube por encima de",
@@ -47,6 +53,14 @@ const CONDITION_LABELS: Record<string, string> = {
 };
 
 const CATEGORY_OPTIONS = ["FINANCE", "SALES", "OPERATIONS", "HR", "MARKETING"] as const;
+
+const CATEGORY_LABELS: Record<string, string> = {
+  FINANCE: "Finanzas",
+  SALES: "Ventas",
+  OPERATIONS: "Operaciones",
+  HR: "RRHH",
+  MARKETING: "Marketing",
+};
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -91,6 +105,8 @@ export default function SettingsPage() {
   const [deleting, setDeleting] = useState(false);
   const [confirmDeleteKeyId, setConfirmDeleteKeyId] = useState<string | null>(null);
   const [confirmClearData, setConfirmClearData] = useState(false);
+  const [clearingData, setClearingData] = useState(false);
+  const [exportingCSV, setExportingCSV] = useState(false);
 
   type Invitation = { id: string; email: string; role: string; expiresAt: string; invitedBy: { name: string | null; email: string } };
   const [invitations, setInvitations] = useState<Invitation[]>([]);
@@ -303,17 +319,27 @@ export default function SettingsPage() {
   };
 
   const handleDeleteKey = async (id: string) => {
-    await fetch("/api/user/api-keys", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
-    });
-    setApiKeys((prev) => prev.filter((k) => k.id !== id));
-    setConfirmDeleteKeyId(null);
-    toast("API Key eliminada", "success");
+    try {
+      const res = await fetch("/api/user/api-keys", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast(data.error || "Error al eliminar la API Key", "error");
+        return;
+      }
+      setApiKeys((prev) => prev.filter((k) => k.id !== id));
+      setConfirmDeleteKeyId(null);
+      toast("API Key eliminada", "success");
+    } catch {
+      toast("Error de conexión", "error");
+    }
   };
 
   const handleExportCSV = async () => {
+    setExportingCSV(true);
     try {
       const res = await fetch("/api/metrics/export?format=csv");
       if (!res.ok) throw new Error();
@@ -328,12 +354,23 @@ export default function SettingsPage() {
     } catch {
       toast("No se pudo exportar", "error");
     }
+    setExportingCSV(false);
   };
 
   const handleClearData = async () => {
-    const res = await fetch("/api/metrics", { method: "DELETE" });
-    if (res.ok) toast("Datos eliminados", "success");
-    else toast("Error al eliminar", "error");
+    setClearingData(true);
+    try {
+      const res = await fetch("/api/metrics", { method: "DELETE" });
+      if (res.ok) {
+        toast("Datos eliminados correctamente. Recarga el dashboard para ver los cambios.", "success");
+        setTimeout(() => window.location.reload(), 2000);
+      } else {
+        toast("Error al eliminar los datos", "error");
+      }
+    } catch {
+      toast("Error de conexión", "error");
+    }
+    setClearingData(false);
     setConfirmClearData(false);
   };
 
@@ -368,13 +405,23 @@ export default function SettingsPage() {
   };
 
   const handleDeleteAlert = async (id: string) => {
-    await fetch(`/api/alerts?id=${id}`, { method: "DELETE" });
-    setAlertRules((prev) => prev.filter((r) => r.id !== id));
-    toast("Alerta eliminada", "success");
+    try {
+      const res = await fetch(`/api/alerts?id=${id}`, { method: "DELETE" });
+      if (!res.ok) { toast("Error al eliminar la alerta", "error"); return; }
+      setAlertRules((prev) => prev.filter((r) => r.id !== id));
+      toast("Alerta eliminada", "success");
+    } catch {
+      toast("Error de conexión", "error");
+    }
   };
 
   const handleInvite = async () => {
     if (!inviteEmail) return;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(inviteEmail)) {
+      toast("Ingresa un correo electrónico válido", "error");
+      return;
+    }
     setInviting(true);
     try {
       const res = await fetch("/api/invitations", {
@@ -398,9 +445,14 @@ export default function SettingsPage() {
   };
 
   const handleRevokeInvite = async (id: string) => {
-    await fetch(`/api/invitations?id=${id}`, { method: "DELETE" });
-    setInvitations((prev) => prev.filter((inv) => inv.id !== id));
-    toast("Invitación revocada", "success");
+    try {
+      const res = await fetch(`/api/invitations?id=${id}`, { method: "DELETE" });
+      if (!res.ok) { toast("Error al revocar la invitación", "error"); return; }
+      setInvitations((prev) => prev.filter((inv) => inv.id !== id));
+      toast("Invitación revocada", "success");
+    } catch {
+      toast("Error de conexión", "error");
+    }
   };
 
   const handleDeleteAccount = async () => {
@@ -628,11 +680,17 @@ export default function SettingsPage() {
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label htmlFor="new-pw" className="text-xs text-muted-foreground">Nueva contraseña</label>
-              <input id="new-pw" type={showPasswords ? "text" : "password"} value={passwords.new} onChange={(e) => setPasswords({ ...passwords, new: e.target.value })} placeholder="Mínimo 8 caracteres" className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30" />
+              <input id="new-pw" type={showPasswords ? "text" : "password"} value={passwords.new} onChange={(e) => setPasswords({ ...passwords, new: e.target.value })} placeholder="Mínimo 8 caracteres" className={`mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 ${passwords.new.length === 0 ? "border-border focus:border-primary/50 focus:ring-primary/30" : passwords.new.length >= 8 ? "border-emerald-500/50 focus:ring-emerald-500/25" : "border-red-400/60 focus:ring-red-500/25"}`} />
+              {passwords.new.length > 0 && passwords.new.length < 8 && (
+                <p className="mt-1 text-xs text-red-500">Mínimo 8 caracteres ({passwords.new.length}/8)</p>
+              )}
             </div>
             <div>
               <label htmlFor="confirm-pw" className="text-xs text-muted-foreground">Confirmar</label>
-              <input id="confirm-pw" type={showPasswords ? "text" : "password"} value={passwords.confirm} onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30" />
+              <input id="confirm-pw" type={showPasswords ? "text" : "password"} value={passwords.confirm} onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })} className={`mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 ${passwords.confirm.length === 0 ? "border-border focus:border-primary/50 focus:ring-primary/30" : passwords.confirm === passwords.new ? "border-emerald-500/50 focus:ring-emerald-500/25" : "border-red-400/60 focus:ring-red-500/25"}`} />
+              {passwords.confirm.length > 0 && passwords.confirm !== passwords.new && (
+                <p className="mt-1 text-xs text-red-500">Las contraseñas no coinciden</p>
+              )}
             </div>
           </div>
         </div>
@@ -761,7 +819,7 @@ export default function SettingsPage() {
                 <div>
                   <p className="text-sm font-medium">{rule.metricName}</p>
                   <p className="text-xs text-muted-foreground">
-                    {CONDITION_LABELS[rule.condition] ?? rule.condition} {rule.threshold} · {rule.category}
+                    {CONDITION_LABELS[rule.condition] ?? rule.condition} {rule.threshold} · {CATEGORY_LABELS[rule.category] ?? rule.category}
                   </p>
                   {rule.lastTriggered && (
                     <p className="text-[10px] text-muted-foreground mt-0.5">
@@ -802,7 +860,7 @@ export default function SettingsPage() {
                 className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none"
               >
                 {CATEGORY_OPTIONS.map((c) => (
-                  <option key={c} value={c}>{c}</option>
+                  <option key={c} value={c}>{CATEGORY_LABELS[c] ?? c}</option>
                 ))}
               </select>
             </div>
@@ -852,9 +910,9 @@ export default function SettingsPage() {
         <div className="flex flex-col sm:flex-row gap-2">
           <input type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="correo@empresa.com" className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30" />
           <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as "VIEWER" | "EDITOR" | "ADMIN")} className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none">
-            <option value="VIEWER">Viewer</option>
+            <option value="VIEWER">Visor</option>
             <option value="EDITOR">Editor</option>
-            <option value="ADMIN">Admin</option>
+            <option value="ADMIN">Administrador</option>
           </select>
           <button onClick={handleInvite} disabled={inviting || !inviteEmail} className="flex items-center gap-1.5 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50">
             {inviting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
@@ -890,7 +948,7 @@ export default function SettingsPage() {
                 <div key={inv.id} className="flex items-center justify-between px-3 py-2">
                   <div>
                     <p className="text-sm font-medium">{inv.email}</p>
-                    <p className="text-xs text-muted-foreground">{inv.role} · Expira {new Date(inv.expiresAt).toLocaleDateString("es-MX")}</p>
+                    <p className="text-xs text-muted-foreground">{ROLE_LABELS[inv.role] ?? inv.role} · Expira {new Date(inv.expiresAt).toLocaleDateString("es-MX")}</p>
                   </div>
                   <button onClick={() => handleRevokeInvite(inv.id)} className="text-muted-foreground hover:text-red-500" aria-label="Revocar invitación">
                     <X className="h-3.5 w-3.5" />
@@ -964,13 +1022,13 @@ export default function SettingsPage() {
           <h2 className="text-lg font-semibold text-foreground">Datos</h2>
         </div>
         <div className="flex flex-col sm:flex-row gap-3">
-          <button onClick={handleExportCSV} className="flex items-center justify-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors">
-            <Download className="h-4 w-4" />
-            Exportar datos como CSV
+          <button onClick={handleExportCSV} disabled={exportingCSV} className="flex items-center justify-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-50">
+            {exportingCSV ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            {exportingCSV ? "Exportando..." : "Exportar datos como CSV"}
           </button>
-          <button onClick={() => setConfirmClearData(true)} className="flex items-center justify-center gap-2 rounded-lg border border-destructive/50 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors">
-            <Trash2 className="h-4 w-4" />
-            Limpiar datos de métricas
+          <button onClick={() => setConfirmClearData(true)} disabled={clearingData} className="flex items-center justify-center gap-2 rounded-lg border border-destructive/50 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50">
+            {clearingData ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            {clearingData ? "Eliminando..." : "Limpiar datos de métricas"}
           </button>
         </div>
       </div>

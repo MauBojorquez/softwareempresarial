@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Users, Activity, Loader2, Circle, LogIn, Eye, Plus, Pencil, Trash2, FileText, Target, Plug, Mail } from "lucide-react";
+import { Users, Activity, Loader2, Circle, LogIn, Eye, Plus, Pencil, Trash2, FileText, Target, Plug, Mail, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const ACTION_LABEL: Record<string, string> = {
@@ -93,7 +93,19 @@ export default function TeamPage() {
     return <div className="flex items-center justify-center py-24"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
   }
   if (error || !data) {
-    return <div className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">{error || "Sin datos"}</div>;
+    return (
+      <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card py-16 text-center">
+        <Activity className="h-8 w-8 text-muted-foreground mb-3" />
+        <h3 className="text-base font-semibold">No se pudo cargar el equipo</h3>
+        <p className="mt-1 text-sm text-muted-foreground max-w-sm">{error || "Sin datos disponibles"}</p>
+        <button
+          onClick={() => { setLoading(true); setError(null); fetch("/api/team/activity").then((r) => r.json()).then((d) => { setData(d); setLoading(false); }).catch((e) => { setError(e.message); setLoading(false); }); }}
+          className="mt-4 flex items-center gap-2 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+        >
+          <RefreshCw className="h-4 w-4" /> Reintentar
+        </button>
+      </div>
+    );
   }
 
   const isOnline = (iso: string | null) => iso != null && Date.now() - new Date(iso).getTime() < 10 * 60 * 1000;

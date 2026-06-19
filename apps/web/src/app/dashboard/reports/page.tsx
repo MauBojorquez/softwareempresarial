@@ -21,6 +21,8 @@ export default function ReportsPage() {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [downloadingMetrics, setDownloadingMetrics] = useState(false);
   const [expandedReport, setExpandedReport] = useState<string | null>(null);
 
   const load = () => {
@@ -51,8 +53,11 @@ export default function ReportsPage() {
   };
 
   const downloadReport = async (id: string) => {
-    const res = await fetch(`/api/reports/pdf?type=report&id=${id}`);
-    if (res.ok) {
+    if (downloadingId) return;
+    setDownloadingId(id);
+    try {
+      const res = await fetch(`/api/reports/pdf?type=report&id=${id}`);
+      if (!res.ok) { toast("No se pudo descargar el reporte", "error"); return; }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -61,12 +66,19 @@ export default function ReportsPage() {
       a.click();
       URL.revokeObjectURL(url);
       toast("Reporte descargado", "success");
+    } catch {
+      toast("Error de conexión", "error");
+    } finally {
+      setDownloadingId(null);
     }
   };
 
   const downloadMetrics = async () => {
-    const res = await fetch("/api/reports/pdf?type=metrics");
-    if (res.ok) {
+    if (downloadingMetrics) return;
+    setDownloadingMetrics(true);
+    try {
+      const res = await fetch("/api/reports/pdf?type=metrics");
+      if (!res.ok) { toast("No se pudo exportar las métricas", "error"); return; }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -75,6 +87,10 @@ export default function ReportsPage() {
       a.click();
       URL.revokeObjectURL(url);
       toast("Métricas exportadas", "success");
+    } catch {
+      toast("Error de conexión", "error");
+    } finally {
+      setDownloadingMetrics(false);
     }
   };
 
@@ -101,10 +117,11 @@ export default function ReportsPage() {
         <div className="flex items-center gap-2">
           <button
             onClick={downloadMetrics}
-            className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium transition-colors hover:bg-secondary"
+            disabled={downloadingMetrics}
+            className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium transition-colors hover:bg-secondary disabled:opacity-50"
           >
-            <Download className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Exportar Métricas</span>
+            {downloadingMetrics ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+            <span className="hidden sm:inline">{downloadingMetrics ? "Exportando..." : "Exportar Métricas"}</span>
           </button>
           <button
             onClick={handleGenerate}
@@ -141,8 +158,9 @@ export default function ReportsPage() {
           <p className="mt-1 text-sm text-muted-foreground text-center max-w-md">
             Agrega datos en Finanzas, Ventas u otra sección y genera tu primer reporte.
           </p>
-          <button onClick={handleGenerate} disabled={generating} className="mt-4 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90">
-            Generar Primer Reporte
+          <button onClick={handleGenerate} disabled={generating} className="mt-4 flex items-center gap-2 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50">
+            {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+            {generating ? "Generando..." : "Generar Primer Reporte"}
           </button>
         </div>
       ) : latestReport ? (
@@ -160,10 +178,11 @@ export default function ReportsPage() {
               </div>
               <button
                 onClick={() => downloadReport(latestReport.id)}
-                className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                disabled={!!downloadingId}
+                className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-50"
               >
-                <Download className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Descargar</span>
+                {downloadingId === latestReport.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                <span className="hidden sm:inline">{downloadingId === latestReport.id ? "Descargando..." : "Descargar"}</span>
               </button>
             </div>
 

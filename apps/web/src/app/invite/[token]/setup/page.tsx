@@ -71,7 +71,7 @@ export default function InviteSetupPage() {
     setLoading(false);
 
     if (result?.error) {
-      setError("Cuenta creada pero no se pudo iniciar sesión. Ve a /login.");
+      setError("Cuenta creada pero no se pudo iniciar sesión. Ve al inicio de sesión.");
     } else {
       setDone(true);
       setTimeout(() => router.push("/dashboard/overview"), 2000);

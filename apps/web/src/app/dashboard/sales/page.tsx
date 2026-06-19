@@ -111,16 +111,27 @@ export default function SalesPage() {
     if (!form.value) return;
     setSaving(true);
     const template = METRIC_TEMPLATES.find((t) => t.name === form.name);
-    await fetch("/api/metrics/manual", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ category: "SALES", name: form.name, value: parseFloat(form.value), unit: template?.unit || "MXN", period: form.period }),
-    });
-    addActivityLog("Métrica registrada", `${form.name}: ${form.value} en Ventas`, "add");
-    setShowForm(false);
-    setForm({ name: "Ventas del Mes", value: "", period: new Date().toISOString().split("T")[0] });
+    try {
+      const res = await fetch("/api/metrics/manual", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category: "SALES", name: form.name, value: parseFloat(form.value), unit: template?.unit || "MXN", period: form.period }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast(data.error || "Error al guardar el registro", "error");
+        setSaving(false);
+        return;
+      }
+      addActivityLog("Métrica registrada", `${form.name}: ${form.value} en Ventas`, "add");
+      toast("Registro guardado correctamente", "success");
+      setShowForm(false);
+      setForm({ name: "Ventas del Mes", value: "", period: new Date().toISOString().split("T")[0] });
+      loadManual();
+    } catch {
+      toast("Error de conexión", "error");
+    }
     setSaving(false);
-    loadManual();
   };
 
   const handleSheetsImport = async () => {
@@ -171,15 +182,25 @@ export default function SalesPage() {
   const handleEdit = async () => {
     if (!editEntry) return;
     setEditSaving(true);
-    await fetch("/api/metrics/manual", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: editEntry.id, value: editForm.value, period: editForm.period }),
-    });
-    setEditEntry(null);
+    try {
+      const res = await fetch("/api/metrics/manual", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: editEntry.id, value: editForm.value, period: editForm.period }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast(data.error || "Error al actualizar el registro", "error");
+        setEditSaving(false);
+        return;
+      }
+      setEditEntry(null);
+      loadManual();
+      toast("Registro actualizado", "success");
+    } catch {
+      toast("Error de conexión", "error");
+    }
     setEditSaving(false);
-    loadManual();
-    toast("Registro actualizado", "success");
   };
 
   if (hsLoading) return <DashboardSkeleton />;
@@ -216,10 +237,10 @@ export default function SalesPage() {
             <Download className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Plantilla</span>
           </a>
-          <label className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium transition-colors hover:bg-secondary cursor-pointer">
-            <Upload className="h-3.5 w-3.5" />
+          <label className={cn("flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium transition-colors hover:bg-secondary", importing ? "opacity-50 cursor-not-allowed" : "cursor-pointer")}>
+            {importing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
             <span className="hidden sm:inline">{importing ? "Importando..." : "Importar CSV"}</span>
-            <input type="file" accept=".csv" onChange={handleImport} className="hidden" />
+            <input type="file" accept=".csv" onChange={handleImport} className="hidden" disabled={importing} />
           </label>
           <button
             onClick={() => setShowSheetsInput((v) => !v)}
