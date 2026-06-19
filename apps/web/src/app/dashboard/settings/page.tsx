@@ -9,7 +9,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import {
   Sun, Moon, Monitor, Bell, User, Building2, Download, Trash2,
   AlertTriangle, Key, Plus, Copy, Eye, EyeOff, Loader2, Save, Lock, Users, Mail, X,
-  Palette, Camera, ImagePlus,
+  Palette, Camera, ImagePlus, BellRing,
 } from "lucide-react";
 
 const NOTIF_STORAGE_KEY = "metrixpro-notifications-prefs";
@@ -26,6 +26,26 @@ function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean
 }
 
 type ApiKeyItem = { id: string; name: string; key: string; lastUsed: string | null; isActive: boolean; createdAt: string };
+
+type AlertRuleItem = {
+  id: string;
+  metricName: string;
+  category: string;
+  condition: string;
+  threshold: number;
+  isActive: boolean;
+  lastTriggered: string | null;
+  createdAt: string;
+};
+
+const CONDITION_LABELS: Record<string, string> = {
+  below: "Cae por debajo de",
+  above: "Sube por encima de",
+  change_pct_down: "Baja más de (%) vs mes anterior",
+  change_pct_up: "Sube más de (%) vs mes anterior",
+};
+
+const CATEGORY_OPTIONS = ["FINANCE", "SALES", "OPERATIONS", "HR", "MARKETING"] as const;
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -74,6 +94,15 @@ export default function SettingsPage() {
   const [inviteRole, setInviteRole] = useState<"VIEWER" | "EDITOR" | "ADMIN">("VIEWER");
   const [inviting, setInviting] = useState(false);
 
+  const [alertRules, setAlertRules] = useState<AlertRuleItem[]>([]);
+  const [newAlert, setNewAlert] = useState({
+    metricName: "",
+    category: "FINANCE" as (typeof CATEGORY_OPTIONS)[number],
+    condition: "below" as string,
+    threshold: "",
+  });
+  const [savingAlert, setSavingAlert] = useState(false);
+
   useEffect(() => {
     fetch("/api/user")
       .then((r) => { if (!r.ok) throw new Error("fetch failed"); return r.json(); })
@@ -105,6 +134,11 @@ export default function SettingsPage() {
     fetch("/api/invitations")
       .then((r) => r.json())
       .then((d) => setInvitations(Array.isArray(d.invitations) ? d.invitations : []))
+      .catch(() => {});
+
+    fetch("/api/alerts")
+      .then((r) => r.json())
+      .then((d) => setAlertRules(Array.isArray(d.rules) ? d.rules : []))
       .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -266,6 +300,42 @@ export default function SettingsPage() {
     if (res.ok) toast("Datos eliminados", "success");
     else toast("Error al eliminar", "error");
     setConfirmClearData(false);
+  };
+
+  const handleCreateAlert = async () => {
+    if (!newAlert.metricName.trim()) { toast("Ingresa el nombre de la métrica", "error"); return; }
+    const threshold = parseFloat(newAlert.threshold);
+    if (isNaN(threshold) || threshold <= 0) { toast("El umbral debe ser mayor a 0", "error"); return; }
+    setSavingAlert(true);
+    try {
+      const res = await fetch("/api/alerts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          metricName: newAlert.metricName.trim(),
+          category: newAlert.category,
+          condition: newAlert.condition,
+          threshold,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setAlertRules((prev) => [data.rule, ...prev]);
+        setNewAlert({ metricName: "", category: "FINANCE", condition: "below", threshold: "" });
+        toast("Alerta creada", "success");
+      } else {
+        toast(data.error || "Error al crear alerta", "error");
+      }
+    } catch {
+      toast("Error de conexión", "error");
+    }
+    setSavingAlert(false);
+  };
+
+  const handleDeleteAlert = async (id: string) => {
+    await fetch(`/api/alerts?id=${id}`, { method: "DELETE" });
+    setAlertRules((prev) => prev.filter((r) => r.id !== id));
+    toast("Alerta eliminada", "success");
   };
 
   const handleInvite = async () => {
@@ -579,6 +649,102 @@ export default function SettingsPage() {
               <Toggle enabled={notifications[item.key]} onChange={(v) => handleNotificationToggle(item.key, v)} />
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* ── Alertas ── */}
+      <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
+        <div className="flex items-center gap-3">
+          <BellRing className="h-5 w-5 text-primary" />
+          <h2 className="text-lg font-semibold text-foreground">Alertas por Correo</h2>
+        </div>
+        <p className="text-xs text-muted-foreground">Define reglas para recibir un correo cuando una métrica supere un umbral específico.</p>
+
+        {alertRules.length > 0 && (
+          <div className="divide-y divide-border rounded-lg border border-border">
+            {alertRules.map((rule) => (
+              <div key={rule.id} className="flex items-center justify-between px-3 py-2.5">
+                <div>
+                  <p className="text-sm font-medium">{rule.metricName}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {CONDITION_LABELS[rule.condition] ?? rule.condition} {rule.threshold} · {rule.category}
+                  </p>
+                  {rule.lastTriggered && (
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      Última activación: {new Date(rule.lastTriggered).toLocaleDateString("es-MX")}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => handleDeleteAlert(rule.id)}
+                  className="text-muted-foreground hover:text-red-500 transition-colors"
+                  aria-label="Eliminar alerta"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="space-y-3 pt-1">
+          <p className="text-xs font-medium text-muted-foreground">Nueva alerta</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div>
+              <label className="text-xs text-muted-foreground">Nombre de la métrica</label>
+              <input
+                type="text"
+                value={newAlert.metricName}
+                onChange={(e) => setNewAlert({ ...newAlert, metricName: e.target.value })}
+                placeholder="Ej: Ventas del Mes"
+                className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Categoría</label>
+              <select
+                value={newAlert.category}
+                onChange={(e) => setNewAlert({ ...newAlert, category: e.target.value as (typeof CATEGORY_OPTIONS)[number] })}
+                className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none"
+              >
+                {CATEGORY_OPTIONS.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Condición</label>
+              <select
+                value={newAlert.condition}
+                onChange={(e) => setNewAlert({ ...newAlert, condition: e.target.value })}
+                className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none"
+              >
+                {Object.entries(CONDITION_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Umbral</label>
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={newAlert.threshold}
+                onChange={(e) => setNewAlert({ ...newAlert, threshold: e.target.value })}
+                placeholder="Ej: 20 o 500000"
+                className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
+              />
+            </div>
+          </div>
+          <button
+            onClick={handleCreateAlert}
+            disabled={savingAlert}
+            className="flex items-center gap-1.5 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+          >
+            {savingAlert ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+            Crear Alerta
+          </button>
         </div>
       </div>
 

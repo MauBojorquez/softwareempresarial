@@ -33,6 +33,7 @@ model User {
   apiKeys          ApiKey[]
   sentInvitations  Invitation[]  @relation("SentInvitations")
   activityLogs     ActivityLog[]
+  alertRules       AlertRule[]
 }
 
 model Account {
@@ -97,6 +98,7 @@ model Organization {
   satCredential  SatCredential?
   satDownloadRequests SatDownloadRequest[]
   activityLogs   ActivityLog[]
+  alertRules     AlertRule[]
 }
 
 model Membership {
@@ -331,6 +333,26 @@ model ActivityLog {
 
   @@index([organizationId, createdAt])
   @@index([userId, createdAt])
+}
+
+// ─── Alert Rules ────────────────────────────────────────────────────
+
+model AlertRule {
+  id             String   @id @default(cuid())
+  metricName     String   // e.g. "Ventas del Mes"
+  category       MetricCategory
+  condition      String   // "below" | "above" | "change_pct_down" | "change_pct_up"
+  threshold      Float    // e.g. 20 (percent) or 500000 (absolute)
+  isActive       Boolean  @default(true)
+  lastTriggered  DateTime?
+  createdAt      DateTime @default(now())
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdById    String
+  createdBy      User         @relation(fields: [createdById], references: [id])
+
+  @@index([organizationId])
 }
 
 // ─── API Keys ───────────────────────────────────────────────────────

@@ -2,16 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { type LucideIcon } from "lucide-react";
-import { Plus, Trash2, X, Download, Upload, Search, RefreshCw, LinkIcon, Pencil } from "lucide-react";
+import { Plus, Trash2, X, Download, Upload, Search, RefreshCw, LinkIcon, Pencil, ArrowLeftRight } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { DashboardSkeleton } from "@/components/dashboard/skeleton";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { ExportButton } from "@/components/dashboard/export-button";
 import { cn, formatCurrency } from "@/lib/utils";
 import { useToast } from "@/components/toast";
 import { addActivityLog } from "@/components/dashboard/activity-log";
 
 export type MetricTemplate = { name: string; unit: string };
 type MetricEntry = { id: string; name: string; value: number; unit: string | null; period: string };
+type CompareData = { current: MetricEntry[]; previous: MetricEntry[] } | null;
 
 const fmtValue = (v: number, unit: string | null) =>
   unit === "MXN" ? formatCurrency(v) : `${v.toLocaleString("es-MX")} ${unit || ""}`;
@@ -62,6 +64,9 @@ export function MetricsDashboard({
   const [editEntry, setEditEntry] = useState<MetricEntry | null>(null);
   const [editForm, setEditForm] = useState({ value: "", period: "" });
   const [editSaving, setEditSaving] = useState(false);
+  const [compareMode, setCompareMode] = useState(false);
+  const [compareData, setCompareData] = useState<CompareData>(null);
+  const [compareLoading, setCompareLoading] = useState(false);
 
   const storageKey = `metrixpro-display-${category}`;
 
@@ -92,6 +97,17 @@ export function MetricsDashboard({
     const stored = localStorage.getItem(storageKey);
     if (stored) try { setSelectedMetrics(JSON.parse(stored)); } catch {}
   }, []);
+
+  useEffect(() => {
+    if (!compareMode) { setCompareData(null); return; }
+    const controller = new AbortController();
+    setCompareLoading(true);
+    fetch(`/api/metrics/compare?category=${category}&months=${months}`, { signal: controller.signal })
+      .then((r) => { if (!r.ok) throw new Error("Error al cargar comparación"); return r.json(); })
+      .then((d: CompareData) => { setCompareData(d); setCompareLoading(false); })
+      .catch((e) => { if (e.name !== "AbortError") { toast("Error al cargar datos de comparación", "error"); setCompareLoading(false); } });
+    return () => controller.abort();
+  }, [compareMode, months, category]);
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -176,6 +192,13 @@ export function MetricsDashboard({
 
   const filtered = metrics.filter((m) => !search || m.name.toLowerCase().includes(search.toLowerCase()));
 
+  // Compare helpers — uses the first (most recent) entry per metric name
+  const latestFromList = (list: MetricEntry[], name: string) =>
+    list.filter((m) => m.name === name).sort((a, b) => b.period.localeCompare(a.period))[0]?.value ?? null;
+
+  const comparePct = (curr: number, prev: number | null): number | null =>
+    prev !== null && prev !== 0 ? ((curr - prev) / Math.abs(prev)) * 100 : null;
+
   if (loading) return <DashboardSkeleton />;
 
   if (error) return (
@@ -197,6 +220,7 @@ export function MetricsDashboard({
           <p className="text-sm text-muted-foreground">{subtitle}</p>
         </div>
         <div className="flex items-center gap-2">
+          <ExportButton category={category} label="Exportar" />
           <a
             href={`/api/metrics/template?category=${category}`}
             className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium transition-colors hover:bg-secondary"
@@ -302,6 +326,16 @@ export function MetricsDashboard({
               <RefreshCw className={cn("h-3 w-3 inline mr-1", autoRefresh && "animate-spin")} />
               Auto
             </button>
+            <button
+              onClick={() => setCompareMode(!compareMode)}
+              className={cn(
+                "rounded-lg border border-border px-3 py-1 text-xs font-medium transition-colors",
+                compareMode ? "bg-primary/10 text-primary border-primary/30" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <ArrowLeftRight className="h-3 w-3 inline mr-1" />
+              Comparar período
+            </button>
           </div>
 
           <div className="flex flex-wrap gap-1.5 mb-3">
@@ -345,6 +379,73 @@ export function MetricsDashboard({
           </div>
 
           {extraContent?.(metrics, months)}
+
+          {compareMode && (
+            <div className="rounded-xl border border-primary/20 bg-card">
+              <div className="flex items-center gap-2 border-b border-border p-4">
+                <ArrowLeftRight className="h-4 w-4 text-primary" />
+                <h3 className="font-semibold text-sm">
+                  Comparación con período anterior
+                  <span className="ml-2 text-xs font-normal text-muted-foreground">
+                    ({months === 1 ? "1 mes" : `${months} meses`} actuales vs {months === 1 ? "1 mes" : `${months} meses`} anteriores)
+                  </span>
+                </h3>
+              </div>
+              {compareLoading ? (
+                <div className="p-6 text-center text-sm text-muted-foreground">Cargando comparación...</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                        <th scope="col" className="p-3 font-medium">Métrica</th>
+                        <th scope="col" className="p-3 font-medium text-right">Período actual</th>
+                        <th scope="col" className="p-3 font-medium text-right">Período anterior</th>
+                        <th scope="col" className="p-3 font-medium text-right">Variación</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {templates.map((t) => {
+                        const currVal = compareData ? latestFromList(compareData.current, t.name) : null;
+                        const prevVal = compareData ? latestFromList(compareData.previous, t.name) : null;
+                        const pct = currVal !== null ? comparePct(currVal, prevVal) : null;
+                        const hasAny = currVal !== null || prevVal !== null;
+                        return (
+                          <tr key={t.name} className="border-b border-border last:border-0 hover:bg-secondary/30">
+                            <td className="p-3 font-medium">{t.name}</td>
+                            <td className="p-3 text-right font-semibold">
+                              {currVal !== null ? fmtValue(currVal, t.unit) : <span className="text-muted-foreground text-xs">Sin datos</span>}
+                            </td>
+                            <td className="p-3 text-right text-muted-foreground">
+                              {prevVal !== null ? fmtValue(prevVal, t.unit) : <span className="text-xs">Sin datos anteriores</span>}
+                            </td>
+                            <td className="p-3 text-right">
+                              {!hasAny ? (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              ) : pct !== null ? (
+                                <span
+                                  className={cn(
+                                    "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold",
+                                    pct >= 0
+                                      ? "bg-emerald-500/10 text-emerald-600"
+                                      : "bg-red-500/10 text-red-600"
+                                  )}
+                                >
+                                  {pct >= 0 ? "+" : ""}{pct.toFixed(1)}%
+                                </span>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">Sin datos anteriores</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="rounded-xl border border-border bg-card">
             <div className="flex items-center justify-between border-b border-border p-4">
