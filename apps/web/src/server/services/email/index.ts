@@ -98,3 +98,52 @@ export function billingEmail(name: string, event: "upgraded" | "canceled" | "pay
     `),
   };
 }
+
+const fmtMoney = (v: number) =>
+  new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 }).format(v);
+
+interface DigestRow { label: string; value: string; sub?: string }
+
+/**
+ * Periodic executive digest sent to the org owner (weekly / monthly).
+ * `kpis` are headline numbers, `alerts` are anomaly messages.
+ */
+export function digestEmail(
+  name: string,
+  orgName: string,
+  period: "semanal" | "mensual",
+  kpis: DigestRow[],
+  alerts: { message: string; severity: string }[],
+) {
+  const kpiHtml = kpis
+    .map(
+      (k) => `
+      <tr>
+        <td style="padding:10px 0;border-bottom:1px solid #f4f4f5;color:#3f3f46;font-size:14px;">${k.label}</td>
+        <td style="padding:10px 0;border-bottom:1px solid #f4f4f5;text-align:right;color:#18181b;font-size:15px;font-weight:700;">${k.value}${k.sub ? `<br><span style="font-size:11px;font-weight:400;color:#a1a1aa;">${k.sub}</span>` : ""}</td>
+      </tr>`,
+    )
+    .join("");
+
+  const alertHtml = alerts.length
+    ? `<div style="margin-top:24px;"><h3 style="margin:0 0 8px;color:#18181b;font-size:15px;">⚠️ Alertas detectadas por la IA</h3>${alerts
+        .map((a) => {
+          const color = a.severity === "critical" ? "#dc2626" : a.severity === "warning" ? "#d97706" : "#2563eb";
+          return `<p style="margin:6px 0;padding:10px 12px;background:#f4f4f5;border-left:3px solid ${color};border-radius:6px;color:#3f3f46;font-size:13px;line-height:1.5;">${a.message}</p>`;
+        })
+        .join("")}</div>`
+    : `<p style="margin-top:20px;color:#16a34a;font-size:13px;">✓ Sin anomalías relevantes este período.</p>`;
+
+  return {
+    subject: `📊 Tu resumen ${period} — ${orgName}`,
+    html: base(`
+      <h2 style="margin:0 0 4px;color:#18181b;font-size:20px;">Resumen ${period}</h2>
+      <p style="color:#71717a;font-size:14px;line-height:1.6;">Hola <strong>${name}</strong>, este es el estado de <strong>${orgName}</strong>.</p>
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;">${kpiHtml}</table>
+      ${alertHtml}
+      <a href="${process.env.NEXTAUTH_URL}/dashboard/overview" style="display:inline-block;margin-top:24px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:600;font-size:14px;">Abrir Dashboard</a>
+    `),
+  };
+}
+
+export { fmtMoney as fmtMoneyForEmail };
