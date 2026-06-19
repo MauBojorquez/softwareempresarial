@@ -19,12 +19,19 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const { data: session } = useSession();
   const router = useRouter();
   const initials = session?.user?.name?.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase() || "MP";
+  const [userAvatar, setUserAvatar] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [searching, setSearching] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<NodeJS.Timeout>();
+
+  useEffect(() => {
+    fetch("/api/user").then((r) => r.json()).then((d) => {
+      if (d.user?.avatar) setUserAvatar(d.user.avatar);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -115,8 +122,12 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
           <span className="hidden xs:inline sm:inline">Reporte IA</span>
         </a>
         <NotificationBell />
-        <a href="/dashboard/settings" className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center sm:h-8 sm:w-8" aria-label="Configuración de perfil">
-          <span className="text-[10px] font-semibold text-primary sm:text-xs">{initials}</span>
+        <a href="/dashboard/settings" className="h-7 w-7 rounded-full overflow-hidden flex items-center justify-center sm:h-8 sm:w-8 border border-border" aria-label="Configuración de perfil">
+          {userAvatar ? (
+            <img src={userAvatar} alt="Perfil" className="h-full w-full object-cover" />
+          ) : (
+            <span className="text-[10px] font-semibold text-primary sm:text-xs bg-primary/10 w-full h-full flex items-center justify-center">{initials}</span>
+          )}
         </a>
       </div>
     </header>

@@ -16,14 +16,15 @@ async function main() {
     },
   });
 
-  const org = await prisma.organization.upsert({
-    where: { ownerId: user.id },
-    update: {},
-    create: {
-      name: "Demo Company S.A. de C.V.",
-      ownerId: user.id,
-    },
-  });
+  let org = await prisma.organization.findFirst({ where: { ownerId: user.id } });
+  if (!org) {
+    org = await prisma.organization.create({
+      data: {
+        name: "Demo Company S.A. de C.V.",
+        ownerId: user.id,
+      },
+    });
+  }
 
   await prisma.membership.upsert({
     where: { userId_organizationId: { userId: user.id, organizationId: org.id } },

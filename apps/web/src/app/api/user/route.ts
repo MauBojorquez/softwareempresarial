@@ -13,12 +13,16 @@ export async function GET() {
   try {
     const user = await db.user.findUnique({
       where: { id: session.user.id },
-      select: { id: true, name: true, email: true, theme: true, createdAt: true },
+      select: { id: true, name: true, email: true, theme: true, avatar: true, activeOrgId: true, createdAt: true },
     });
 
     const membership = await db.membership.findFirst({
       where: { userId: session.user.id },
-      include: { organization: { select: { id: true, name: true, industry: true } } },
+      include: {
+        organization: {
+          select: { id: true, name: true, industry: true, logo: true, brandColor: true },
+        },
+      },
     });
 
     return NextResponse.json({ user, organization: membership?.organization ?? null });
@@ -27,13 +31,7 @@ export async function GET() {
       where: { id: session.user.id },
       select: { id: true, name: true, email: true, createdAt: true },
     });
-
-    const membership = await db.membership.findFirst({
-      where: { userId: session.user.id },
-      include: { organization: { select: { id: true, name: true, industry: true } } },
-    });
-
-    return NextResponse.json({ user: { ...user, theme: "system" }, organization: membership?.organization ?? null });
+    return NextResponse.json({ user: { ...user, theme: "system" }, organization: null });
   }
 }
 
@@ -50,11 +48,18 @@ export async function PATCH(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { name, theme, orgName, industry, currentPassword, newPassword } = body;
+  const { name, theme, orgName, industry, currentPassword, newPassword, avatar } = body;
 
-  const updates: Record<string, any> = {};
+  const updates: Record<string, unknown> = {};
   if (typeof name === "string" && name.trim()) updates.name = name.trim().slice(0, 100);
   if (typeof theme === "string" && ["light", "dark", "system"].includes(theme)) updates.theme = theme;
+
+  if (typeof avatar === "string") {
+    if (avatar && avatar.length > 2_800_000) {
+      return NextResponse.json({ error: "La foto no debe superar 2 MB" }, { status: 400 });
+    }
+    updates.avatar = avatar || null;
+  }
 
   if (newPassword) {
     if (!currentPassword) {
@@ -78,10 +83,10 @@ export async function PATCH(req: NextRequest) {
     await db.user.update({ where: { id: session.user.id }, data: updates });
   }
 
-  if (orgName || industry) {
+  if (orgName || industry !== undefined) {
     const membership = await db.membership.findFirst({ where: { userId: session.user.id } });
     if (membership) {
-      const orgUpdates: Record<string, any> = {};
+      const orgUpdates: Record<string, unknown> = {};
       if (typeof orgName === "string" && orgName.trim()) orgUpdates.name = orgName.trim().slice(0, 100);
       if (typeof industry === "string") orgUpdates.industry = industry.trim().slice(0, 100);
       if (Object.keys(orgUpdates).length > 0) {
@@ -110,13 +115,16 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Confirmación incorrecta" }, { status: 400 });
   }
 
-  const membership = await db.membership.findFirst({
+  const memberships = await db.membership.findMany({
     where: { userId: session.user.id },
     include: { organization: { include: { subscription: true } } },
   });
-  if (membership) {
-    // Cancel active Stripe subscription before deleting from DB
-    const stripeSub = membership.organization?.subscription;
+
+  for (const m of memberships) {
+    const org = m.organization;
+    if (org.ownerId !== session.user.id) continue; // only delete orgs the user owns
+
+    const stripeSub = org.subscription;
     if (stripeSub?.stripeSubscriptionId && process.env.STRIPE_SECRET_KEY) {
       try {
         const { stripe } = await import("@/lib/stripe");
@@ -126,14 +134,14 @@ export async function DELETE(req: NextRequest) {
       }
     }
 
-    await db.metric.deleteMany({ where: { organizationId: membership.organizationId } });
-    await db.aIReport.deleteMany({ where: { organizationId: membership.organizationId } });
-    await db.aIChatMessage.deleteMany({ where: { organizationId: membership.organizationId } }).catch(() => {});
-    await db.integration.deleteMany({ where: { organizationId: membership.organizationId } });
-    await db.dashboard.deleteMany({ where: { organizationId: membership.organizationId } });
-    await db.subscription.deleteMany({ where: { organizationId: membership.organizationId } });
-    await db.membership.deleteMany({ where: { organizationId: membership.organizationId } });
-    await db.organization.delete({ where: { id: membership.organizationId } });
+    await db.metric.deleteMany({ where: { organizationId: org.id } });
+    await db.aIReport.deleteMany({ where: { organizationId: org.id } });
+    await db.aIChatMessage.deleteMany({ where: { organizationId: org.id } }).catch(() => {});
+    await db.integration.deleteMany({ where: { organizationId: org.id } });
+    await db.dashboard.deleteMany({ where: { organizationId: org.id } });
+    await db.subscription.deleteMany({ where: { organizationId: org.id } });
+    await db.membership.deleteMany({ where: { organizationId: org.id } });
+    await db.organization.delete({ where: { id: org.id } });
   }
 
   await db.user.delete({ where: { id: session.user.id } });

@@ -18,12 +18,14 @@ model User {
   passwordHash  String?
   role          Role      @default(OWNER)
   theme         String    @default("system")
+  avatar        String?   @db.Text
+  activeOrgId   String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   accounts         Account[]
   sessions         Session[]
-  organization     Organization? @relation("OrganizationOwner")
+  organizations    Organization[] @relation("OrganizationOwner")
   memberships      Membership[]
   reports          AIReport[]
   chatMessages     AIChatMessage[]
@@ -70,14 +72,18 @@ model VerificationToken {
 // ─── Organization ───────────────────────────────────────────────────
 
 model Organization {
-  id        String   @id @default(cuid())
-  name      String
-  industry  String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  name        String
+  industry    String?
+  logo        String?  @db.Text
+  brandColor  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  ownerId String @unique
+  ownerId String
   owner   User   @relation("OrganizationOwner", fields: [ownerId], references: [id])
+
+  @@index([ownerId])
 
   subscription   Subscription?
   memberships    Membership[]

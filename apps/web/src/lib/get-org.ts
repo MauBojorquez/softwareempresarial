@@ -11,6 +11,20 @@ export async function getOrganizationId(req: NextRequest): Promise<string | null
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return null;
 
+  // If user has selected an active org, use it (multi-company support)
+  const user = await db.user.findUnique({
+    where: { id: session.user.id },
+    select: { activeOrgId: true },
+  });
+
+  if (user?.activeOrgId) {
+    // Verify the user is actually a member of that org
+    const membership = await db.membership.findFirst({
+      where: { userId: session.user.id, organizationId: user.activeOrgId },
+    });
+    if (membership) return membership.organizationId;
+  }
+
   const membership = await db.membership.findFirst({
     where: { userId: session.user.id },
   });

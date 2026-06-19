@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { signOut } from "next-auth/react";
 import { useTheme } from "@/components/theme-provider";
@@ -8,6 +8,7 @@ import { useToast } from "@/components/toast";
 import {
   Sun, Moon, Monitor, Bell, User, Building2, Download, Trash2,
   AlertTriangle, Key, Plus, Copy, Eye, EyeOff, Loader2, Save, Lock, Users, Mail, X,
+  Palette, Camera, ImagePlus,
 } from "lucide-react";
 
 const NOTIF_STORAGE_KEY = "metrixpro-notifications-prefs";
@@ -25,6 +26,15 @@ function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean
 
 type ApiKeyItem = { id: string; name: string; key: string; lastUsed: string | null; isActive: boolean; createdAt: string };
 
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function SettingsPage() {
   const { data: session, update: updateSession } = useSession();
   const { theme, setTheme } = useTheme();
@@ -32,6 +42,13 @@ export default function SettingsPage() {
 
   const [profile, setProfile] = useState({ name: "", email: "" });
   const [org, setOrg] = useState({ name: "", industry: "" });
+  const [avatar, setAvatar] = useState<string | null>(null);
+  const [orgLogo, setOrgLogo] = useState<string | null>(null);
+  const [brandColor, setBrandColor] = useState("#6366f1");
+  const [savingBranding, setSavingBranding] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+
   const [passwords, setPasswords] = useState({ current: "", new: "", confirm: "" });
   const [showPasswords, setShowPasswords] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -61,9 +78,12 @@ export default function SettingsPage() {
         if (data.user) {
           setProfile({ name: data.user.name || "", email: data.user.email || "" });
           if (data.user.theme && data.user.theme !== theme) setTheme(data.user.theme);
+          if (data.user.avatar) setAvatar(data.user.avatar);
         }
         if (data.organization) {
           setOrg({ name: data.organization.name || "", industry: data.organization.industry || "" });
+          if (data.organization.logo) setOrgLogo(data.organization.logo);
+          if (data.organization.brandColor) setBrandColor(data.organization.brandColor);
         }
         setLoading(false);
       })
@@ -83,7 +103,24 @@ export default function SettingsPage() {
       .then((r) => r.json())
       .then((d) => setInvitations(Array.isArray(d.invitations) ? d.invitations : []))
       .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) { toast("La foto no debe superar 2 MB", "error"); return; }
+    const base64 = await fileToBase64(file);
+    setAvatar(base64);
+  };
+
+  const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) { toast("El logo no debe superar 2 MB", "error"); return; }
+    const base64 = await fileToBase64(file);
+    setOrgLogo(base64);
+  };
 
   const handleSaveProfile = async () => {
     setSaving(true);
@@ -91,7 +128,7 @@ export default function SettingsPage() {
       const res = await fetch("/api/user", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: profile.name, orgName: org.name, industry: org.industry, theme }),
+        body: JSON.stringify({ name: profile.name, orgName: org.name, industry: org.industry, theme, avatar }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -106,15 +143,29 @@ export default function SettingsPage() {
     setSaving(false);
   };
 
+  const handleSaveBranding = async () => {
+    setSavingBranding(true);
+    try {
+      const res = await fetch("/api/organizations/branding", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ logo: orgLogo, brandColor }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast("Marca actualizada", "success");
+      } else {
+        toast(data.error || "Error al guardar", "error");
+      }
+    } catch {
+      toast("Error de conexión", "error");
+    }
+    setSavingBranding(false);
+  };
+
   const handleChangePassword = async () => {
-    if (passwords.new !== passwords.confirm) {
-      toast("Las contraseñas no coinciden", "error");
-      return;
-    }
-    if (passwords.new.length < 8) {
-      toast("Mínimo 8 caracteres", "error");
-      return;
-    }
+    if (passwords.new !== passwords.confirm) { toast("Las contraseñas no coinciden", "error"); return; }
+    if (passwords.new.length < 8) { toast("Mínimo 8 caracteres", "error"); return; }
     setSavingPassword(true);
     try {
       const res = await fetch("/api/user", {
@@ -245,10 +296,7 @@ export default function SettingsPage() {
   };
 
   const handleDeleteAccount = async () => {
-    if (deleteConfirm !== "ELIMINAR") {
-      toast("Escribe ELIMINAR para confirmar", "error");
-      return;
-    }
+    if (deleteConfirm !== "ELIMINAR") { toast("Escribe ELIMINAR para confirmar", "error"); return; }
     setDeleting(true);
     try {
       const res = await fetch("/api/user", {
@@ -283,11 +331,44 @@ export default function SettingsPage() {
     <div className="mx-auto max-w-2xl space-y-6">
       <h1 className="text-xl sm:text-2xl font-bold text-foreground">Configuración</h1>
 
+      {/* ── Perfil ── */}
       <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
         <div className="flex items-center gap-3">
           <User className="h-5 w-5 text-primary" />
           <h2 className="text-lg font-semibold text-foreground">Perfil</h2>
         </div>
+
+        {/* Avatar */}
+        <div className="flex items-center gap-4">
+          <div className="relative">
+            {avatar ? (
+              <img src={avatar} alt="Foto de perfil" className="h-16 w-16 rounded-full object-cover border-2 border-border" />
+            ) : (
+              <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center border-2 border-border">
+                <span className="text-xl font-bold text-primary">
+                  {profile.name?.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase() || session?.user?.email?.[0]?.toUpperCase() || "U"}
+                </span>
+              </div>
+            )}
+            <button
+              onClick={() => avatarInputRef.current?.click()}
+              className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full gradient-bg flex items-center justify-center shadow"
+              aria-label="Cambiar foto de perfil"
+            >
+              <Camera className="h-3 w-3 text-white" />
+            </button>
+          </div>
+          <div>
+            <p className="text-sm font-medium">Foto de perfil</p>
+            <p className="text-xs text-muted-foreground">JPG, PNG o GIF · máx 2 MB</p>
+            <div className="flex gap-2 mt-1">
+              <button onClick={() => avatarInputRef.current?.click()} className="text-xs text-primary hover:underline">Cambiar</button>
+              {avatar && <button onClick={() => setAvatar(null)} className="text-xs text-muted-foreground hover:underline">Quitar</button>}
+            </div>
+          </div>
+          <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+        </div>
+
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label htmlFor="settings-name" className="text-xs text-muted-foreground">Nombre</label>
@@ -340,6 +421,81 @@ export default function SettingsPage() {
         </button>
       </div>
 
+      {/* ── Identidad Visual ── */}
+      <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
+        <div className="flex items-center gap-3">
+          <Palette className="h-5 w-5 text-primary" />
+          <h2 className="text-lg font-semibold text-foreground">Identidad Visual</h2>
+        </div>
+        <p className="text-xs text-muted-foreground">Tu logo y color de marca aparecerán en el sidebar y personalizarán la app para tu empresa.</p>
+
+        {/* Logo */}
+        <div className="flex items-center gap-4">
+          <div
+            className="h-16 w-16 rounded-xl border-2 border-dashed border-border flex items-center justify-center overflow-hidden cursor-pointer hover:border-primary/50 transition-colors"
+            onClick={() => logoInputRef.current?.click()}
+          >
+            {orgLogo ? (
+              <img src={orgLogo} alt="Logo empresa" className="h-full w-full object-contain p-1" />
+            ) : (
+              <ImagePlus className="h-6 w-6 text-muted-foreground" />
+            )}
+          </div>
+          <div>
+            <p className="text-sm font-medium">Logo de empresa</p>
+            <p className="text-xs text-muted-foreground">PNG con fondo transparente recomendado · máx 2 MB</p>
+            <div className="flex gap-2 mt-1">
+              <button onClick={() => logoInputRef.current?.click()} className="text-xs text-primary hover:underline">
+                {orgLogo ? "Cambiar" : "Subir logo"}
+              </button>
+              {orgLogo && <button onClick={() => setOrgLogo(null)} className="text-xs text-muted-foreground hover:underline">Quitar</button>}
+            </div>
+          </div>
+          <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
+        </div>
+
+        {/* Brand color */}
+        <div className="flex items-center gap-4">
+          <div className="relative h-16 w-16 rounded-xl border-2 border-border overflow-hidden cursor-pointer">
+            <div className="h-full w-full" style={{ backgroundColor: brandColor }} />
+            <input
+              type="color"
+              value={brandColor}
+              onChange={(e) => setBrandColor(e.target.value)}
+              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+              aria-label="Color de marca"
+            />
+          </div>
+          <div>
+            <p className="text-sm font-medium">Color de marca</p>
+            <p className="text-xs text-muted-foreground">Se aplica en acentos del sidebar y header</p>
+            <div className="flex items-center gap-2 mt-1">
+              <input
+                type="text"
+                value={brandColor}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (/^#[0-9a-fA-F]{0,6}$/.test(v)) setBrandColor(v);
+                }}
+                className="w-28 rounded-lg border border-border bg-background px-2 py-1 text-xs font-mono focus:border-primary/50 focus:outline-none"
+                placeholder="#6366f1"
+              />
+              <div className="h-5 w-5 rounded-full border border-border" style={{ backgroundColor: brandColor }} />
+            </div>
+          </div>
+        </div>
+
+        <button
+          onClick={handleSaveBranding}
+          disabled={savingBranding}
+          className="flex items-center gap-2 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+        >
+          {savingBranding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+          {savingBranding ? "Guardando..." : "Guardar Identidad Visual"}
+        </button>
+      </div>
+
+      {/* ── Contraseña ── */}
       <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
         <div className="flex items-center gap-3">
           <Lock className="h-5 w-5 text-primary" />
@@ -356,7 +512,7 @@ export default function SettingsPage() {
                 onChange={(e) => setPasswords({ ...passwords, current: e.target.value })}
                 className="w-full rounded-lg border border-border bg-background px-3 py-2 pr-10 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
               />
-              <button onClick={() => setShowPasswords(!showPasswords)} className="absolute right-2.5 top-2 text-muted-foreground hover:text-foreground" aria-label={showPasswords ? "Ocultar contraseña" : "Mostrar contraseña"}>
+              <button onClick={() => setShowPasswords(!showPasswords)} className="absolute right-2.5 top-2 text-muted-foreground hover:text-foreground" aria-label={showPasswords ? "Ocultar" : "Mostrar"}>
                 {showPasswords ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
@@ -364,24 +520,11 @@ export default function SettingsPage() {
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label htmlFor="new-pw" className="text-xs text-muted-foreground">Nueva contraseña</label>
-              <input
-                id="new-pw"
-                type={showPasswords ? "text" : "password"}
-                value={passwords.new}
-                onChange={(e) => setPasswords({ ...passwords, new: e.target.value })}
-                placeholder="Mínimo 8 caracteres"
-                className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
-              />
+              <input id="new-pw" type={showPasswords ? "text" : "password"} value={passwords.new} onChange={(e) => setPasswords({ ...passwords, new: e.target.value })} placeholder="Mínimo 8 caracteres" className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30" />
             </div>
             <div>
               <label htmlFor="confirm-pw" className="text-xs text-muted-foreground">Confirmar</label>
-              <input
-                id="confirm-pw"
-                type={showPasswords ? "text" : "password"}
-                value={passwords.confirm}
-                onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
-              />
+              <input id="confirm-pw" type={showPasswords ? "text" : "password"} value={passwords.confirm} onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30" />
             </div>
           </div>
         </div>
@@ -395,6 +538,7 @@ export default function SettingsPage() {
         </button>
       </div>
 
+      {/* ── Tema ── */}
       <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
         <h2 className="text-lg font-semibold text-foreground">Tema</h2>
         <div className="grid grid-cols-3 gap-3">
@@ -402,11 +546,7 @@ export default function SettingsPage() {
             <button
               key={opt.value}
               onClick={() => handleThemeChange(opt.value)}
-              className={`flex flex-col items-center gap-2 rounded-lg border p-4 transition-all ${
-                theme === opt.value
-                  ? "border-primary bg-primary/5 text-primary"
-                  : "border-border text-muted-foreground hover:border-foreground/20 hover:text-foreground"
-              }`}
+              className={`flex flex-col items-center gap-2 rounded-lg border p-4 transition-all ${theme === opt.value ? "border-primary bg-primary/5 text-primary" : "border-border text-muted-foreground hover:border-foreground/20 hover:text-foreground"}`}
             >
               <opt.icon className="h-5 w-5" />
               <span className="text-sm font-medium">{opt.label}</span>
@@ -416,6 +556,7 @@ export default function SettingsPage() {
         <p className="text-xs text-muted-foreground">El tema se sincroniza con tu cuenta en todos los dispositivos.</p>
       </div>
 
+      {/* ── Notificaciones ── */}
       <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
         <div className="flex items-center gap-3">
           <Bell className="h-5 w-5 text-primary" />
@@ -438,6 +579,7 @@ export default function SettingsPage() {
         </div>
       </div>
 
+      {/* ── Invitar Usuarios ── */}
       <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
         <div className="flex items-center gap-3">
           <Users className="h-5 w-5 text-primary" />
@@ -445,27 +587,13 @@ export default function SettingsPage() {
         </div>
         <p className="text-xs text-muted-foreground">Invita a miembros de tu equipo. Recibirán un correo con el enlace de acceso.</p>
         <div className="flex flex-col sm:flex-row gap-2">
-          <input
-            type="email"
-            value={inviteEmail}
-            onChange={(e) => setInviteEmail(e.target.value)}
-            placeholder="correo@empresa.com"
-            className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
-          />
-          <select
-            value={inviteRole}
-            onChange={(e) => setInviteRole(e.target.value as "VIEWER" | "EDITOR" | "ADMIN")}
-            className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none"
-          >
+          <input type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="correo@empresa.com" className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30" />
+          <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as "VIEWER" | "EDITOR" | "ADMIN")} className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none">
             <option value="VIEWER">Viewer</option>
             <option value="EDITOR">Editor</option>
             <option value="ADMIN">Admin</option>
           </select>
-          <button
-            onClick={handleInvite}
-            disabled={inviting || !inviteEmail}
-            className="flex items-center gap-1.5 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-          >
+          <button onClick={handleInvite} disabled={inviting || !inviteEmail} className="flex items-center gap-1.5 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50">
             {inviting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
             Invitar
           </button>
@@ -490,48 +618,32 @@ export default function SettingsPage() {
         )}
       </div>
 
+      {/* ── API Keys ── */}
       <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
         <div className="flex items-center gap-3">
           <Key className="h-5 w-5 text-primary" />
           <h2 className="text-lg font-semibold text-foreground">API Keys</h2>
         </div>
         <p className="text-xs text-muted-foreground">Crea API Keys para enviar métricas desde sistemas externos vía REST API.</p>
-
         {newKeyValue && (
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10 p-3 space-y-2">
             <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400">Copia tu API Key — no se mostrará de nuevo:</p>
             <div className="flex items-center gap-2">
               <code className="flex-1 rounded bg-white dark:bg-background px-3 py-1.5 text-xs font-mono border border-border break-all">{newKeyValue}</code>
-              <button
-                onClick={() => { navigator.clipboard.writeText(newKeyValue); toast("Copiado", "success"); }}
-                className="rounded-lg border border-border p-2 hover:bg-secondary"
-                aria-label="Copiar API Key"
-              >
+              <button onClick={() => { navigator.clipboard.writeText(newKeyValue); toast("Copiado", "success"); }} className="rounded-lg border border-border p-2 hover:bg-secondary" aria-label="Copiar API Key">
                 <Copy className="h-3.5 w-3.5" />
               </button>
             </div>
             <button onClick={() => setNewKeyValue(null)} className="text-xs text-emerald-600 hover:underline">Cerrar</button>
           </div>
         )}
-
         <div className="flex items-center gap-2">
-          <input
-            type="text"
-            value={newKeyName}
-            onChange={(e) => setNewKeyName(e.target.value)}
-            placeholder="Nombre de la key (ej: Mi ERP)"
-            className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
-          />
-          <button
-            onClick={handleCreateKey}
-            disabled={creatingKey}
-            className="flex items-center gap-1.5 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-          >
+          <input type="text" value={newKeyName} onChange={(e) => setNewKeyName(e.target.value)} placeholder="Nombre de la key (ej: Mi CRM)" className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30" />
+          <button onClick={handleCreateKey} disabled={creatingKey} className="flex items-center gap-1.5 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50">
             {creatingKey ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
             Crear
           </button>
         </div>
-
         {apiKeys.length > 0 && (
           <div className="divide-y divide-border rounded-lg border border-border">
             {apiKeys.map((k) => (
@@ -548,7 +660,6 @@ export default function SettingsPage() {
             ))}
           </div>
         )}
-
         <div className="rounded-lg border border-border bg-slate-900 p-3 font-mono text-xs text-slate-300">
           <p className="text-blue-400">POST /api/v1/metrics</p>
           <p className="mt-1 text-slate-400">Authorization: Bearer mp_abc...xyz</p>
@@ -562,29 +673,25 @@ export default function SettingsPage() {
         </div>
       </div>
 
+      {/* ── Datos ── */}
       <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
         <div className="flex items-center gap-3">
           <Download className="h-5 w-5 text-primary" />
           <h2 className="text-lg font-semibold text-foreground">Datos</h2>
         </div>
         <div className="flex flex-col sm:flex-row gap-3">
-          <button
-            onClick={handleExportCSV}
-            className="flex items-center justify-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors"
-          >
+          <button onClick={handleExportCSV} className="flex items-center justify-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors">
             <Download className="h-4 w-4" />
             Exportar datos como CSV
           </button>
-          <button
-            onClick={handleClearData}
-            className="flex items-center justify-center gap-2 rounded-lg border border-destructive/50 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors"
-          >
+          <button onClick={handleClearData} className="flex items-center justify-center gap-2 rounded-lg border border-destructive/50 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors">
             <Trash2 className="h-4 w-4" />
             Limpiar datos de métricas
           </button>
         </div>
       </div>
 
+      {/* ── Zona de peligro ── */}
       <div className="rounded-xl border-2 border-destructive/50 bg-card p-4 sm:p-6 space-y-4">
         <div className="flex items-center gap-3">
           <AlertTriangle className="h-5 w-5 text-destructive" />
@@ -596,14 +703,7 @@ export default function SettingsPage() {
         <div className="space-y-3">
           <div>
             <label htmlFor="delete-confirm" className="text-xs font-medium text-destructive">Escribe ELIMINAR para confirmar</label>
-            <input
-              id="delete-confirm"
-              type="text"
-              value={deleteConfirm}
-              onChange={(e) => setDeleteConfirm(e.target.value)}
-              placeholder="ELIMINAR"
-              className="mt-1 w-full rounded-lg border border-destructive/30 bg-background px-3 py-2 text-sm focus:border-destructive focus:outline-none focus:ring-1 focus:ring-destructive/30"
-            />
+            <input id="delete-confirm" type="text" value={deleteConfirm} onChange={(e) => setDeleteConfirm(e.target.value)} placeholder="ELIMINAR" className="mt-1 w-full rounded-lg border border-destructive/30 bg-background px-3 py-2 text-sm focus:border-destructive focus:outline-none focus:ring-1 focus:ring-destructive/30" />
           </div>
           <button
             onClick={handleDeleteAccount}

@@ -18,7 +18,7 @@ export async function ensureMembership(userId: string): Promise<Membership | nul
   if (existing) return existing;
 
   // The user may already own an org whose membership got removed — reuse it.
-  let org = await db.organization.findUnique({ where: { ownerId: userId } });
+  let org = await db.organization.findFirst({ where: { ownerId: userId } });
   if (!org) {
     org = await db.organization.create({
       data: {

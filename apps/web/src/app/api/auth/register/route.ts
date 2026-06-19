@@ -33,33 +33,26 @@ export async function POST(req: NextRequest) {
   const passwordHash = await hash(password, 12);
 
   const user = await db.user.create({
+    data: { name: trimmedName, email, passwordHash },
+  });
+
+  const org = await db.organization.create({
     data: {
-      name: trimmedName,
-      email,
-      passwordHash,
-      organization: {
+      name: trimmedCompany,
+      ownerId: user.id,
+      subscription: {
         create: {
-          name: trimmedCompany,
-          subscription: {
-            create: {
-              stripeCustomerId: `cus_demo_${email}`,
-              plan: chosenPlan,
-              status: chosenPlan === "FREE" ? "ACTIVE" : "TRIALING",
-              interval: "MONTHLY",
-            },
-          },
+          stripeCustomerId: `cus_demo_${email}`,
+          plan: chosenPlan,
+          status: chosenPlan === "FREE" ? "ACTIVE" : "TRIALING",
+          interval: "MONTHLY",
         },
       },
     },
-    include: { organization: true },
   });
 
   await db.membership.create({
-    data: {
-      userId: user.id,
-      organizationId: user.organization!.id,
-      role: "ADMIN",
-    },
+    data: { userId: user.id, organizationId: org.id, role: "ADMIN" },
   });
 
   // Send welcome email (fire and forget)
