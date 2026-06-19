@@ -2,15 +2,16 @@
 // For testing without a verified domain, use "onboarding@resend.dev" but
 // Resend only allows sending to the account owner's email in that case.
 const FROM = process.env.EMAIL_FROM ?? "MetrixPro <onboarding@resend.dev>";
+const RESEND_KEY = process.env.RESEND_API_KEY_2 ?? process.env.RESEND_API_KEY;
 
 export async function sendEmail(to: string, subject: string, html: string) {
-  if (!process.env.RESEND_API_KEY) {
-    console.error("[email] RESEND_API_KEY not set — email NOT sent:", subject, "→", to);
+  if (!RESEND_KEY) {
+    console.error("[email] RESEND_API_KEY_2 not set — email NOT sent:", subject, "→", to);
     return;
   }
   try {
     const { Resend } = await import("resend");
-    const resend = new Resend(process.env.RESEND_API_KEY);
+    const resend = new Resend(RESEND_KEY);
     const result = await resend.emails.send({ from: FROM, to, subject, html });
     if (result.error) {
       console.error("[email] Resend error:", result.error, "subject:", subject, "to:", to);
