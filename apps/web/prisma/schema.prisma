@@ -250,6 +250,7 @@ enum SubscriptionStatus {
 }
 
 enum Plan {
+  FREE
   STARTER
   PROFESSIONAL
   ENTERPRISE
@@ -264,6 +265,7 @@ enum IntegrationType {
   QUICKBOOKS
   HUBSPOT
   META_ADS
+  SAT
   CUSTOM_API
 }
 

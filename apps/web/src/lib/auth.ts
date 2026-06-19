@@ -15,6 +15,9 @@ export const authOptions: NextAuthOptions = {
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID ?? "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
+      // Allow Google sign-in even if an account with the same email already
+      // exists from email/password registration.
+      allowDangerousEmailAccountLinking: true,
     }),
     CredentialsProvider({
       name: "credentials",
@@ -36,38 +39,38 @@ export const authOptions: NextAuthOptions = {
       },
     }),
   ],
-  callbacks: {
-    async signIn({ user, account }) {
-      // For Google OAuth: ensure the user has an organization and membership.
-      if (account?.provider === "google" && user.id) {
-        const existing = await db.membership.findFirst({ where: { userId: user.id } });
-        if (!existing) {
-          const org = await db.organization.create({
-            data: {
-              name: user.name ?? user.email ?? "Mi Empresa",
-              ownerId: user.id,
-              subscription: {
-                create: {
-                  stripeCustomerId: `cus_demo_${user.id}`,
-                  plan: "STARTER",
-                  interval: "MONTHLY",
-                },
-              },
+  events: {
+    // Fires AFTER the adapter persists a brand-new user (e.g. Google OAuth sign-up).
+    // At this point user.id is a real DB id, so the Organization foreign key resolves.
+    async createUser({ user }) {
+      if (!user.id) return;
+      const existing = await db.membership.findFirst({ where: { userId: user.id } });
+      if (existing) return;
+      const org = await db.organization.create({
+        data: {
+          name: user.name ?? user.email ?? "Mi Empresa",
+          ownerId: user.id,
+          subscription: {
+            create: {
+              stripeCustomerId: `cus_demo_${user.id}`,
+              plan: "STARTER",
+              interval: "MONTHLY",
             },
-          });
-          await db.membership.create({
-            data: { userId: user.id, organizationId: org.id, role: "ADMIN" },
-          });
-          // Send welcome email (fire and forget)
-          if (user.email) {
-            const { sendEmail, welcomeEmail } = await import("@/server/services/email");
-            const { subject, html } = welcomeEmail(user.name ?? "Usuario", user.email);
-            sendEmail(user.email, subject, html).catch(() => {});
-          }
-        }
+          },
+        },
+      });
+      await db.membership.create({
+        data: { userId: user.id, organizationId: org.id, role: "ADMIN" },
+      });
+      // Send welcome email (fire and forget)
+      if (user.email) {
+        const { sendEmail, welcomeEmail } = await import("@/server/services/email");
+        const { subject, html } = welcomeEmail(user.name ?? "Usuario", user.email);
+        sendEmail(user.email, subject, html).catch(() => {});
       }
-      return true;
     },
+  },
+  callbacks: {
     async session({ session, token }) {
       if (token.sub) {
         session.user.id = token.sub;

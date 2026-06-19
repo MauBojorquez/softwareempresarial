@@ -21,7 +21,10 @@ export async function createCheckoutSession(
   userEmail: string,
   baseUrl: string
 ) {
-  const planConfig = PLANS[plan];
+  if (plan === "FREE") {
+    throw new Error("El plan Gratis no requiere pago. Usa la opción de plan gratis.");
+  }
+  const planConfig = PLANS[plan as Exclude<Plan, "FREE">];
   const priceId = planConfig.prices[interval].priceId;
 
   let subscription = await db.subscription.findUnique({

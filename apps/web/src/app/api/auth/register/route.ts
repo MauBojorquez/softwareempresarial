@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
 
 export async function POST(req: NextRequest) {
-  const { name, email, password, company } = await req.json();
+  const { name, email, password, company, plan } = await req.json();
+  const chosenPlan = plan === "FREE" ? "FREE" : "STARTER";
 
   if (!name || !email || !password || !company) {
     return NextResponse.json({ error: "Todos los campos son requeridos" }, { status: 400 });
@@ -39,6 +40,14 @@ export async function POST(req: NextRequest) {
       organization: {
         create: {
           name: trimmedCompany,
+          subscription: {
+            create: {
+              stripeCustomerId: `cus_demo_${email}`,
+              plan: chosenPlan,
+              status: chosenPlan === "FREE" ? "ACTIVE" : "TRIALING",
+              interval: "MONTHLY",
+            },
+          },
         },
       },
     },

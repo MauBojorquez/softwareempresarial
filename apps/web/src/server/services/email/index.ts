@@ -1,7 +1,3 @@
-import { Resend } from "resend";
-
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 const FROM = process.env.EMAIL_FROM ?? "MetrixPro <noreply@metrixpro.app>";
 
 export async function sendEmail(to: string, subject: string, html: string) {
@@ -10,6 +6,8 @@ export async function sendEmail(to: string, subject: string, html: string) {
     return;
   }
   try {
+    const { Resend } = await import("resend");
+    const resend = new Resend(process.env.RESEND_API_KEY);
     await resend.emails.send({ from: FROM, to, subject, html });
   } catch (err) {
     console.error("Email send error:", err);

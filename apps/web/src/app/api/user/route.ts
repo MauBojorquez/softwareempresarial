@@ -110,8 +110,22 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Confirmación incorrecta" }, { status: 400 });
   }
 
-  const membership = await db.membership.findFirst({ where: { userId: session.user.id } });
+  const membership = await db.membership.findFirst({
+    where: { userId: session.user.id },
+    include: { organization: { include: { subscription: true } } },
+  });
   if (membership) {
+    // Cancel active Stripe subscription before deleting from DB
+    const stripeSub = membership.organization?.subscription;
+    if (stripeSub?.stripeSubscriptionId && process.env.STRIPE_SECRET_KEY) {
+      try {
+        const { stripe } = await import("@/lib/stripe");
+        await stripe.subscriptions.cancel(stripeSub.stripeSubscriptionId);
+      } catch (err) {
+        console.error("Failed to cancel Stripe subscription on account delete:", err);
+      }
+    }
+
     await db.metric.deleteMany({ where: { organizationId: membership.organizationId } });
     await db.aIReport.deleteMany({ where: { organizationId: membership.organizationId } });
     await db.aIChatMessage.deleteMany({ where: { organizationId: membership.organizationId } }).catch(() => {});

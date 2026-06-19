@@ -9,18 +9,51 @@ export async function GET() {
   const membership = await db.membership.findFirst({ where: { userId: session.user.id } });
   if (!membership) return NextResponse.json({ error: "No organization" }, { status: 404 });
 
-  const goals = await db.metric.findMany({
-    where: { organizationId: membership.organizationId, name: { startsWith: "META_" } },
+  const metrics = await db.metric.findMany({
+    where: { organizationId: membership.organizationId },
     orderBy: { period: "desc" },
   });
 
-  const parsed: Record<string, number> = {};
-  for (const g of goals) {
-    const key = g.name.replace("META_", "");
-    if (!parsed[key]) parsed[key] = g.value;
+  const latest = (name: string) => metrics.find((m) => m.name === name);
+
+  // Conversión is derived from leads/deals, not stored directly.
+  const leads = latest("Nuevos Leads")?.value ?? 0;
+  const deals = latest("Deals Cerrados")?.value ?? 0;
+  const conversion = leads > 0 ? parseFloat(((deals / leads) * 100).toFixed(1)) : 0;
+
+  const unique = new Map<string, (typeof metrics)[number]>();
+  for (const g of metrics) {
+    if (g.name.startsWith("META_") && !unique.has(g.name)) unique.set(g.name, g);
   }
 
-  return NextResponse.json({ goals: parsed });
+  const goals = Array.from(unique.values()).map((g) => {
+    const metricName = g.name.replace("META_", "");
+    const cur = metricName === "Conversión" ? { value: conversion, unit: "%" } : latest(metricName);
+    return {
+      name: metricName,
+      target: g.value,
+      unit: cur?.unit || g.unit || "",
+      current: cur?.value ?? 0,
+    };
+  });
+
+  return NextResponse.json({ goals });
+}
+
+export async function DELETE(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const membership = await db.membership.findFirst({ where: { userId: session.user.id } });
+  if (!membership) return NextResponse.json({ error: "No organization" }, { status: 404 });
+
+  const metric = req.nextUrl.searchParams.get("metric");
+  if (!metric) return NextResponse.json({ error: "metric required" }, { status: 400 });
+
+  await db.metric.deleteMany({
+    where: { organizationId: membership.organizationId, name: `META_${metric}` },
+  });
+
+  return NextResponse.json({ success: true });
 }
 
 export async function POST(req: NextRequest) {

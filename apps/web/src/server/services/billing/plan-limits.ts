@@ -11,6 +11,16 @@ export const PLAN_LIMITS: Record<Plan, {
   customDashboards: boolean;
   apiAccess: boolean;
 }> = {
+  FREE: {
+    integrations: 0,
+    users: 1,
+    aiReportsPerWeek: 0,
+    aiChatEnabled: false,
+    aiChatMessagesPerDay: 0,
+    categories: ["FINANCE", "SALES", "MARKETING"],
+    customDashboards: false,
+    apiAccess: false,
+  },
   STARTER: {
     integrations: 3,
     users: 3,
