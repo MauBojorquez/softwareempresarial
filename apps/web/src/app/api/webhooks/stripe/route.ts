@@ -32,18 +32,18 @@ export async function POST(req: NextRequest) {
       // Send billing emails (fire and forget)
       try {
         const { db } = await import("@/server/db");
-        const { sendEmail, billingEmail } = await import("@/server/services/billing/stripe-service").then(() => import("@/server/services/email"));
-        const { planFromPriceId } = await import("@/server/services/billing/stripe-service");
-        const stripeCustomerId = typeof sub.customer === "string" ? sub.customer : sub.customer?.id;
+        const { sendEmail, billingEmail } = await import("@/server/services/email");
+        const stripeCustomerId = typeof sub.customer === "string" ? sub.customer : (sub.customer as { id: string } | null)?.id;
         if (stripeCustomerId) {
-          const dbSub = await db.subscription.findUnique({ where: { stripeCustomerId }, include: { organization: { include: { members: { take: 1, include: { user: true } } } } } });
+          const dbSub = await db.subscription.findUnique({
+            where: { stripeCustomerId },
+            include: { organization: { include: { members: { take: 1, include: { user: true } } } } },
+          });
           const adminUser = dbSub?.organization?.members?.[0]?.user;
           if (adminUser?.email) {
-            const priceId = (sub as { items?: { data?: Array<{ price?: { id?: string } }> } }).items?.data?.[0]?.price?.id;
-            const resolved = priceId ? planFromPriceId(priceId) : null;
-            const planName = resolved?.plan ?? "STARTER";
-            let emailEvent: Parameters<typeof billingEmail>[1] = "upgraded";
-            if (event.type === "customer.subscription.deleted") emailEvent = "canceled";
+            const planName = dbSub?.plan ?? "STARTER";
+            const emailEvent: Parameters<typeof billingEmail>[1] =
+              event.type === "customer.subscription.deleted" ? "canceled" : "upgraded";
             const { subject, html } = billingEmail(adminUser.name ?? "Usuario", emailEvent, planName);
             sendEmail(adminUser.email, subject, html).catch(() => {});
           }
