@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { TrendingUp, Target, Users, UserPlus, RefreshCw, Loader2, Link as LinkIcon, Download, Upload, Plus, X, Trash2, Search } from "lucide-react";
+import { TrendingUp, Target, Users, UserPlus, RefreshCw, Loader2, Link as LinkIcon, Download, Upload, Plus, X, Trash2, Search, Pencil } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { DashboardSkeleton } from "@/components/dashboard/skeleton";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/toast";
 import { addActivityLog } from "@/components/dashboard/activity-log";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 type Stage = { stage: string; label: string; count: number };
 type PipelineStage = { stageId: string; label: string; count: number; amount: number };
@@ -61,6 +62,8 @@ export default function SalesPage() {
   const [showSheetsInput, setShowSheetsInput] = useState(false);
   const [form, setForm] = useState({ name: "Ventas del Mes", value: "", period: new Date().toISOString().split("T")[0] });
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [bulkDeleteCount, setBulkDeleteCount] = useState(0);
 
   const loadHubSpot = useCallback(() => {
     setHsLoading(true);
@@ -142,10 +145,17 @@ export default function SalesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("¿Eliminar este registro?")) return;
     await fetch(`/api/metrics/manual?id=${id}`, { method: "DELETE" });
     addActivityLog("Registro eliminado", "Ventas", "delete");
     toast("Registro eliminado", "success");
+    setDeleteId(null);
+    loadManual();
+  };
+
+  const handleBulkDelete = async () => {
+    await Promise.all(Array.from(selected).map((id) => fetch(`/api/metrics/manual?id=${id}`, { method: "DELETE" })));
+    setSelected(new Set());
+    setBulkDeleteCount(0);
     loadManual();
   };
 
@@ -415,12 +425,7 @@ export default function SalesPage() {
             <div className="flex items-center justify-between border-b border-border bg-primary/5 px-4 py-2">
               <span className="text-xs font-medium">{selected.size} seleccionado{selected.size > 1 ? "s" : ""}</span>
               <button
-                onClick={async () => {
-                  if (!confirm(`¿Eliminar ${selected.size} registro${selected.size > 1 ? "s" : ""}?`)) return;
-                  await Promise.all(Array.from(selected).map((id) => fetch(`/api/metrics/manual?id=${id}`, { method: "DELETE" })));
-                  setSelected(new Set());
-                  loadManual();
-                }}
+                onClick={() => setBulkDeleteCount(selected.size)}
                 className="text-xs font-medium text-red-500 hover:text-red-600"
               >
                 Eliminar seleccionados
@@ -455,7 +460,7 @@ export default function SalesPage() {
                       </td>
                       <td className="p-3 text-muted-foreground">{new Date(m.period).toLocaleDateString("es-MX")}</td>
                       <td className="p-3">
-                        <button aria-label={`Eliminar ${m.name}`} onClick={() => handleDelete(m.id)} className="text-muted-foreground hover:text-red-500">
+                        <button aria-label={`Eliminar ${m.name}`} onClick={() => setDeleteId(m.id)} className="text-muted-foreground hover:text-red-500">
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </td>
@@ -486,6 +491,25 @@ export default function SalesPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={deleteId !== null}
+        title="Eliminar registro"
+        description="¿Eliminar este registro? Esta acción no se puede deshacer."
+        confirmLabel="Eliminar"
+        destructive
+        onConfirm={() => deleteId && handleDelete(deleteId)}
+        onCancel={() => setDeleteId(null)}
+      />
+      <ConfirmDialog
+        open={bulkDeleteCount > 0}
+        title="Eliminar registros"
+        description={`¿Eliminar ${bulkDeleteCount} registro${bulkDeleteCount > 1 ? "s" : ""}? Esta acción no se puede deshacer.`}
+        confirmLabel="Eliminar"
+        destructive
+        onConfirm={handleBulkDelete}
+        onCancel={() => setBulkDeleteCount(0)}
+      />
     </div>
   );
 }

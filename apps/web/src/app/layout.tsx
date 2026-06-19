@@ -37,6 +37,12 @@ export const metadata: Metadata = {
       "Centraliza las métricas de tu empresa con inteligencia artificial.",
     type: "website",
     locale: "es_MX",
+    siteName: "MetrixPro",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "MetrixPro — Dashboard Empresarial con IA",
+    description: "Centraliza las métricas de tu empresa. Finanzas, ventas, operaciones, RH y marketing en un solo lugar.",
   },
 };
 
