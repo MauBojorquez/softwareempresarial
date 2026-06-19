@@ -119,8 +119,7 @@ export async function DELETE(req: NextRequest) {
     const stripeSub = membership.organization?.subscription;
     if (stripeSub?.stripeSubscriptionId && process.env.STRIPE_SECRET_KEY) {
       try {
-        const Stripe = (await import("stripe")).default;
-        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: "2025-05-28.basil" });
+        const { stripe } = await import("@/lib/stripe");
         await stripe.subscriptions.cancel(stripeSub.stripeSubscriptionId);
       } catch (err) {
         console.error("Failed to cancel Stripe subscription on account delete:", err);
