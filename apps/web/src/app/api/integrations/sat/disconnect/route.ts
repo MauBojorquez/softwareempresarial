@@ -15,6 +15,9 @@ export async function DELETE() {
   if (!membership) {
     return NextResponse.json({ error: "session_expired" }, { status: 401 });
   }
+  if (membership.role !== "ADMIN") {
+    return NextResponse.json({ error: "Solo administradores pueden desconectar el SAT" }, { status: 403 });
+  }
 
   const orgId = membership.organizationId;
 

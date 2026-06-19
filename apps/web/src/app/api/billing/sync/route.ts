@@ -16,6 +16,10 @@ export async function POST() {
     include: { organization: { include: { subscription: true } } },
   });
 
+  if (membership && membership.role !== "ADMIN") {
+    return NextResponse.json({ error: "Solo administradores pueden sincronizar la facturación" }, { status: 403 });
+  }
+
   const sub = membership?.organization?.subscription;
   if (!sub?.stripeCustomerId) return NextResponse.json({ error: "No subscription" }, { status: 404 });
 

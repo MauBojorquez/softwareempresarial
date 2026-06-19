@@ -19,6 +19,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No organization found" }, { status: 404 });
   }
 
+  if (membership.role !== "ADMIN") {
+    return NextResponse.json({ error: "Solo administradores pueden desconectar integraciones" }, { status: 403 });
+  }
+
   await db.integration.updateMany({
     where: {
       organizationId: membership.organizationId,

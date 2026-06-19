@@ -18,6 +18,10 @@ export async function POST(req: NextRequest) {
   if (!membership) {
     return NextResponse.json({ error: "session_expired" }, { status: 401 });
   }
+  // e.firma / SAT credentials are highly sensitive — only ADMINs may connect.
+  if (membership.role !== "ADMIN") {
+    return NextResponse.json({ error: "Solo administradores pueden conectar el SAT" }, { status: 403 });
+  }
 
   let formData: FormData;
   try {

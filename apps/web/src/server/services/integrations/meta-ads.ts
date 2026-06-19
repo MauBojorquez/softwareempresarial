@@ -72,14 +72,14 @@ export async function syncMetaAdsMetrics(organizationId: string) {
     }
   }
 
-  // Delete old META_ADS metrics and insert fresh ones
-  await db.metric.deleteMany({
-    where: { organizationId, source: "META_ADS" },
+  // Replace old META_ADS metrics atomically so a crash mid-way can't leave
+  // the org with deleted-but-not-replaced metrics.
+  await db.$transaction(async (tx) => {
+    await tx.metric.deleteMany({ where: { organizationId, source: "META_ADS" } });
+    if (allMetrics.length > 0) {
+      await tx.metric.createMany({ data: allMetrics });
+    }
   });
-
-  if (allMetrics.length > 0) {
-    await db.metric.createMany({ data: allMetrics });
-  }
 
   return allMetrics.length;
 }

@@ -21,7 +21,15 @@ export async function POST(req: NextRequest) {
     include: { organization: { include: { subscription: true } } },
   });
 
-  if (!membership?.organization.subscription?.stripeCustomerId) {
+  if (!membership) {
+    return NextResponse.json({ error: "No organization" }, { status: 404 });
+  }
+
+  if (membership.role !== "ADMIN") {
+    return NextResponse.json({ error: "Solo administradores pueden gestionar la facturación" }, { status: 403 });
+  }
+
+  if (!membership.organization.subscription?.stripeCustomerId) {
     return NextResponse.json({ error: "No subscription found" }, { status: 404 });
   }
 

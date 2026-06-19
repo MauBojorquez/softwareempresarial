@@ -28,7 +28,9 @@ export async function getMetricsByName(organizationId: string, names: string[]) 
   for (const m of metrics) {
     if (!latest[m.name]) {
       latest[m.name] = { value: m.value, period: m.period };
-    } else if (!latest[m.name].previous) {
+    } else if (latest[m.name].previous === undefined) {
+      // Use `=== undefined` so a legitimate previous value of 0 isn't
+      // overwritten by an older record.
       latest[m.name].previous = m.value;
     }
   }

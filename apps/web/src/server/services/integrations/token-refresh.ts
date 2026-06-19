@@ -27,7 +27,8 @@ export async function refreshQuickBooksToken(organizationId: string) {
     where: { id: integration.id },
     data: {
       accessToken: tokens.access_token,
-      refreshToken: tokens.refresh_token,
+      // Some providers omit refresh_token on refresh — keep the existing one
+      refreshToken: tokens.refresh_token ?? integration.refreshToken,
       expiresAt: new Date(Date.now() + tokens.expires_in * 1000),
     },
   });
@@ -61,7 +62,8 @@ export async function refreshHubSpotToken(organizationId: string) {
     where: { id: integration.id },
     data: {
       accessToken: tokens.access_token,
-      refreshToken: tokens.refresh_token,
+      // HubSpot may omit refresh_token on refresh — keep the existing one
+      refreshToken: tokens.refresh_token ?? integration.refreshToken,
       expiresAt: new Date(Date.now() + tokens.expires_in * 1000),
     },
   });

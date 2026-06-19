@@ -48,6 +48,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No tienes permisos para invitar" }, { status: 403 });
   }
 
+  // Prevent privilege escalation: only an ADMIN may grant ADMIN.
+  if (role === "ADMIN" && membership.role !== "ADMIN") {
+    return NextResponse.json({ error: "Solo un administrador puede invitar a otro administrador" }, { status: 403 });
+  }
+
   // Check if already a member
   const alreadyMember = await db.user.findUnique({ where: { email } });
   if (alreadyMember) {

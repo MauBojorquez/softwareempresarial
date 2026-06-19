@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
+  const ip = getClientIp(req);
+  const rl = rateLimit(`register:${ip}`, 5, 60 * 60_000); // 5 cuentas/hora por IP
+  if (!rl.success) {
+    return NextResponse.json({ error: "Demasiados registros. Intenta más tarde." }, { status: 429 });
+  }
+
   const { name, email, password, company, plan } = await req.json();
   const chosenPlan = plan === "FREE" ? "FREE" : "STARTER";
 

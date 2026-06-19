@@ -16,6 +16,17 @@ export async function sendEmail(to: string, subject: string, html: string) {
 
 // ── Templates ─────────────────────────────────────────────────────
 
+// Escape user-controlled values before interpolating into email HTML to
+// prevent stored XSS / HTML injection (org names, AI summaries, etc.).
+function esc(s: unknown): string {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function base(content: string) {
   return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f4f4f5;font-family:Inter,sans-serif;">
 <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:40px 16px;">
@@ -35,8 +46,8 @@ export function welcomeEmail(name: string, email: string) {
   return {
     subject: "Bienvenido a MetrixPro 🚀",
     html: base(`
-      <h2 style="margin:0 0 8px;color:#18181b;font-size:20px;">¡Hola, ${name}!</h2>
-      <p style="color:#71717a;font-size:15px;line-height:1.6;">Tu cuenta ha sido creada exitosamente con el correo <strong>${email}</strong>. Ya puedes acceder a tu dashboard empresarial.</p>
+      <h2 style="margin:0 0 8px;color:#18181b;font-size:20px;">¡Hola, ${esc(name)}!</h2>
+      <p style="color:#71717a;font-size:15px;line-height:1.6;">Tu cuenta ha sido creada exitosamente con el correo <strong>${esc(email)}</strong>. Ya puedes acceder a tu dashboard empresarial.</p>
       <a href="${process.env.NEXTAUTH_URL}/dashboard/overview" style="display:inline-block;margin-top:20px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:600;font-size:14px;">Ir al Dashboard</a>
       <p style="margin-top:24px;color:#a1a1aa;font-size:13px;">Si no creaste esta cuenta, puedes ignorar este correo.</p>
     `),
@@ -45,12 +56,12 @@ export function welcomeEmail(name: string, email: string) {
 
 export function reportEmail(name: string, reportTitle: string, summary: string, reportUrl: string) {
   return {
-    subject: `📊 Tu reporte IA está listo: ${reportTitle}`,
+    subject: `📊 Tu reporte IA está listo: ${esc(reportTitle)}`,
     html: base(`
       <h2 style="margin:0 0 8px;color:#18181b;font-size:20px;">Tu reporte está listo</h2>
-      <p style="color:#71717a;font-size:15px;line-height:1.6;">Hola <strong>${name}</strong>, tu reporte <em>${reportTitle}</em> fue generado por la IA.</p>
+      <p style="color:#71717a;font-size:15px;line-height:1.6;">Hola <strong>${esc(name)}</strong>, tu reporte <em>${esc(reportTitle)}</em> fue generado por la IA.</p>
       <div style="background:#f4f4f5;border-radius:12px;padding:20px;margin:20px 0;">
-        <p style="margin:0;color:#3f3f46;font-size:14px;line-height:1.7;">${summary}</p>
+        <p style="margin:0;color:#3f3f46;font-size:14px;line-height:1.7;">${esc(summary)}</p>
       </div>
       <a href="${reportUrl}" style="display:inline-block;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:600;font-size:14px;">Ver Reporte Completo</a>
     `),
@@ -59,10 +70,10 @@ export function reportEmail(name: string, reportTitle: string, summary: string, 
 
 export function inviteEmail(inviterName: string, orgName: string, inviteUrl: string) {
   return {
-    subject: `${inviterName} te invitó a MetrixPro`,
+    subject: `${esc(inviterName)} te invitó a MetrixPro`,
     html: base(`
       <h2 style="margin:0 0 8px;color:#18181b;font-size:20px;">Tienes una invitación</h2>
-      <p style="color:#71717a;font-size:15px;line-height:1.6;"><strong>${inviterName}</strong> te invitó a unirte a <strong>${orgName}</strong> en MetrixPro, el dashboard empresarial inteligente.</p>
+      <p style="color:#71717a;font-size:15px;line-height:1.6;"><strong>${esc(inviterName)}</strong> te invitó a unirte a <strong>${esc(orgName)}</strong> en MetrixPro, el dashboard empresarial inteligente.</p>
       <a href="${inviteUrl}" style="display:inline-block;margin-top:16px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:600;font-size:14px;">Aceptar Invitación</a>
       <p style="margin-top:24px;color:#a1a1aa;font-size:13px;">Este enlace expira en 7 días.</p>
     `),
@@ -73,7 +84,7 @@ export function billingEmail(name: string, event: "upgraded" | "canceled" | "pay
   const content: Record<string, { title: string; body: string }> = {
     upgraded: {
       title: "Plan actualizado",
-      body: `Tu plan fue actualizado a <strong>${planName}</strong>. Ya tienes acceso a todas las funciones de tu nuevo plan.`,
+      body: `Tu plan fue actualizado a <strong>${esc(planName)}</strong>. Ya tienes acceso a todas las funciones de tu nuevo plan.`,
     },
     canceled: {
       title: "Suscripción cancelada",
@@ -93,7 +104,7 @@ export function billingEmail(name: string, event: "upgraded" | "canceled" | "pay
     subject: `MetrixPro: ${title}`,
     html: base(`
       <h2 style="margin:0 0 8px;color:#18181b;font-size:20px;">${title}</h2>
-      <p style="color:#71717a;font-size:15px;line-height:1.6;">Hola <strong>${name}</strong>, ${body}</p>
+      <p style="color:#71717a;font-size:15px;line-height:1.6;">Hola <strong>${esc(name)}</strong>, ${body}</p>
       <a href="${process.env.NEXTAUTH_URL}/dashboard/billing" style="display:inline-block;margin-top:20px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:600;font-size:14px;">Ver Suscripción</a>
     `),
   };
@@ -119,8 +130,8 @@ export function digestEmail(
     .map(
       (k) => `
       <tr>
-        <td style="padding:10px 0;border-bottom:1px solid #f4f4f5;color:#3f3f46;font-size:14px;">${k.label}</td>
-        <td style="padding:10px 0;border-bottom:1px solid #f4f4f5;text-align:right;color:#18181b;font-size:15px;font-weight:700;">${k.value}${k.sub ? `<br><span style="font-size:11px;font-weight:400;color:#a1a1aa;">${k.sub}</span>` : ""}</td>
+        <td style="padding:10px 0;border-bottom:1px solid #f4f4f5;color:#3f3f46;font-size:14px;">${esc(k.label)}</td>
+        <td style="padding:10px 0;border-bottom:1px solid #f4f4f5;text-align:right;color:#18181b;font-size:15px;font-weight:700;">${esc(k.value)}${k.sub ? `<br><span style="font-size:11px;font-weight:400;color:#a1a1aa;">${esc(k.sub)}</span>` : ""}</td>
       </tr>`,
     )
     .join("");
@@ -129,16 +140,16 @@ export function digestEmail(
     ? `<div style="margin-top:24px;"><h3 style="margin:0 0 8px;color:#18181b;font-size:15px;">⚠️ Alertas detectadas por la IA</h3>${alerts
         .map((a) => {
           const color = a.severity === "critical" ? "#dc2626" : a.severity === "warning" ? "#d97706" : "#2563eb";
-          return `<p style="margin:6px 0;padding:10px 12px;background:#f4f4f5;border-left:3px solid ${color};border-radius:6px;color:#3f3f46;font-size:13px;line-height:1.5;">${a.message}</p>`;
+          return `<p style="margin:6px 0;padding:10px 12px;background:#f4f4f5;border-left:3px solid ${color};border-radius:6px;color:#3f3f46;font-size:13px;line-height:1.5;">${esc(a.message)}</p>`;
         })
         .join("")}</div>`
     : `<p style="margin-top:20px;color:#16a34a;font-size:13px;">✓ Sin anomalías relevantes este período.</p>`;
 
   return {
-    subject: `📊 Tu resumen ${period} — ${orgName}`,
+    subject: `📊 Tu resumen ${esc(period)} — ${esc(orgName)}`,
     html: base(`
-      <h2 style="margin:0 0 4px;color:#18181b;font-size:20px;">Resumen ${period}</h2>
-      <p style="color:#71717a;font-size:14px;line-height:1.6;">Hola <strong>${name}</strong>, este es el estado de <strong>${orgName}</strong>.</p>
+      <h2 style="margin:0 0 4px;color:#18181b;font-size:20px;">Resumen ${esc(period)}</h2>
+      <p style="color:#71717a;font-size:14px;line-height:1.6;">Hola <strong>${esc(name)}</strong>, este es el estado de <strong>${esc(orgName)}</strong>.</p>
       <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;">${kpiHtml}</table>
       ${alertHtml}
       <a href="${process.env.NEXTAUTH_URL}/dashboard/overview" style="display:inline-block;margin-top:24px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:600;font-size:14px;">Abrir Dashboard</a>

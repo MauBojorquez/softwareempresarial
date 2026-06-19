@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
+import { rateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
@@ -8,6 +9,12 @@ export async function POST(req: NextRequest) {
   }
 
   const key = authHeader.slice(7);
+
+  const rl = rateLimit(`api-v1:${key}`, 120, 60_000); // 120 req/min por key
+  if (!rl.success) {
+    return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
+  }
+
   const apiKey = await db.apiKey.findUnique({ where: { key } });
 
   if (!apiKey || !apiKey.isActive) {
@@ -69,6 +76,12 @@ export async function GET(req: NextRequest) {
   }
 
   const key = authHeader.slice(7);
+
+  const rl = rateLimit(`api-v1:${key}`, 120, 60_000);
+  if (!rl.success) {
+    return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
+  }
+
   const apiKey = await db.apiKey.findUnique({ where: { key } });
 
   if (!apiKey || !apiKey.isActive) {

@@ -90,11 +90,28 @@ export async function PATCH(req: NextRequest) {
   const metric = await db.metric.findFirst({ where: { id, organizationId: membership.organizationId } });
   if (!metric) return NextResponse.json({ error: "Metric not found" }, { status: 404 });
 
+  // Validate inputs before persisting
+  let parsedValue: number | undefined;
+  if (value !== undefined) {
+    parsedValue = parseFloat(value);
+    if (!Number.isFinite(parsedValue)) {
+      return NextResponse.json({ error: "Valor inválido" }, { status: 400 });
+    }
+  }
+
+  let parsedPeriod: Date | undefined;
+  if (period !== undefined) {
+    parsedPeriod = new Date(period);
+    if (isNaN(parsedPeriod.getTime())) {
+      return NextResponse.json({ error: "Fecha inválida" }, { status: 400 });
+    }
+  }
+
   const updated = await db.metric.update({
     where: { id },
     data: {
-      ...(value !== undefined && { value: parseFloat(value) }),
-      ...(period !== undefined && { period: new Date(period) }),
+      ...(parsedValue !== undefined && { value: parsedValue }),
+      ...(parsedPeriod !== undefined && { period: parsedPeriod }),
     },
   });
 

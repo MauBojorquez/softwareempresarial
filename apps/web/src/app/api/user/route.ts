@@ -85,7 +85,8 @@ export async function PATCH(req: NextRequest) {
 
   if (orgName || industry !== undefined) {
     const membership = await db.membership.findFirst({ where: { userId: session.user.id } });
-    if (membership) {
+    // Only ADMINs may rename the organization or change its industry.
+    if (membership && membership.role === "ADMIN") {
       const orgUpdates: Record<string, unknown> = {};
       if (typeof orgName === "string" && orgName.trim()) orgUpdates.name = orgName.trim().slice(0, 100);
       if (typeof industry === "string") orgUpdates.industry = industry.trim().slice(0, 100);

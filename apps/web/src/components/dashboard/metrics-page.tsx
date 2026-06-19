@@ -65,20 +65,26 @@ export function MetricsDashboard({
 
   const storageKey = `metrixpro-display-${category}`;
 
-  const load = () => {
+  const load = (signal?: AbortSignal) => {
     setLoading(true);
     setError(null);
-    fetch(`/api/metrics/manual?category=${category}&months=${months}`)
+    fetch(`/api/metrics/manual?category=${category}&months=${months}`, { signal })
       .then((r) => { if (!r.ok) throw new Error("Error al cargar datos"); return r.json(); })
       .then((d) => { setMetrics(d.metrics || []); setLoading(false); })
-      .catch((e) => { setError(e.message); setLoading(false); });
+      .catch((e) => { if (e.name !== "AbortError") { setError(e.message); setLoading(false); } });
   };
 
-  useEffect(() => { load(); }, [months]);
+  // Abort the previous request when `months` changes so a stale response
+  // can't overwrite a newer one (race condition).
+  useEffect(() => {
+    const controller = new AbortController();
+    load(controller.signal);
+    return () => controller.abort();
+  }, [months]);
 
   useEffect(() => {
     if (!autoRefresh) return;
-    const id = setInterval(load, 30000);
+    const id = setInterval(() => load(), 30000);
     return () => clearInterval(id);
   }, [autoRefresh, months]);
 
@@ -177,7 +183,7 @@ export function MetricsDashboard({
       <div className="rounded-full bg-destructive/10 p-3 mb-4"><X className="h-6 w-6 text-destructive" /></div>
       <h3 className="text-lg font-semibold">Error al cargar datos</h3>
       <p className="mt-1 text-sm text-muted-foreground">{error}</p>
-      <button onClick={load} className="mt-4 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90">Reintentar</button>
+      <button onClick={() => load()} className="mt-4 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90">Reintentar</button>
     </div>
   );
 

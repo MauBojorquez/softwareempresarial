@@ -19,7 +19,7 @@ export default function MarketingPage() {
     const acctParam = acct ? `&accountId=${acct}` : "";
     // Campaigns are the single source of truth. The overview is computed from them.
     fetch(`/api/metrics/marketing/campaigns?months=6${acctParam}`)
-      .then((r) => r.json())
+      .then((r) => { if (!r.ok) throw new Error("Error al cargar campañas"); return r.json(); })
       .then((c) => {
         setCampaigns(c);
         setLoading(false);
