@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Search, Sparkles, Menu, FileText, BarChart3 } from "lucide-react";
+import { Search, Sparkles, Menu, FileText, BarChart3, Moon, Sun, Command } from "lucide-react";
+import { useTheme } from "@/components/theme-provider";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { NotificationBell } from "@/components/notifications";
@@ -18,6 +19,7 @@ type SearchResult = {
 export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const { data: session } = useSession();
   const router = useRouter();
+  const { theme, setTheme } = useTheme();
   const initials = session?.user?.name?.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase() || "MP";
   const [userAvatar, setUserAvatar] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -114,6 +116,22 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
         </div>
       </div>
       <div className="flex items-center gap-2 sm:gap-3">
+        <button
+          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          aria-label="Cambiar tema"
+          className="rounded-lg border border-border bg-card p-2 text-muted-foreground transition-colors hover:text-foreground hover:bg-secondary"
+        >
+          {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+        </button>
+        <button
+          onClick={() => { const e = new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }); document.dispatchEvent(e); }}
+          aria-label="Paleta de comandos"
+          title="Paleta de comandos (⌘K)"
+          className="hidden sm:flex items-center gap-1.5 rounded-lg border border-border bg-card px-2 py-2 text-muted-foreground transition-colors hover:text-foreground hover:bg-secondary"
+        >
+          <Command className="h-4 w-4" />
+          <kbd className="text-[10px] font-mono">⌘K</kbd>
+        </button>
         <a
           href="/dashboard/reports"
           className="flex items-center gap-1.5 rounded-lg gradient-bg px-2.5 py-1.5 text-[11px] font-medium text-white transition-opacity hover:opacity-90 sm:px-3 sm:text-xs"

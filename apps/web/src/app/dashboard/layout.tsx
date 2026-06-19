@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { Breadcrumb } from "@/components/dashboard/breadcrumb";
 import { ShortcutsHelp } from "@/components/dashboard/shortcuts-help";
+import { CommandPalette } from "@/components/command-palette";
 import { ThemeProvider } from "@/components/theme-provider";
 import { BrandProvider } from "@/components/brand-provider";
 import { ToastProvider } from "@/components/toast";
@@ -34,6 +35,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <BrandProvider>
       <ToastProvider>
       <ShortcutsHelp />
+      <CommandPalette />
       <div className="relative flex h-screen bg-background">
         {/* Stripe-style flowing gradient backdrop */}
         <div className="mesh-bg" aria-hidden />
