@@ -39,6 +39,14 @@ export async function POST(req: NextRequest) {
       organization: {
         create: {
           name: trimmedCompany,
+          subscription: {
+            create: {
+              stripeCustomerId: `cus_demo_${email}`,
+              plan: "STARTER",
+              status: "TRIALING",
+              interval: "MONTHLY",
+            },
+          },
         },
       },
     },

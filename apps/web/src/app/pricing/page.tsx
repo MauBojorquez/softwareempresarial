@@ -7,6 +7,20 @@ import { cn } from "@/lib/utils";
 
 const plans = [
   {
+    name: "Gratis",
+    description: "Para probar y registrar métricas manualmente",
+    monthlyPrice: 0,
+    annualPrice: 0,
+    free: true,
+    features: [
+      "Dashboard ejecutivo",
+      "Carga manual de métricas",
+      "Finanzas, Ventas y Marketing",
+      "1 usuario",
+      "Sin integraciones ni IA",
+    ],
+  },
+  {
     name: "Starter",
     description: "Para emprendedores y negocios pequeños",
     monthlyPrice: 799,
@@ -100,7 +114,7 @@ export default function PricingPage() {
           </div>
         </div>
 
-        <div className="mt-12 grid gap-6 grid-cols-1 sm:grid-cols-3">
+        <div className="mt-12 grid gap-6 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
           {plans.map((plan) => (
             <div
               key={plan.name}
@@ -122,12 +136,18 @@ export default function PricingPage() {
               <h3 className="text-xl font-bold">{plan.name}</h3>
               <p className="mt-1 text-sm text-muted-foreground">{plan.description}</p>
               <div className="mt-6">
-                <span className="text-3xl sm:text-4xl font-bold">
-                  ${(annual ? plan.annualPrice / 12 : plan.monthlyPrice).toLocaleString("es-MX", { maximumFractionDigits: 2 })}
-                </span>
-                <span className="text-muted-foreground"> MXN/mes</span>
+                {plan.free ? (
+                  <span className="text-3xl sm:text-4xl font-bold">Gratis</span>
+                ) : (
+                  <>
+                    <span className="text-3xl sm:text-4xl font-bold">
+                      ${(annual ? plan.annualPrice / 12 : plan.monthlyPrice).toLocaleString("es-MX", { maximumFractionDigits: 2 })}
+                    </span>
+                    <span className="text-muted-foreground"> MXN/mes</span>
+                  </>
+                )}
               </div>
-              {annual && (
+              {annual && !plan.free && (
                 <p className="mt-1 text-xs text-muted-foreground">
                   ${plan.annualPrice.toLocaleString("es-MX")} MXN facturado anualmente
                 </p>
@@ -141,7 +161,7 @@ export default function PricingPage() {
                     : "border border-border bg-secondary/50 hover:bg-secondary"
                 )}
               >
-                Comenzar Prueba Gratis
+                {plan.free ? "Comenzar Gratis" : "Comenzar Prueba Gratis"}
               </Link>
               <ul className="mt-8 space-y-3">
                 {plan.features.map((feature) => (

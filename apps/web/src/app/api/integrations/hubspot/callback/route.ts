@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/server/db";
+import { ensureMembership } from "@/server/services/membership";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -40,12 +41,11 @@ export async function GET(req: NextRequest) {
 
     const tokens = await tokenResponse.json();
 
-    const membership = await db.membership.findFirst({
-      where: { userId: session.user.id },
-    });
+    const membership = await ensureMembership(session.user.id);
 
     if (!membership) {
-      return NextResponse.redirect(new URL("/dashboard/integrations?error=no_org", req.url));
+      // Session points to a user that no longer exists — force re-login.
+      return NextResponse.redirect(new URL("/login?error=session_expired", req.url));
     }
 
     await db.integration.upsert({

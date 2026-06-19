@@ -249,6 +249,7 @@ enum SubscriptionStatus {
 }
 
 enum Plan {
+  FREE
   STARTER
   PROFESSIONAL
   ENTERPRISE

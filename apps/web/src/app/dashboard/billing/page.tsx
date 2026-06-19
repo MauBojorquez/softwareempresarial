@@ -8,6 +8,13 @@ import { useToast } from "@/components/toast";
 
 const plans = [
   {
+    key: "FREE",
+    name: "Gratis",
+    price: 0,
+    annualPrice: 0,
+    features: ["1 usuario", "Carga manual de métricas", "Finanzas, Ventas y Marketing", "Sin integraciones", "Sin reportes ni chat IA"],
+  },
+  {
     key: "STARTER",
     name: "Starter",
     price: 799,
@@ -50,6 +57,24 @@ export default function BillingPage() {
       })
       .catch(() => setLoading(false));
   }, []);
+
+  const handleSelectFree = async () => {
+    setCheckoutLoading("FREE");
+    try {
+      const res = await fetch("/api/billing/free", { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        setCurrentPlan("FREE");
+        toast("Cambiaste al plan Gratis", "success");
+      } else {
+        toast(data.error || "Error al cambiar de plan", "error");
+      }
+    } catch {
+      toast("Error de conexión", "error");
+    } finally {
+      setCheckoutLoading(null);
+    }
+  };
 
   const handleCheckout = async (plan: string) => {
     setCheckoutLoading(plan);
@@ -185,11 +210,12 @@ export default function BillingPage() {
           </div>
         </div>
 
-        <div className="mt-4 grid gap-4 grid-cols-1 sm:grid-cols-3">
+        <div className="mt-4 grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
           {plans.map((plan) => {
             const isCurrent = currentPlan === plan.key || currentPlan === plan.name;
             const price = interval === "MONTHLY" ? plan.price : plan.annualPrice;
             const isLoading = checkoutLoading === plan.key;
+            const isFree = plan.key === "FREE";
 
             return (
               <div
@@ -201,8 +227,14 @@ export default function BillingPage() {
               >
                 <h4 className="font-semibold">{plan.name}</h4>
                 <p className="mt-1">
-                  <span className="text-2xl font-bold">${price.toLocaleString()}</span>
-                  <span className="text-sm text-muted-foreground"> MXN /{interval === "MONTHLY" ? "mes" : "año"}</span>
+                  {isFree ? (
+                    <span className="text-2xl font-bold">Gratis</span>
+                  ) : (
+                    <>
+                      <span className="text-2xl font-bold">${price.toLocaleString()}</span>
+                      <span className="text-sm text-muted-foreground"> MXN /{interval === "MONTHLY" ? "mes" : "año"}</span>
+                    </>
+                  )}
                 </p>
                 <ul className="mt-4 space-y-2">
                   {plan.features.map((f) => (
@@ -216,6 +248,14 @@ export default function BillingPage() {
                   <div className="mt-4 rounded-lg border border-primary/15 py-2 text-center text-sm font-medium text-primary">
                     Plan Actual
                   </div>
+                ) : isFree ? (
+                  <button
+                    onClick={handleSelectFree}
+                    disabled={isLoading}
+                    className="mt-4 flex w-full items-center justify-center gap-1 rounded-lg border border-border bg-secondary/50 py-2 text-sm font-medium transition-colors hover:bg-secondary disabled:opacity-50"
+                  >
+                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Usar plan Gratis"}
+                  </button>
                 ) : (
                   <button
                     onClick={() => handleCheckout(plan.key)}
@@ -249,13 +289,15 @@ export default function BillingPage() {
             </thead>
             <tbody>
               {[
-                { name: "Integraciones", values: ["3", "10", "Ilimitadas"] },
-                { name: "Usuarios", values: ["3", "10", "Ilimitados"] },
-                { name: "Reportes IA", values: ["Mensual", "Semanal", "On-demand"] },
-                { name: "Dashboards", values: ["1", "Múltiples", "Ilimitados"] },
-                { name: "API Personalizada", values: ["—", "—", "✓"] },
-                { name: "SSO / SAML", values: ["—", "—", "✓"] },
-                { name: "Soporte", values: ["Email", "Email + Chat", "Prioritario"] },
+                { name: "Integraciones", values: ["—", "3", "10", "Ilimitadas"] },
+                { name: "Usuarios", values: ["1", "3", "10", "Ilimitados"] },
+                { name: "Carga manual", values: ["✓", "✓", "✓", "✓"] },
+                { name: "Reportes IA", values: ["—", "Mensual", "Semanal", "On-demand"] },
+                { name: "Chat IA", values: ["—", "—", "✓", "✓"] },
+                { name: "Dashboards", values: ["1", "1", "Múltiples", "Ilimitados"] },
+                { name: "API Personalizada", values: ["—", "—", "—", "✓"] },
+                { name: "SSO / SAML", values: ["—", "—", "—", "✓"] },
+                { name: "Soporte", values: ["—", "Email", "Email + Chat", "Prioritario"] },
               ].map((row) => (
                 <tr key={row.name} className="border-b border-border last:border-0">
                   <td className="p-3 text-muted-foreground">{row.name}</td>
