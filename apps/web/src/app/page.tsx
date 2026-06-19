@@ -93,28 +93,48 @@ export default function HomePage() {
               />
             </svg>
           </div>
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(37,99,168,0.06),transparent_60%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(37,99,168,0.06),transparent_60%)] gradient-animate" />
+
+          {/* Floating metric bubbles */}
+          <div className="absolute top-20 right-10 animate-float opacity-20 blur-[1px] pointer-events-none hidden lg:block">
+            <div className="rounded-2xl border border-purple-300/40 bg-white/10 backdrop-blur-sm px-4 py-3 shadow-xl">
+              <p className="text-xs text-purple-200">Ingresos</p>
+              <p className="text-lg font-bold text-white">+$142K</p>
+            </div>
+          </div>
+          <div className="absolute top-40 right-32 animate-float-delay opacity-15 blur-[1px] pointer-events-none hidden lg:block">
+            <div className="rounded-2xl border border-purple-300/30 bg-white/5 backdrop-blur-sm px-4 py-3">
+              <p className="text-xs text-purple-200">Clientes</p>
+              <p className="text-lg font-bold text-white">+23%</p>
+            </div>
+          </div>
+          <div className="absolute top-60 right-8 animate-float-delay-2 opacity-15 blur-[1px] pointer-events-none hidden lg:block">
+            <div className="rounded-2xl border border-purple-300/30 bg-white/5 backdrop-blur-sm px-4 py-3">
+              <p className="text-xs text-purple-200">Ventas</p>
+              <p className="text-lg font-bold text-white">↑ 847</p>
+            </div>
+          </div>
 
           <div className="container relative mx-auto px-4 py-20 text-center sm:py-32">
-            <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-sm text-primary">
+            <div className="animate-fade-in-up mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-sm text-primary">
               <Zap className="h-3.5 w-3.5" />
               Potenciado con Inteligencia Artificial
             </div>
 
-            <h1 className="mx-auto max-w-4xl text-3xl font-bold tracking-tight text-foreground sm:text-5xl md:text-7xl">
+            <h1 className="animate-fade-in-up-delay-1 mx-auto max-w-4xl text-3xl font-bold tracking-tight text-foreground sm:text-5xl md:text-7xl">
               Todos los números de tu empresa,{" "}
               <span className="gradient-text">en un solo lugar</span>
             </h1>
 
-            <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
+            <p className="animate-fade-in-up-delay-2 mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
               Conecta tu ERP y CRM, visualiza métricas en tiempo real y recibe
               reportes inteligentes con IA. Toma mejores decisiones, más rápido.
             </p>
 
-            <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
+            <div className="animate-fade-in-up-delay-3 mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <Link
                 href="/register"
-                className="group flex w-full items-center justify-center gap-2 rounded-xl gradient-bg px-8 py-3.5 text-lg font-medium text-white transition-opacity hover:opacity-90 sm:w-auto"
+                className="pulse-glow group flex w-full items-center justify-center gap-2 rounded-xl gradient-bg px-8 py-3.5 text-lg font-medium text-white transition-opacity hover:opacity-90 sm:w-auto"
               >
                 Prueba 14 días gratis
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
@@ -246,9 +266,9 @@ export default function HomePage() {
               ].map((feature) => (
                 <div
                   key={feature.title}
-                  className="rounded-2xl border border-border bg-card p-6 transition-all hover:shadow-md sm:p-8"
+                  className="animate-scale-in card-hover rounded-2xl border border-border bg-card p-6 transition-all hover:shadow-md sm:p-8"
                 >
-                  <div className={`inline-flex rounded-xl ${feature.color} p-3`}>
+                  <div className={`inline-flex rounded-xl ${feature.color} p-3 transition-transform duration-300 group-hover:scale-110`}>
                     <feature.icon className="h-6 w-6" />
                   </div>
                   <h3 className="mt-4 text-lg font-semibold text-foreground">{feature.title}</h3>

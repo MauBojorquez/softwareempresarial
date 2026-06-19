@@ -91,12 +91,12 @@ export default function OverviewPage() {
   if (!data || !data.hasData) {
     return (
       <div className="space-y-6">
-        <div>
+        <div className="animate-fade-in-up">
           <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">Dashboard</h1>
           <p className="text-sm text-muted-foreground">Resumen ejecutivo de tu negocio</p>
         </div>
         <Onboarding />
-        <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 grid-cols-2 lg:grid-cols-4 stagger-children">
           <MetricCard title="Ingresos" value={0} icon={DollarSign} format="currency" />
           <MetricCard title="Pipeline" value={0} icon={TrendingUp} format="currency" />
           <MetricCard title="Equipo" value={0} icon={Users} format="number" />
@@ -156,7 +156,7 @@ export default function OverviewPage() {
         </button>
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="animate-fade-in-up flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">Dashboard</h1>
           <p className="text-sm text-muted-foreground">Resumen ejecutivo de tu negocio</p>
@@ -238,7 +238,7 @@ export default function OverviewPage() {
         </div>
       )}
 
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4 stagger-children">
         <MetricCard title="Ingresos" value={data.revenue} change={data.revenueChange || undefined} icon={DollarSign} format="currency" />
         <MetricCard title="Gastos" value={data.gastos} change={data.gastosChange || undefined} icon={Wallet} format="currency" />
         <MetricCard title="Equipo" value={data.employees} change={data.employeesChange || undefined} icon={Users} format="number" />
