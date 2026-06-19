@@ -6,11 +6,12 @@ import { useSession, signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, DollarSign, TrendingUp, Settings2, Users,
-  Megaphone, FileText, Plug, CreditCard, LogOut, X, Settings, MessageSquare,
+  Megaphone, FileText, Plug, CreditCard, LogOut, X, Settings, MessageSquare, Target,
 } from "lucide-react";
 
 const navigation = [
   { name: "Overview", href: "/dashboard/overview", icon: LayoutDashboard },
+  { name: "Metas", href: "/dashboard/goals", icon: Target },
   { name: "Finanzas", href: "/dashboard/finance", icon: DollarSign },
   { name: "Ventas", href: "/dashboard/sales", icon: TrendingUp },
   { name: "Operaciones", href: "/dashboard/operations", icon: Settings2 },
