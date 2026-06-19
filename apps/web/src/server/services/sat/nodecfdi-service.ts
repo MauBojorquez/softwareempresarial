@@ -76,8 +76,13 @@ export async function createQuery(
   to: Date,
   downloadType: "issued" | "received",
 ): Promise<string> {
-  const { QueryParameters, DateTimePeriod, DownloadType, RequestType } =
-    await import("@nodecfdi/sat-ws-descarga-masiva");
+  const {
+    QueryParameters,
+    DateTimePeriod,
+    DownloadType,
+    RequestType,
+    DocumentStatus,
+  } = await import("@nodecfdi/sat-ws-descarga-masiva");
 
   const period = DateTimePeriod.createFromValues(formatSat(from), formatSat(to));
   let q = QueryParameters.create(period).withRequestType(
@@ -86,6 +91,11 @@ export async function createQuery(
   q = q.withDownloadType(
     new DownloadType(downloadType === "issued" ? "issued" : "received"),
   );
+  // SAT no permite descargar XML de comprobantes cancelados; al pedir XML
+  // hay que filtrar por estado "active" (vigentes), de lo contrario rechaza
+  // la solicitud con "No se permite la descarga de xml que se encuentren
+  // cancelados".
+  q = q.withDocumentStatus(new DocumentStatus("active"));
 
   const query = await service.query(q);
   if (!query.getStatus().isAccepted()) {
