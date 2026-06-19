@@ -848,7 +848,7 @@ export default function SettingsPage() {
           <Users className="h-5 w-5 text-primary" />
           <h2 className="text-lg font-semibold text-foreground">Invitar Usuarios</h2>
         </div>
-        <p className="text-xs text-muted-foreground">Invita a miembros de tu equipo. Recibirán un correo con el enlace de acceso.</p>
+        <p className="text-xs text-muted-foreground">Invita a miembros de tu equipo. Recibirán un correo con el enlace de acceso. <span className="text-amber-500">El correo puede llegar a spam — pídeles que lo revisen.</span></p>
         <div className="flex flex-col sm:flex-row gap-2">
           <input type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="correo@empresa.com" className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30" />
           <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as "VIEWER" | "EDITOR" | "ADMIN")} className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none">

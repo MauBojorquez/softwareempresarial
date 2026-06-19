@@ -83,12 +83,20 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (token.sub) {
         session.user.id = token.sub;
+        session.user.role = (token.role as string) ?? "VIEWER";
+        session.user.organizationId = (token.organizationId as string) ?? "";
       }
       return session;
     },
     async jwt({ token, user }) {
       if (user) {
         token.sub = user.id;
+        // Load role + org into the token so every request has them without a DB hit
+        const m = await db.membership.findFirst({ where: { userId: user.id } });
+        if (m) {
+          token.role = m.role;
+          token.organizationId = m.organizationId;
+        }
       }
       return token;
     },

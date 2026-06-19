@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle, RefreshCw, AlertCircle, Loader2, MessageSquarePlus } from "lucide-react";
+import { CheckCircle, RefreshCw, AlertCircle, Loader2, MessageSquarePlus, Lock } from "lucide-react";
+import { useSession } from "next-auth/react";
 import { useToast } from "@/components/toast";
 import { addActivityLog } from "@/components/dashboard/activity-log";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -83,8 +84,21 @@ function timeAgo(dateStr: string) {
 }
 
 export default function IntegrationsPage() {
+  const { data: session } = useSession();
   const { toast } = useToast();
   const router = useRouter();
+
+  if (session && session.user.role !== "ADMIN") {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center">
+        <Lock className="h-10 w-10 text-muted-foreground" />
+        <h2 className="text-xl font-semibold">Acceso restringido</h2>
+        <p className="text-sm text-muted-foreground max-w-xs">
+          Solo el administrador puede conectar y gestionar integraciones.
+        </p>
+      </div>
+    );
+  }
   const [statuses, setStatuses] = useState<IntegrationStatus[]>([]);
   const [syncing, setSyncing] = useState<Record<string, boolean>>({});
   const [satStatus, setSatStatus] = useState<SatStatus>({ connected: false });

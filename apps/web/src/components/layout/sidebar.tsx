@@ -172,6 +172,12 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
 
         <nav aria-label="Navegación principal" className="flex-1 space-y-0.5 overflow-y-auto p-3">
           {navigation.filter((item) => {
+            const isAdmin = session?.user?.role === "ADMIN";
+            // Billing and integrations are admin-only
+            if (item.href === "/dashboard/billing" || item.href === "/dashboard/integrations") {
+              return isAdmin;
+            }
+            // Section-based filtering for editors/viewers
             if (allowedSections.length === 0) return true;
             const sectionMap: Record<string, string> = {
               "/dashboard/finance": "FINANCE",
