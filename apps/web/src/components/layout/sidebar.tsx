@@ -37,6 +37,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
   const [orgs, setOrgs] = useState<OrgItem[]>([]);
   const [avatar, setAvatar] = useState<string | null>(null);
   const [showOrgMenu, setShowOrgMenu] = useState(false);
+  const [allowedSections, setAllowedSections] = useState<string[]>([]);
   const orgMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -45,6 +46,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
       .then((data) => {
         if (data.organization) setOrgData(data.organization);
         if (data.user?.avatar) setAvatar(data.user.avatar);
+        if (Array.isArray(data.allowedSections)) setAllowedSections(data.allowedSections);
       })
       .catch(() => {});
 
@@ -106,9 +108,12 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
                 </span>
               </div>
             )}
-            <span className="text-base font-bold text-foreground truncate">
-              {orgData?.name || "MetrixPro"}
-            </span>
+            <div className="min-w-0">
+              <p className="text-[11px] font-medium text-muted-foreground leading-none">MetrixPro</p>
+              <p className="text-sm font-bold text-foreground truncate leading-tight mt-0.5">
+                {orgData?.name || "Mi Empresa"}
+              </p>
+            </div>
           </div>
           <button onClick={onClose} className="rounded-lg p-1 text-muted-foreground hover:text-foreground lg:hidden">
             <X className="h-5 w-5" />
@@ -166,7 +171,18 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
         )}
 
         <nav aria-label="Navegación principal" className="flex-1 space-y-0.5 overflow-y-auto p-3">
-          {navigation.map((item) => {
+          {navigation.filter((item) => {
+            if (allowedSections.length === 0) return true;
+            const sectionMap: Record<string, string> = {
+              "/dashboard/finance": "FINANCE",
+              "/dashboard/sales": "SALES",
+              "/dashboard/operations": "OPERATIONS",
+              "/dashboard/hr": "HR",
+              "/dashboard/marketing": "MARKETING",
+            };
+            const section = sectionMap[item.href];
+            return !section || allowedSections.includes(section);
+          }).map((item) => {
             const isActive = pathname.startsWith(item.href);
             return (
               <Link

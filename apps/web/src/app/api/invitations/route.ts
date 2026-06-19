@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { email, role = "VIEWER" } = (await req.json()) as { email: string; role?: MembershipRole };
+  const { email, role = "VIEWER", allowedSections = [] } = (await req.json()) as { email: string; role?: MembershipRole; allowedSections?: string[] };
   if (!email) return NextResponse.json({ error: "Email required" }, { status: 400 });
 
   const membership = await db.membership.findFirst({
@@ -83,11 +83,12 @@ export async function POST(req: NextRequest) {
     create: {
       email,
       role: role as MembershipRole,
+      allowedSections,
       expiresAt,
       organizationId: membership.organizationId,
       invitedById: session.user.id,
     },
-    update: { role: role as MembershipRole, expiresAt, acceptedAt: null, invitedById: session.user.id },
+    update: { role: role as MembershipRole, allowedSections, expiresAt, acceptedAt: null, invitedById: session.user.id },
   });
 
   const inviteUrl = `${process.env.NEXTAUTH_URL}/invite/${invitation.token}`;

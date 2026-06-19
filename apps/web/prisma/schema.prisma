@@ -105,8 +105,9 @@ model Organization {
 }
 
 model Membership {
-  id     String         @id @default(cuid())
-  role   MembershipRole @default(VIEWER)
+  id              String         @id @default(cuid())
+  role            MembershipRole @default(VIEWER)
+  allowedSections String[]       @default([])
 
   userId         String
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -224,13 +225,14 @@ model AIChatMessage {
 // ─── Invitations ────────────────────────────────────────────────────
 
 model Invitation {
-  id             String         @id @default(cuid())
-  email          String
-  role           MembershipRole @default(VIEWER)
-  token          String         @unique @default(cuid())
-  expiresAt      DateTime
-  acceptedAt     DateTime?
-  createdAt      DateTime       @default(now())
+  id              String         @id @default(cuid())
+  email           String
+  role            MembershipRole @default(VIEWER)
+  allowedSections String[]       @default([])
+  token           String         @unique @default(cuid())
+  expiresAt       DateTime
+  acceptedAt      DateTime?
+  createdAt       DateTime       @default(now())
 
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)

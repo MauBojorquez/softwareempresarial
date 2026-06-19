@@ -25,7 +25,11 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json({ user, organization: membership?.organization ?? null });
+    return NextResponse.json({
+      user,
+      organization: membership?.organization ?? null,
+      allowedSections: membership?.allowedSections ?? [],
+    });
   } catch {
     const user = await db.user.findUnique({
       where: { id: session.user.id },

@@ -96,6 +96,7 @@ export default function SettingsPage() {
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"VIEWER" | "EDITOR" | "ADMIN">("VIEWER");
+  const [inviteSections, setInviteSections] = useState<string[]>([]);
   const [inviting, setInviting] = useState(false);
 
   const [alertRules, setAlertRules] = useState<AlertRuleItem[]>([]);
@@ -379,7 +380,7 @@ export default function SettingsPage() {
       const res = await fetch("/api/invitations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: inviteEmail, role: inviteRole }),
+        body: JSON.stringify({ email: inviteEmail, role: inviteRole, allowedSections: inviteSections }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -859,6 +860,27 @@ export default function SettingsPage() {
             {inviting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
             Invitar
           </button>
+        </div>
+        <div>
+          <p className="text-xs font-medium text-muted-foreground mb-2">Acceso a secciones <span className="font-normal">(deja vacío para acceso completo)</span></p>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { key: "FINANCE", label: "Finanzas" },
+              { key: "SALES", label: "Ventas" },
+              { key: "OPERATIONS", label: "Operaciones" },
+              { key: "HR", label: "RRHH" },
+              { key: "MARKETING", label: "Marketing" },
+            ].map((s) => (
+              <button
+                key={s.key}
+                type="button"
+                onClick={() => setInviteSections((prev) => prev.includes(s.key) ? prev.filter((x) => x !== s.key) : [...prev, s.key])}
+                className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${inviteSections.includes(s.key) ? "border-primary bg-primary/10 text-primary" : "border-border bg-background text-muted-foreground hover:border-primary/50"}`}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
         </div>
         {invitations.length > 0 && (
           <div className="space-y-1">

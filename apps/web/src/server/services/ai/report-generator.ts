@@ -46,6 +46,9 @@ export async function generateMonthlyReport(organizationId: string, userId: stri
     },
   });
 
+  const hasData = Object.keys(metricsSummary).length > 0;
+  const sectionList = Object.keys(metricsSummary).join(", ") || "ninguna";
+
   try {
     const message = await anthropic.messages.create({
       model: "claude-sonnet-4-6",
@@ -53,31 +56,57 @@ export async function generateMonthlyReport(organizationId: string, userId: stri
       messages: [
         {
           role: "user",
-          content: `Eres un consultor de negocios experto. Genera un reporte ejecutivo mensual en español para la empresa "${org.name}" (industria: ${org.industry ?? "general"}).
+          content: `Eres un consultor de negocios senior. Genera un reporte ejecutivo mensual en español para la empresa "${org.name}" (industria: ${org.industry ?? "general"}).
 
-## Métricas del mes actual:
+INSTRUCCIONES ESTRICTAS DE FORMATO:
+- Escribe en prosa profesional, estilo documento corporativo impreso
+- NO uses markdown: cero asteriscos (*), cero almohadillas (#), cero guiones de lista (-)
+- Los títulos de sección van en MAYÚSCULAS seguidos de dos puntos, en su propia línea
+- Usa solo datos que aparezcan explícitamente en las métricas proporcionadas
+- Si una categoría no tiene datos, escribe una sola línea: "Sin datos disponibles para este período."
+- Las categorías con datos son: ${sectionList}
+${!hasData ? "- IMPORTANTE: No hay métricas registradas. Indica esto claramente en cada sección y sugiere cómo empezar a registrar datos." : ""}
+
+ESTRUCTURA DEL REPORTE:
+
+RESUMEN EJECUTIVO:
+[3 a 4 oraciones. Los resultados más importantes del período, con cifras concretas si están disponibles.]
+
+FINANZAS:
+[Ingresos, egresos, márgenes, comparativa vs mes anterior. Solo si hay datos de la categoría FINANCE.]
+
+VENTAS Y CRM:
+[Pipeline, conversiones, deals, tendencias. Solo si hay datos de la categoría SALES.]
+
+OPERACIONES:
+[Eficiencia, productividad. Solo si hay datos de OPERATIONS.]
+
+RECURSOS HUMANOS:
+[Headcount, nómina, rotación. Solo si hay datos de HR.]
+
+MARKETING:
+[Inversión publicitaria, alcance, conversiones digitales. Solo si hay datos de MARKETING.]
+
+RECOMENDACIONES:
+[3 a 5 acciones concretas con prioridad, basadas únicamente en los datos disponibles.]
+
+ALERTAS:
+[Métricas que requieren atención inmediata. Si todo está bien, indicarlo.]
+
+MÉTRICAS DEL MES ACTUAL:
 ${JSON.stringify(metricsSummary, null, 2)}
 
-## Métricas del mes anterior (para comparación):
-${JSON.stringify(previousSummary, null, 2)}
-
-Genera un reporte con las siguientes secciones:
-1. **Resumen Ejecutivo** (3-4 oraciones con los highlights)
-2. **Finanzas** - Análisis de ingresos, gastos, márgenes
-3. **Ventas** - Pipeline, conversiones, tendencias
-4. **Operaciones** - Eficiencia y productividad
-5. **Recursos Humanos** - Headcount, rotación
-6. **Marketing** - Leads, CAC, ROI
-7. **Recomendaciones** - 3-5 acciones concretas con prioridad
-8. **Alertas** - Métricas que requieren atención inmediata
-
-Usa datos concretos, porcentajes de cambio vs mes anterior, y lenguaje ejecutivo directo. Formato Markdown.`,
+MÉTRICAS DEL MES ANTERIOR (referencia):
+${JSON.stringify(previousSummary, null, 2)}`,
         },
       ],
     });
 
     const content = message.content[0].type === "text" ? message.content[0].text : "";
-    const summary = content.split("\n").slice(0, 5).join("\n");
+
+    // Extract the executive summary: everything between "RESUMEN EJECUTIVO:" and the next section.
+    const summaryMatch = content.match(/RESUMEN EJECUTIVO:\s*([\s\S]*?)(?=\n[A-ZÁÉÍÓÚÑ ]{3,}:|$)/i);
+    const summary = summaryMatch ? summaryMatch[1].trim() : content.slice(0, 400).trim();
 
     await db.aIReport.update({
       where: { id: report.id },

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle, RefreshCw, AlertCircle, Loader2 } from "lucide-react";
+import { CheckCircle, RefreshCw, AlertCircle, Loader2, MessageSquarePlus } from "lucide-react";
 import { useToast } from "@/components/toast";
 import { addActivityLog } from "@/components/dashboard/activity-log";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -89,6 +89,9 @@ export default function IntegrationsPage() {
   const [syncing, setSyncing] = useState<Record<string, boolean>>({});
   const [satStatus, setSatStatus] = useState<SatStatus>({ connected: false });
   const [confirmDisconnect, setConfirmDisconnect] = useState<string | null>(null);
+  const [requestMsg, setRequestMsg] = useState("");
+  const [sendingRequest, setSendingRequest] = useState(false);
+  const [requestSent, setRequestSent] = useState(false);
 
   const fetchSatStatus = () => {
     fetch("/api/integrations/sat/status")
@@ -401,6 +404,53 @@ export default function IntegrationsPage() {
         >
           Crear API Key en Configuración
         </a>
+      </div>
+
+      {/* Integration request form */}
+      <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-3">
+        <div className="flex items-center gap-2">
+          <MessageSquarePlus className="h-5 w-5 text-primary" />
+          <h3 className="font-semibold">¿Necesitas otra integración?</h3>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Cuéntanos qué herramienta usas y te la configuramos. Describe brevemente cómo la usas y qué métricas quieres ver en tu dashboard.
+        </p>
+        {requestSent ? (
+          <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            <CheckCircle className="h-4 w-4 flex-shrink-0" />
+            Solicitud enviada. Te contactaremos pronto.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <textarea
+              value={requestMsg}
+              onChange={(e) => setRequestMsg(e.target.value)}
+              placeholder="Ej. Usamos Shopify para e-commerce y nos gustaría ver ventas diarias, órdenes pendientes y ticket promedio directamente en el dashboard..."
+              rows={3}
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm resize-none focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
+            />
+            <button
+              disabled={!requestMsg.trim() || sendingRequest}
+              onClick={async () => {
+                setSendingRequest(true);
+                try {
+                  await fetch("/api/integrations/request", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ message: requestMsg }),
+                  });
+                  setRequestSent(true);
+                  setRequestMsg("");
+                } catch {}
+                setSendingRequest(false);
+              }}
+              className="flex items-center gap-1.5 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+            >
+              {sendingRequest ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MessageSquarePlus className="h-3.5 w-3.5" />}
+              Enviar solicitud
+            </button>
+          </div>
+        )}
       </div>
 
       <ConfirmDialog
