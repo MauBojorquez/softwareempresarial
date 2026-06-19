@@ -2,101 +2,145 @@ import { NextRequest, NextResponse } from "next/server";
 import { getOrganizationId } from "@/lib/get-org";
 import { db } from "@/server/db";
 
+type M = { name: string; value: number; unit: string | null; period: Date; category: string; source: string | null };
+
 export async function GET(req: NextRequest) {
   const orgId = await getOrganizationId(req);
   if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const metrics = await db.metric.findMany({
+    const metrics = (await db.metric.findMany({
       where: { organizationId: orgId },
       orderBy: { period: "desc" },
-    });
+    })) as unknown as M[];
 
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
+    const prev = new Date(currentYear, currentMonth - 1, 1);
 
-    const latest = (name: string) => metrics.find((m) => m.name === name);
-    const previous = (name: string) => metrics.filter((m) => m.name === name)[1];
-    const allValues = (name: string) => metrics.filter((m) => m.name === name);
+    const inMonth = (d: Date, y: number, mo: number) => d.getMonth() === mo && d.getFullYear() === y;
+    const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-    const calc = (name: string) => {
-      const curr = latest(name);
-      const prev = previous(name);
-      const value = curr?.value ?? 0;
-      const change = prev && prev.value !== 0 ? ((value - prev.value) / prev.value) * 100 : 0;
-      return { value, change: parseFloat(change.toFixed(1)) };
+    /**
+     * Sums every metric in a category whose name matches any keyword (and none
+     * of the excludes) for a given month. This lets manually-entered rows with
+     * slightly different names ("Venta", "Venta producto X", "Ingreso por venta")
+     * all roll up into the same KPI.
+     */
+    const sumMonth = (
+      category: string,
+      keywords: string[],
+      year: number,
+      month: number,
+      excludes: string[] = [],
+      source?: string | null,
+    ) =>
+      metrics
+        .filter((m) => {
+          if (m.category !== category) return false;
+          if (source !== undefined && m.source !== source) return false;
+          if (!inMonth(m.period, year, month)) return false;
+          const n = norm(m.name);
+          if (excludes.some((e) => n.includes(e))) return false;
+          return keywords.some((k) => n.includes(k));
+        })
+        .reduce((s, m) => s + m.value, 0);
+
+    /** Latest single value matching keywords (for snapshots like pipeline/headcount). */
+    const latestMatch = (category: string, keywords: string[], excludes: string[] = []) =>
+      metrics.find((m) => {
+        if (m.category !== category) return false;
+        const n = norm(m.name);
+        if (excludes.some((e) => n.includes(e))) return false;
+        return keywords.some((k) => n.includes(k));
+      })?.value ?? 0;
+
+    const pctChange = (curr: number, before: number) =>
+      before !== 0 ? parseFloat((((curr - before) / before) * 100).toFixed(1)) : 0;
+
+    const flow = (category: string, keywords: string[], excludes: string[] = [], source?: string | null) => {
+      const curr = sumMonth(category, keywords, currentYear, currentMonth, excludes, source);
+      const before = sumMonth(category, keywords, prev.getFullYear(), prev.getMonth(), excludes, source);
+      return { value: curr, change: pctChange(curr, before) };
     };
 
-    // ── Finanzas Fiscales SAT ──────────────────────────────
+    // ── Finanzas Fiscales (SAT) ───────────────────────────
     const satCredential = await db.satCredential.findUnique({ where: { organizationId: orgId } });
     const satConnected = !!satCredential;
 
-    // SAT metrics use source="SAT"
-    const satMetrics = metrics.filter((m) => m.source === "SAT");
-    const satLatest = (name: string) => satMetrics.find((m) => m.name === name);
-    const satPrev = (name: string) => satMetrics.filter((m) => m.name === name)[1];
+    // When SAT is connected we trust SAT-sourced metrics; otherwise we sum
+    // whatever the user entered manually in FINANCE.
+    const ingresoKw = ["ingreso", "venta", "facturado", "facturacion", "cobrado"];
+    const egresoKw = ["egreso", "gasto", "compra", "costo", "pago"];
 
-    const satCalc = (name: string) => {
-      const curr = satLatest(name);
-      const prev = satPrev(name);
-      const value = curr?.value ?? 0;
-      const change = prev && prev.value !== 0 ? ((value - prev.value) / prev.value) * 100 : 0;
-      return { value, change: parseFloat(change.toFixed(1)) };
-    };
-
-    // Fall back to generic metrics when SAT not connected yet
-    const satIngresos = satConnected ? satCalc("Ingresos SAT") : calc("Ingresos");
-    const satEgresos = satConnected ? satCalc("Egresos SAT") : calc("Gastos");
+    const satIngresos = satConnected
+      ? flow("FINANCE", ["ingreso"], [], "SAT")
+      : flow("FINANCE", ingresoKw, []);
+    const satEgresos = satConnected
+      ? flow("FINANCE", ["egreso"], [], "SAT")
+      : flow("FINANCE", egresoKw, []);
     const satBalance = satIngresos.value - satEgresos.value;
-    const satIva = satConnected ? (satLatest("IVA Cobrado")?.value ?? 0) : 0;
+    const satIva = satConnected
+      ? sumMonth("FINANCE", ["iva"], currentYear, currentMonth, [], "SAT")
+      : sumMonth("FINANCE", ["iva"], currentYear, currentMonth);
 
     // ── CRM / Ventas ──────────────────────────────────────
-    const ventas = calc("Ventas");
-    const pipeline = calc("Pipeline Total");
-    const leads = calc("Nuevos Leads");
-    const deals = latest("Deals Cerrados")?.value ?? 0;
-    const leadsVal = leads.value;
-    const conversion = leadsVal > 0 ? parseFloat(((deals / leadsVal) * 100).toFixed(1)) : 0;
-
-    const prevLeads = previous("Nuevos Leads")?.value ?? 0;
-    const prevDeals = previous("Deals Cerrados")?.value ?? 0;
+    const ventas = flow("SALES", ["venta", "vendido", "facturado", "ingreso"], ["pipeline", "lead", "prospecto"]);
+    const leads = flow("SALES", ["lead", "prospecto", "contacto"], ["pipeline"]);
+    const dealsCurr = sumMonth("SALES", ["deal", "cerrado", "cierre", "ganado"], currentYear, currentMonth, ["pipeline"]);
+    const pipeline = {
+      value: latestMatch("SALES", ["pipeline", "embudo", "oportunidad"]),
+      change: 0,
+    };
+    const conversion = leads.value > 0 ? parseFloat(((dealsCurr / leads.value) * 100).toFixed(1)) : 0;
+    const prevLeads = sumMonth("SALES", ["lead", "prospecto", "contacto"], prev.getFullYear(), prev.getMonth(), ["pipeline"]);
+    const prevDeals = sumMonth("SALES", ["deal", "cerrado", "cierre", "ganado"], prev.getFullYear(), prev.getMonth(), ["pipeline"]);
     const prevConversion = prevLeads > 0 ? (prevDeals / prevLeads) * 100 : 0;
-    const conversionChange = prevConversion > 0 ? parseFloat(((conversion - prevConversion) / prevConversion * 100).toFixed(1)) : 0;
+    const conversionChange = pctChange(conversion, prevConversion);
 
     // ── RRHH ──────────────────────────────────────────────
-    const headcount = calc("Headcount");
-    const nomina = calc("Costo Nómina");
+    const headcount = latestMatch("HR", ["headcount", "empleado", "colaborador", "equipo", "personal", "plantilla"]);
+    const prevHeadcount = (() => {
+      const m = metrics.find((x) => x.category === "HR" && inMonth(x.period, prev.getFullYear(), prev.getMonth()) &&
+        ["headcount", "empleado", "colaborador", "equipo", "personal", "plantilla"].some((k) => norm(x.name).includes(k)));
+      return m?.value ?? 0;
+    })();
+    const nomina = latestMatch("HR", ["nomina", "sueldo", "salario", "pago de personal"]);
 
     // ── Calculated KPIs ───────────────────────────────────
-    const ytdRevenue = allValues("Ingresos SAT").concat(allValues("Ingresos"))
-      .filter((m) => m.period.getFullYear() === currentYear)
-      .reduce((sum, m) => sum + m.value, 0);
+    const sumYear = (category: string, keywords: string[], excludes: string[] = [], source?: string | null) =>
+      metrics
+        .filter((m) => {
+          if (m.category !== category) return false;
+          if (source !== undefined && m.source !== source) return false;
+          if (m.period.getFullYear() !== currentYear) return false;
+          const n = norm(m.name);
+          if (excludes.some((e) => n.includes(e))) return false;
+          return keywords.some((k) => n.includes(k));
+        })
+        .reduce((s, m) => s + m.value, 0);
 
-    const ytdGastos = allValues("Egresos SAT").concat(allValues("Gastos"))
-      .filter((m) => m.period.getFullYear() === currentYear)
-      .reduce((sum, m) => sum + m.value, 0);
+    const ytdRevenue = satConnected ? sumYear("FINANCE", ["ingreso"], [], "SAT") : sumYear("FINANCE", ingresoKw);
+    const ytdGastos = satConnected ? sumYear("FINANCE", ["egreso"], [], "SAT") : sumYear("FINANCE", egresoKw);
 
-    const annualProjection = currentMonth > 0 ? (ytdRevenue / (currentMonth + 1)) * 12 : ytdRevenue * 12;
-    const revenuePerEmployee = headcount.value > 0 ? satIngresos.value / headcount.value : 0;
+    const annualProjection = currentMonth >= 0 ? (ytdRevenue / (currentMonth + 1)) * 12 : ytdRevenue;
+    const revenuePerEmployee = headcount > 0 ? satIngresos.value / headcount : 0;
     const utilidad = satIngresos.value - satEgresos.value;
     const margen = satIngresos.value > 0 ? (utilidad / satIngresos.value) * 100 : 0;
 
-    // ── Monthly history ───────────────────────────────────
+    // ── Monthly history (6 months) ────────────────────────
     const monthlyHistory: { month: string; ingresos: number; gastos: number }[] = [];
     for (let i = 5; i >= 0; i--) {
       const m = new Date(currentYear, currentMonth - i, 1);
       const monthName = m.toLocaleDateString("es-MX", { month: "short" });
-
-      const ingSat = satMetrics.find((v) => v.name === "Ingresos SAT" && v.period.getMonth() === m.getMonth() && v.period.getFullYear() === m.getFullYear())?.value ?? 0;
-      const ingManual = allValues("Ingresos").find((v) => v.period.getMonth() === m.getMonth() && v.period.getFullYear() === m.getFullYear())?.value ?? 0;
-      const ing = ingSat || ingManual;
-
-      const gstSat = satMetrics.find((v) => v.name === "Egresos SAT" && v.period.getMonth() === m.getMonth() && v.period.getFullYear() === m.getFullYear())?.value ?? 0;
-      const gstManual = allValues("Gastos").find((v) => v.period.getMonth() === m.getMonth() && v.period.getFullYear() === m.getFullYear())?.value ?? 0;
-      const gst = gstSat || gstManual;
-
-      monthlyHistory.push({ month: monthName, ingresos: ing, gastos: gst });
+      const ing = satConnected
+        ? sumMonth("FINANCE", ["ingreso"], m.getFullYear(), m.getMonth(), [], "SAT")
+        : sumMonth("FINANCE", ingresoKw, m.getFullYear(), m.getMonth());
+      const gas = satConnected
+        ? sumMonth("FINANCE", ["egreso"], m.getFullYear(), m.getMonth(), [], "SAT")
+        : sumMonth("FINANCE", egresoKw, m.getFullYear(), m.getMonth());
+      monthlyHistory.push({ month: monthName, ingresos: ing, gastos: gas });
     }
 
     // ── Goals ─────────────────────────────────────────────
@@ -105,12 +149,10 @@ export async function GET(req: NextRequest) {
       orderBy: { period: "desc" },
     });
     const uniqueGoals = new Map<string, typeof goalMetrics[0]>();
-    for (const g of goalMetrics) {
-      if (!uniqueGoals.has(g.name)) uniqueGoals.set(g.name, g);
-    }
+    for (const g of goalMetrics) if (!uniqueGoals.has(g.name)) uniqueGoals.set(g.name, g);
     const goalList = Array.from(uniqueGoals.values()).map((g) => {
       const metricName = g.name.replace("META_", "");
-      const currentMetric = latest(metricName);
+      const currentMetric = metrics.find((m) => m.name === metricName);
       return {
         name: metricName,
         current: currentMetric?.value ?? 0,
@@ -158,9 +200,9 @@ export async function GET(req: NextRequest) {
       conversion,
       conversionChange,
       // HR
-      employees: headcount.value,
-      employeesChange: headcount.change,
-      nomina: nomina.value,
+      employees: headcount,
+      employeesChange: pctChange(headcount, prevHeadcount),
+      nomina,
       hasData: metrics.length > 0,
       calculated: {
         ytdRevenue,

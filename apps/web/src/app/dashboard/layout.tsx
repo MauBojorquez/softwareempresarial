@@ -6,6 +6,7 @@ import { Header } from "@/components/layout/header";
 import { Breadcrumb } from "@/components/dashboard/breadcrumb";
 import { ShortcutsHelp } from "@/components/dashboard/shortcuts-help";
 import { ThemeProvider } from "@/components/theme-provider";
+import { BrandProvider } from "@/components/brand-provider";
 import { ToastProvider } from "@/components/toast";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 
@@ -30,6 +31,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <ThemeProvider>
+      <BrandProvider>
       <ToastProvider>
       <ShortcutsHelp />
       <div className="relative flex h-screen bg-background">
@@ -45,6 +47,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </div>
       </ToastProvider>
+      </BrandProvider>
     </ThemeProvider>
   );
 }

@@ -28,6 +28,9 @@
     --radius: 0.625rem;
     --gradient-start: 220 65% 38%;
     --gradient-end: 220 50% 28%;
+    --brand-h: 220;
+    --brand-s: 65%;
+    --brand-l: 38%;
   }
 
   .dark {
@@ -123,7 +126,7 @@
   }
 
   .gradient-bg {
-    background: linear-gradient(135deg, hsl(220, 65%, 38%), hsl(220, 50%, 28%));
+    background: linear-gradient(135deg, hsl(var(--gradient-start)), hsl(var(--gradient-end)));
   }
 
   .gradient-bg-hover:hover {
@@ -150,6 +153,26 @@ button {
   transform: translateY(-3px);
   box-shadow: 0 12px 32px -8px rgba(139, 92, 246, 0.22);
   border-color: rgba(139, 92, 246, 0.4);
+}
+
+/* ── Brand color overrides (applied when an org brand color is set) ── */
+/* Hover glow on cards picks up the company's brand color. */
+.has-brand .card-hover:hover {
+  box-shadow: 0 12px 32px -8px hsl(var(--brand-h) var(--brand-s) var(--brand-l) / 0.32);
+  border-color: hsl(var(--brand-h) var(--brand-s) var(--brand-l) / 0.45);
+}
+/* Buttons get a soft brand-colored shadow on hover. */
+.has-brand button:not(:disabled):hover {
+  box-shadow: 0 4px 14px -4px hsl(var(--brand-h) var(--brand-s) var(--brand-l) / 0.45);
+}
+/* Welcome / hero banners take the brand color instead of the default aurora. */
+.has-brand .aurora {
+  background: linear-gradient(120deg,
+    hsl(var(--brand-h) var(--brand-s) 58%),
+    hsl(var(--brand-h) var(--brand-s) 46%),
+    hsl(calc(var(--brand-h) + 18) var(--brand-s) 56%),
+    hsl(var(--brand-h) var(--brand-s) 42%));
+  background-size: 300% 300%;
 }
 
 /* ── Keyframe animations ─────────────────────────────────────── */
