@@ -24,8 +24,16 @@ export async function POST(req: NextRequest) {
   if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
   if (!VALID_CATEGORIES.includes(category)) return NextResponse.json({ error: "Invalid category" }, { status: 400 });
 
+  const MAX_SIZE = 2 * 1024 * 1024; // 2 MB
+  if (file.size > MAX_SIZE) return NextResponse.json({ error: "El archivo no puede superar 2 MB" }, { status: 400 });
+
   const text = await file.text();
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+
+  const MAX_ROWS = 5000;
+  if (lines.length - 1 > MAX_ROWS) {
+    return NextResponse.json({ error: `El archivo no puede tener más de ${MAX_ROWS} filas` }, { status: 400 });
+  }
 
   if (lines.length < 2) return NextResponse.json({ error: "File must have header + at least one row" }, { status: 400 });
 

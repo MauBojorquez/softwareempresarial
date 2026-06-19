@@ -6,18 +6,15 @@ import { Plus, Trash2, X, Download, Upload, Search, RefreshCw, LinkIcon, Pencil 
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { DashboardSkeleton } from "@/components/dashboard/skeleton";
 import { ConfirmDialog } from "@/components/confirm-dialog";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import { useToast } from "@/components/toast";
 import { addActivityLog } from "@/components/dashboard/activity-log";
 
 export type MetricTemplate = { name: string; unit: string };
 type MetricEntry = { id: string; name: string; value: number; unit: string | null; period: string };
 
-const fmtMoney = (v: number) =>
-  new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 }).format(v);
-
 const fmtValue = (v: number, unit: string | null) =>
-  unit === "MXN" ? fmtMoney(v) : `${v.toLocaleString("es-MX")} ${unit || ""}`;
+  unit === "MXN" ? formatCurrency(v) : `${v.toLocaleString("es-MX")} ${unit || ""}`;
 
 export interface MetricsDashboardProps {
   title: string;

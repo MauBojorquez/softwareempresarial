@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AlertTriangle, TrendingUp, TrendingDown, Minus, Sparkles, ArrowUpRight, ArrowDownRight, Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 
 type Anomaly = {
   metric: string;
@@ -22,7 +22,6 @@ type ForecastSeries = {
   forecast: { month: string; value: number; projected: boolean }[];
 };
 
-const fmtMoney = (v: number) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 }).format(v);
 
 const sevStyle: Record<string, string> = {
   critical: "border-l-red-500 bg-red-500/5",
@@ -121,7 +120,7 @@ export function InsightsWidget() {
                     <span className="text-sm truncate">{f.metric}</span>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-semibold tabular-nums">{fmtMoney(f.nextValue)}</p>
+                    <p className="text-sm font-semibold tabular-nums">{formatCurrency(f.nextValue)}</p>
                     <p className={cn("text-[11px]", f.nextChangePct >= 0 ? "text-emerald-600" : "text-red-600")}>
                       {f.nextChangePct > 0 ? "+" : ""}{f.nextChangePct}% vs mes actual
                     </p>

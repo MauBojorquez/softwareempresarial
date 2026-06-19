@@ -1,14 +1,12 @@
 "use client";
 
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import { Trophy, Target, Trash2, Flame, Clock } from "lucide-react";
 
-const fmtMoney = (v: number) =>
-  new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 }).format(v);
 const fmtNum = (v: number) => new Intl.NumberFormat("es-MX").format(Math.round(v));
 
 export function fmtGoalValue(v: number, unit: string) {
-  if (unit === "MXN") return fmtMoney(v);
+  if (unit === "MXN") return formatCurrency(v);
   if (unit === "%") return `${v}%`;
   if (unit === "pts") return `${fmtNum(v)} pts`;
   return fmtNum(v);
