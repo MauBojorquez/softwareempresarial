@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Megaphone, MousePointerClick, DollarSign, Eye, Target, BarChart3, Loader2, LinkIcon, TrendingUp, Calendar, Download, X, AlertTriangle, RefreshCw } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/metric-card";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 
 export default function MarketingPage() {
   const [campaigns, setCampaigns] = useState<any>(null);
@@ -68,7 +68,7 @@ export default function MarketingPage() {
 
   const n = (v: any) => (typeof v === "number" ? v : Number(v) || 0);
   const fmt = (v: any) => new Intl.NumberFormat("es-MX").format(Math.round(n(v)));
-  const fmtMoney = (v: any) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 }).format(n(v));
+  const fmtMoney = (v: any) => formatCurrency(n(v));
 
   const campaignList = campaigns?.campaigns || [];
   const monthlyData = campaigns?.monthly || [];

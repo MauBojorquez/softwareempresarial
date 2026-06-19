@@ -26,20 +26,3 @@ export async function logActivity(opts: {
     // Never block on logging failures.
   }
 }
-
-/** Human-readable label for an action code (used by the team dashboard). */
-export function activityLabel(action: string): string {
-  const map: Record<string, string> = {
-    login: "Inició sesión",
-    "page.view": "Visitó una sección",
-    "metric.create": "Agregó una métrica",
-    "metric.update": "Editó una métrica",
-    "metric.delete": "Eliminó una métrica",
-    "report.generate": "Generó un reporte IA",
-    "goal.create": "Creó una meta",
-    "integration.connect": "Conectó una integración",
-    "integration.disconnect": "Desconectó una integración",
-    "invite.send": "Envió una invitación",
-  };
-  return map[action] ?? action;
-}

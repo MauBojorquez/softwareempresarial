@@ -93,7 +93,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
             {orgData?.logo ? (
               <img
                 src={orgData.logo}
-                alt="Logo"
+                alt={orgData.name || "Logo"}
                 className="h-8 w-8 rounded-lg object-contain border border-border bg-white p-0.5"
               />
             ) : (

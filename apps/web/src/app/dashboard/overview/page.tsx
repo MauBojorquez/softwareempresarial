@@ -10,7 +10,7 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { GoalProgress } from "@/components/dashboard/goal-progress";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import { Onboarding } from "@/components/dashboard/onboarding";
 import { ActivityLog } from "@/components/dashboard/activity-log";
 import { InsightsWidget } from "@/components/dashboard/insights-widget";
@@ -40,7 +40,7 @@ type DashboardData = {
 
 type OrgItem = { id: string; name: string; logo?: string | null; isActive: boolean };
 
-const fmtMoney = (v: number) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 }).format(v);
+const fmtMoney = formatCurrency;
 const fmt = (v: number) => new Intl.NumberFormat("es-MX").format(Math.round(v));
 
 const WIDGET_CATALOG: Array<{ id: string; label: string }> = [

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/server/db";
 import { logActivity } from "@/lib/activity";
+import { getOrganizationId } from "@/lib/get-org";
 
 // POST /api/team/track — records a page view for usage analytics.
 // Deduped: at most one "page.view" per user+path every 10 minutes so the
@@ -20,18 +21,18 @@ export async function POST(req: NextRequest) {
   }
   if (!path.startsWith("/dashboard")) return NextResponse.json({ ok: true });
 
-  const membership = await db.membership.findFirst({ where: { userId: session.user.id } });
-  if (!membership) return NextResponse.json({ ok: false }, { status: 404 });
-
   const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000);
   const recent = await db.activityLog.findFirst({
     where: { userId: session.user.id, action: "page.view", path, createdAt: { gte: tenMinAgo } },
   });
   if (recent) return NextResponse.json({ ok: true, deduped: true });
 
+  const orgId = await getOrganizationId(req);
+  if (!orgId) return NextResponse.json({ ok: false }, { status: 404 });
+
   await logActivity({
     userId: session.user.id,
-    organizationId: membership.organizationId,
+    organizationId: orgId,
     action: "page.view",
     path,
   });

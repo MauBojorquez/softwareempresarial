@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { AuthProvider } from "@/lib/auth-provider";
 import "./globals.css";
@@ -35,10 +35,6 @@ export const metadata: Metadata = {
     { rel: "icon", url: "/favicon.svg", type: "image/svg+xml" },
     { rel: "apple-touch-icon", url: "/favicon.svg" },
   ],
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f5f6f8" },
-    { media: "(prefers-color-scheme: dark)", color: "#171a1f" },
-  ],
   openGraph: {
     title: "MetrixPro — Dashboard Empresarial con IA",
     description:
@@ -52,6 +48,13 @@ export const metadata: Metadata = {
     title: "MetrixPro — Dashboard Empresarial con IA",
     description: "Centraliza las métricas de tu empresa. Finanzas, ventas, operaciones, RH y marketing en un solo lugar.",
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f5f6f8" },
+    { media: "(prefers-color-scheme: dark)", color: "#171a1f" },
+  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

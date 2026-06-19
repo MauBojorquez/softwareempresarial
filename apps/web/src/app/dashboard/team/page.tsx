@@ -66,7 +66,7 @@ function initials(name: string | null, email: string) {
 
 function Avatar({ user, size = 9 }: { user: { name: string | null; email: string; avatar: string | null }; size?: number }) {
   if (user.avatar) {
-    return <img src={user.avatar} alt="" className={`h-${size} w-${size} rounded-full object-cover border border-border`} style={{ height: size * 4, width: size * 4 }} />;
+    return <img src={user.avatar} alt="" className="rounded-full object-cover border border-border flex-shrink-0" style={{ height: size * 4, width: size * 4 }} />;
   }
   return (
     <div className="rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0" style={{ height: size * 4, width: size * 4 }}>

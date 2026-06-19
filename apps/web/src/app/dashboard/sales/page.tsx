@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { TrendingUp, Target, Users, UserPlus, RefreshCw, Loader2, Link as LinkIcon, Download, Upload, Plus, X, Trash2, Search, Pencil } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { DashboardSkeleton } from "@/components/dashboard/skeleton";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import { useToast } from "@/components/toast";
 import { addActivityLog } from "@/components/dashboard/activity-log";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -34,8 +34,7 @@ const METRIC_TEMPLATES = [
   { name: "Ticket Promedio", unit: "MXN" },
 ];
 
-const fmtMoney = (v: number) =>
-  new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 }).format(v);
+const fmtMoney = formatCurrency;
 
 function timeAgo(iso: string) {
   const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
@@ -53,6 +52,7 @@ export default function SalesPage() {
   // Manual metrics state
   const [metrics, setMetrics] = useState<MetricEntry[]>([]);
   const [manualLoading, setManualLoading] = useState(false);
+  const [manualError, setManualError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -78,10 +78,11 @@ export default function SalesPage() {
 
   const loadManual = useCallback(() => {
     setManualLoading(true);
+    setManualError(null);
     fetch("/api/metrics/manual?category=SALES&months=3")
-      .then((r) => r.json())
+      .then((r) => { if (!r.ok) throw new Error("Error al cargar las métricas"); return r.json(); })
       .then((d) => { setMetrics(d.metrics || []); setManualLoading(false); })
-      .catch(() => setManualLoading(false));
+      .catch((e) => { setManualError(e.message || "Error al cargar las métricas"); setManualLoading(false); });
   }, []);
 
   useEffect(() => { loadHubSpot(); loadManual(); }, [loadHubSpot, loadManual]);
@@ -427,6 +428,16 @@ export default function SalesPage() {
         </>
       )}
 
+      {/* Manual metrics error */}
+      {manualError && !manualLoading && (
+        <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-4 flex items-center justify-between gap-3">
+          <p className="text-sm text-red-600">{manualError}</p>
+          <button onClick={loadManual} className="flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-secondary">
+            <RefreshCw className="h-3.5 w-3.5" /> Reintentar
+          </button>
+        </div>
+      )}
+
       {/* Manual metrics table */}
       {metrics.length > 0 && (
         <div className="rounded-xl border border-border bg-card">
@@ -461,20 +472,20 @@ export default function SalesPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                    <th className="p-3 w-8">
-                      <input type="checkbox" checked={selected.size === metrics.length && metrics.length > 0} onChange={(e) => { if (e.target.checked) setSelected(new Set(metrics.map((m) => m.id))); else setSelected(new Set()); }} className="rounded border-border" />
+                    <th scope="col" className="p-3 w-8">
+                      <input type="checkbox" aria-label="Seleccionar todos" checked={selected.size === metrics.length && metrics.length > 0} onChange={(e) => { if (e.target.checked) setSelected(new Set(metrics.map((m) => m.id))); else setSelected(new Set()); }} className="rounded border-border" />
                     </th>
-                    <th className="p-3 font-medium">Concepto</th>
-                    <th className="p-3 font-medium text-right">Valor</th>
-                    <th className="p-3 font-medium">Fecha</th>
-                    <th className="p-3 font-medium w-20"></th>
+                    <th scope="col" className="p-3 font-medium">Concepto</th>
+                    <th scope="col" className="p-3 font-medium text-right">Valor</th>
+                    <th scope="col" className="p-3 font-medium">Fecha</th>
+                    <th scope="col" className="p-3 font-medium w-20"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {metrics.filter((m) => !search || m.name.toLowerCase().includes(search.toLowerCase())).map((m) => (
                     <tr key={m.id} className="border-b border-border last:border-0 hover:bg-secondary/30">
                       <td className="p-3">
-                        <input type="checkbox" checked={selected.has(m.id)} onChange={(e) => { const n = new Set(selected); if (e.target.checked) n.add(m.id); else n.delete(m.id); setSelected(n); }} className="rounded border-border" />
+                        <input type="checkbox" aria-label={`Seleccionar ${m.name}`} checked={selected.has(m.id)} onChange={(e) => { const n = new Set(selected); if (e.target.checked) n.add(m.id); else n.delete(m.id); setSelected(n); }} className="rounded border-border" />
                       </td>
                       <td className="p-3 font-medium">{m.name}</td>
                       <td className="p-3 text-right font-semibold">

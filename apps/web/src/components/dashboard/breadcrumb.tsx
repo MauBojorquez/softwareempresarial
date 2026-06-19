@@ -6,14 +6,18 @@ import { ChevronRight, Home } from "lucide-react";
 const LABELS: Record<string, string> = {
   dashboard: "Dashboard",
   overview: "Resumen",
+  goals: "Metas",
   finance: "Finanzas",
   sales: "Ventas",
   operations: "Operaciones",
   hr: "RH",
   marketing: "Marketing",
   reports: "Reportes",
+  "ai-chat": "Reportes IA",
+  team: "Equipo",
   billing: "Suscripción",
   integrations: "Integraciones",
+  sat: "SAT",
   settings: "Configuración",
 };
 
