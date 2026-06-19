@@ -9,21 +9,22 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { ToastProvider } from "@/components/toast";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 
+const AUTO_SYNC_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   useKeyboardShortcuts();
 
   useEffect(() => {
-    const lastSync = localStorage.getItem("metrixpro-last-autosync");
-    const now = Date.now();
-    const thirtyMinutes = 30 * 60 * 1000;
-    if (!lastSync || now - parseInt(lastSync, 10) > thirtyMinutes) {
+    const last = parseInt(localStorage.getItem("metrixpro-last-autosync") ?? "0", 10);
+    if (Date.now() - last > AUTO_SYNC_INTERVAL_MS) {
+      // Fire-and-forget: sync all connected integrations in the background
       fetch("/api/integrations/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: "ALL" }),
-      });
-      localStorage.setItem("metrixpro-last-autosync", now.toString());
+      }).catch(() => {});
+      localStorage.setItem("metrixpro-last-autosync", Date.now().toString());
     }
   }, []);
 

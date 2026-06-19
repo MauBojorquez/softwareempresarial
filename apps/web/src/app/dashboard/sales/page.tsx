@@ -1,260 +1,424 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { RefreshCw, Users, UserPlus, TrendingUp, Target } from "lucide-react";
+import { TrendingUp, Target, Users, UserPlus, RefreshCw, Loader2, Link as LinkIcon, Download, Upload, Plus, X, Trash2, Search } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/metric-card";
-import Link from "next/link";
+import { DashboardSkeleton } from "@/components/dashboard/skeleton";
+import { cn } from "@/lib/utils";
+import { useToast } from "@/components/toast";
+import { addActivityLog } from "@/components/dashboard/activity-log";
 
-interface ContactStage {
-  stage: string;
-  label: string;
-  count: number;
-}
-
-interface PipelineStage {
-  stageId: string;
-  label: string;
-  count: number;
-  amount: number;
-}
-
-interface HubSpotData {
+type Stage = { stage: string; label: string; count: number };
+type PipelineStage = { stageId: string; label: string; count: number; amount: number };
+type HubSpotData = {
   connected: boolean;
   error?: string;
-  contacts?: {
-    total: number;
-    newThisMonth: number;
-    byStage: ContactStage[];
-  };
+  contacts?: { total: number; newThisMonth: number; byStage: Stage[] };
   pipeline?: {
     stages: PipelineStage[];
+    total: number;
     closedWon: { count: number; amount: number };
     closedLost: { count: number };
   };
   lastSyncAt?: string;
-}
+};
 
-interface ManualMetric {
-  id: string;
-  name: string;
-  value: number;
-  category: string;
-  period: string;
-}
+type MetricEntry = { id: string; name: string; value: number; unit: string | null; period: string };
 
-function formatMXN(amount: number): string {
-  return new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 }).format(amount);
-}
+const METRIC_TEMPLATES = [
+  { name: "Ventas del Mes", unit: "MXN" },
+  { name: "Deals Cerrados", unit: "unidades" },
+  { name: "Nuevos Leads", unit: "unidades" },
+  { name: "Pipeline Total", unit: "MXN" },
+  { name: "Ticket Promedio", unit: "MXN" },
+];
 
-function timeAgo(isoString: string): string {
-  const diff = Math.floor((Date.now() - new Date(isoString).getTime()) / 1000 / 60);
-  if (diff < 1) return "justo ahora";
-  if (diff === 1) return "hace 1 min";
-  return `hace ${diff} min`;
+const fmtMoney = (v: number) =>
+  new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 }).format(v);
+
+function timeAgo(iso: string) {
+  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (diff < 1) return "Justo ahora";
+  if (diff < 60) return `Hace ${diff} min`;
+  return `Hace ${Math.floor(diff / 60)}h`;
 }
 
 export default function SalesPage() {
-  const [data, setData] = useState<HubSpotData | null>(null);
-  const [manualMetrics, setManualMetrics] = useState<ManualMetric[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedStage, setSelectedStage] = useState<string>("Todos");
+  const { toast } = useToast();
+  const [hs, setHs] = useState<HubSpotData | null>(null);
+  const [hsLoading, setHsLoading] = useState(true);
+  const [selectedStage, setSelectedStage] = useState<string>("all");
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/metrics/sales/hubspot");
-      const json: HubSpotData = await res.json();
-      setData(json);
-      if (!json.connected) {
-        const manualRes = await fetch("/api/metrics/manual?category=SALES&months=3");
-        const manualJson = await manualRes.json();
-        setManualMetrics(manualJson.metrics ?? []);
-      }
-    } catch {
-      setData({ connected: false });
-    } finally {
-      setLoading(false);
-    }
+  // Manual metrics state
+  const [metrics, setMetrics] = useState<MetricEntry[]>([]);
+  const [manualLoading, setManualLoading] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [search, setSearch] = useState("");
+  const [form, setForm] = useState({ name: "Ventas del Mes", value: "", period: new Date().toISOString().split("T")[0] });
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  const loadHubSpot = useCallback(() => {
+    setHsLoading(true);
+    fetch("/api/metrics/sales/hubspot")
+      .then((r) => r.json())
+      .then((d) => { setHs(d); setHsLoading(false); })
+      .catch(() => { setHs({ connected: false }); setHsLoading(false); });
   }, []);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  const loadManual = useCallback(() => {
+    setManualLoading(true);
+    fetch("/api/metrics/manual?category=SALES&months=3")
+      .then((r) => r.json())
+      .then((d) => { setMetrics(d.metrics || []); setManualLoading(false); })
+      .catch(() => setManualLoading(false));
+  }, []);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-64">
-        <RefreshCw className="w-6 h-6 animate-spin text-gray-400" />
-      </div>
-    );
-  }
+  useEffect(() => { loadHubSpot(); loadManual(); }, [loadHubSpot, loadManual]);
 
-  if (!data?.connected) {
-    return (
-      <div className="space-y-6 p-6">
-        <div className="bg-card rounded-2xl shadow-sm border border-border p-8 text-center">
-          <TrendingUp className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-          <h2 className="text-xl font-semibold mb-2">Conecta HubSpot</h2>
-          <p className="text-muted-foreground mb-4">Conecta HubSpot para ver tu pipeline de ventas en tiempo real</p>
-          <Link
-            href="/dashboard/integrations"
-            className="inline-block gradient-bg text-white px-6 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity"
-          >
-            Ir a Integraciones
-          </Link>
-        </div>
-        {manualMetrics.length > 0 && (
-          <div className="bg-card rounded-2xl shadow-sm border border-border p-6">
-            <h3 className="font-semibold mb-4">Métricas Manuales</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {manualMetrics.map((m) => (
-                <div key={m.id} className="p-4 bg-secondary/50 rounded-xl">
-                  <p className="text-sm text-muted-foreground capitalize">{m.name.replace(/_/g, " ")}</p>
-                  <p className="text-2xl font-bold">{m.value}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("category", "SALES");
+    const res = await fetch("/api/metrics/import", { method: "POST", body: fd });
+    const data = await res.json();
+    if (data.errors?.length > 0) {
+      toast(`Importados: ${data.imported}/${data.total}. ${data.errors.length} errores.`, "error");
+    } else {
+      toast(`${data.imported} registros importados correctamente`, "success");
+      addActivityLog("CSV importado", `${data.imported} registros en Ventas`, "import");
+    }
+    setImporting(false);
+    loadManual();
+    e.target.value = "";
+  };
 
-  const { contacts, pipeline, lastSyncAt } = data;
-  const pipelineValue = pipeline?.stages.reduce((sum, s) => sum + s.amount, 0) ?? 0;
-  const maxDealCount = Math.max(...(pipeline?.stages.map((s) => s.count) ?? [1]), 1);
+  const handleSave = async () => {
+    if (!form.value) return;
+    setSaving(true);
+    const template = METRIC_TEMPLATES.find((t) => t.name === form.name);
+    await fetch("/api/metrics/manual", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ category: "SALES", name: form.name, value: parseFloat(form.value), unit: template?.unit || "MXN", period: form.period }),
+    });
+    addActivityLog("Métrica registrada", `${form.name}: ${form.value} en Ventas`, "add");
+    setShowForm(false);
+    setForm({ name: "Ventas del Mes", value: "", period: new Date().toISOString().split("T")[0] });
+    setSaving(false);
+    loadManual();
+  };
 
-  const selectedCount =
-    selectedStage === "Todos"
-      ? (contacts?.total ?? 0)
-      : (contacts?.byStage.find((s) => s.label === selectedStage)?.count ?? 0);
+  const handleDelete = async (id: string) => {
+    if (!confirm("¿Eliminar este registro?")) return;
+    await fetch(`/api/metrics/manual?id=${id}`, { method: "DELETE" });
+    addActivityLog("Registro eliminado", "Ventas", "delete");
+    toast("Registro eliminado", "success");
+    loadManual();
+  };
+
+  if (hsLoading) return <DashboardSkeleton />;
+
+  const hubspotConnected = hs?.connected && !hs?.error && hs?.contacts;
+
+  const stageCount = selectedStage === "all"
+    ? (hs?.contacts?.total ?? 0)
+    : (hs?.contacts?.byStage?.find((s) => s.stage === selectedStage)?.count ?? 0);
+
+  const stageLabel = selectedStage === "all"
+    ? "Total contactos"
+    : (hs?.contacts?.byStage?.find((s) => s.stage === selectedStage)?.label ?? selectedStage);
+
+  const maxDeals = Math.max(1, ...(hs?.pipeline?.stages?.map((s) => s.count) ?? [1]));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Ventas</h1>
-          {lastSyncAt && (
-            <p className="text-sm text-muted-foreground mt-0.5">Última sincronización: {timeAgo(lastSyncAt)}</p>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Ventas</h1>
+          {hs?.lastSyncAt && (
+            <p className="text-xs text-muted-foreground">
+              Última sincronización: {timeAgo(hs.lastSyncAt)}
+            </p>
           )}
         </div>
-        <button
-          onClick={fetchData}
-          className="flex items-center gap-2 px-4 py-2 bg-card border border-border rounded-xl text-sm text-muted-foreground hover:bg-secondary transition-colors shadow-sm"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Actualizar
-        </button>
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard
-          title="Total Contactos"
-          value={contacts?.total ?? 0}
-          icon={Users}
-        />
-        <MetricCard
-          title="Nuevos este Mes"
-          value={contacts?.newThisMonth ?? 0}
-          icon={UserPlus}
-        />
-        <MetricCard
-          title="Pipeline Total"
-          value={pipelineValue}
-          format="currency"
-          icon={TrendingUp}
-        />
-        <MetricCard
-          title="Negocios Cerrados"
-          value={pipeline?.closedWon.count ?? 0}
-          icon={Target}
-        />
-      </div>
-
-      {/* Contactos por Etapa */}
-      <div className="bg-card rounded-2xl shadow-sm border border-border p-6">
-        <h2 className="text-lg font-semibold mb-4">Contactos por Etapa</h2>
-
-        {/* Filter chips */}
-        <div className="flex flex-wrap gap-2 mb-6">
-          {["Todos", ...(contacts?.byStage.map((s) => s.label) ?? [])].map((label) => (
+        <div className="flex items-center gap-2">
+          <a
+            href="/api/metrics/template?category=SALES"
+            className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium transition-colors hover:bg-secondary"
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Plantilla</span>
+          </a>
+          <label className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium transition-colors hover:bg-secondary cursor-pointer">
+            <Upload className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">{importing ? "Importando..." : "Importar CSV"}</span>
+            <input type="file" accept=".csv" onChange={handleImport} className="hidden" />
+          </label>
+          {hubspotConnected && (
             <button
-              key={label}
-              onClick={() => setSelectedStage(label)}
-              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
-                selectedStage === label
-                  ? "gradient-bg text-white shadow-sm"
-                  : "bg-secondary/50 text-muted-foreground hover:bg-secondary"
-              }`}
+              onClick={loadHubSpot}
+              className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium transition-colors hover:bg-secondary"
             >
-              {label}
+              <RefreshCw className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Sincronizar</span>
             </button>
-          ))}
-        </div>
-
-        {/* Big number */}
-        <div className="mb-6">
-          <span className="text-5xl font-bold">{selectedCount}</span>
-          <span className="text-muted-foreground ml-2 text-lg">
-            {selectedStage === "Todos" ? "contactos totales" : `en etapa ${selectedStage}`}
-          </span>
-        </div>
-
-        {/* Bar chart */}
-        <div className="space-y-3">
-          {contacts?.byStage.map((s) => (
-            <div key={s.stage} className="flex items-center gap-3">
-              <span className="w-28 text-sm text-muted-foreground text-right shrink-0">{s.label}</span>
-              <div className="flex-1 bg-secondary rounded-full h-3">
-                <div
-                  className="gradient-bg h-3 rounded-full transition-all"
-                  style={{ width: `${Math.round((s.count / (contacts.total || 1)) * 100)}%` }}
-                />
-              </div>
-              <span className="w-10 text-sm font-medium shrink-0">{s.count}</span>
-            </div>
-          ))}
+          )}
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-2 rounded-lg gradient-bg px-3 py-2 sm:px-4 text-sm font-medium text-white transition-opacity hover:opacity-90"
+          >
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">Agregar</span>
+          </button>
         </div>
       </div>
 
-      {/* Pipeline de Negocios */}
-      <div className="bg-card rounded-2xl shadow-sm border border-border p-6">
-        <h2 className="text-lg font-semibold mb-4">Pipeline de Negocios</h2>
+      {/* Manual form */}
+      {showForm && (
+        <div className="rounded-xl border border-primary/20 bg-card p-4 sm:p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold">Nuevo Registro</h3>
+            <button onClick={() => setShowForm(false)} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+          </div>
+          <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">Tipo</label>
+              <select value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">
+                {METRIC_TEMPLATES.map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">Valor</label>
+              <input type="number" value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} placeholder="0" className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">Período</label>
+              <input type="date" value={form.period} onChange={(e) => setForm({ ...form, period: e.target.value })} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+            </div>
+          </div>
+          <button onClick={handleSave} disabled={saving || !form.value} className="mt-4 rounded-lg gradient-bg px-6 py-2 text-sm font-medium text-white disabled:opacity-50">
+            {saving ? "Guardando..." : "Guardar"}
+          </button>
+        </div>
+      )}
 
-        <div className="space-y-3 mb-6">
-          {pipeline?.stages.map((s) => (
-            <div key={s.stageId}>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-sm font-medium">{s.label}</span>
-                <div className="text-right">
-                  <span className="text-sm font-semibold">{s.count} negocios</span>
-                  <span className="text-xs text-muted-foreground ml-2">{formatMXN(s.amount)}</span>
-                </div>
+      {/* HubSpot not connected banner */}
+      {!hubspotConnected && (
+        <div className="rounded-xl border border-border bg-card p-6 flex items-start gap-4">
+          <div className="rounded-lg bg-orange-500/10 p-3">
+            <LinkIcon className="h-5 w-5 text-orange-500" />
+          </div>
+          <div>
+            <h3 className="font-semibold">Conecta tu CRM</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Conecta HubSpot para ver tu pipeline de ventas, contactos por etapa y negocios cerrados en tiempo real.
+            </p>
+            <a href="/dashboard/integrations" className="mt-3 inline-block rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90">
+              Conectar HubSpot
+            </a>
+          </div>
+        </div>
+      )}
+
+      {/* HubSpot live data */}
+      {hubspotConnected && (
+        <>
+          {/* Summary cards */}
+          <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+            <MetricCard title="Total Contactos" value={hs.contacts!.total} icon={Users} format="number" />
+            <MetricCard title="Nuevos este Mes" value={hs.contacts!.newThisMonth} icon={UserPlus} format="number" />
+            <MetricCard title="Pipeline Total" value={hs.pipeline?.total ?? 0} icon={TrendingUp} format="currency" />
+            <MetricCard title="Negocios Ganados" value={hs.pipeline?.closedWon.count ?? 0} icon={Target} format="number" />
+          </div>
+
+          {/* Contacts by stage */}
+          <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
+            <h3 className="font-semibold mb-4">Base de Datos — Contactos por Etapa</h3>
+
+            {/* Filter chips */}
+            <div className="flex flex-wrap gap-1.5 mb-5">
+              <button
+                onClick={() => setSelectedStage("all")}
+                className={cn("rounded-full px-3 py-1 text-xs font-medium transition-colors", selectedStage === "all" ? "gradient-bg text-white" : "bg-secondary/50 text-muted-foreground hover:bg-secondary")}
+              >
+                Todos ({hs.contacts!.total})
+              </button>
+              {hs.contacts!.byStage.map((s) => (
+                <button
+                  key={s.stage}
+                  onClick={() => setSelectedStage(s.stage)}
+                  className={cn("rounded-full px-3 py-1 text-xs font-medium transition-colors", selectedStage === s.stage ? "gradient-bg text-white" : "bg-secondary/50 text-muted-foreground hover:bg-secondary")}
+                >
+                  {s.label} ({s.count})
+                </button>
+              ))}
+            </div>
+
+            {/* Selected count highlight */}
+            <div className="mb-5 flex items-end gap-2">
+              <span className="text-4xl font-bold">{stageCount.toLocaleString("es-MX")}</span>
+              <span className="mb-1 text-sm text-muted-foreground">{stageLabel}</span>
+            </div>
+
+            {/* Horizontal bars */}
+            <div className="space-y-2.5">
+              {hs.contacts!.byStage.map((s) => {
+                const pct = hs.contacts!.total > 0 ? (s.count / hs.contacts!.total) * 100 : 0;
+                return (
+                  <div key={s.stage} className="grid grid-cols-[120px_1fr_40px] items-center gap-3">
+                    <span className="text-xs text-muted-foreground truncate">{s.label}</span>
+                    <div className="h-2 rounded-full bg-secondary/50 overflow-hidden">
+                      <div className="h-full rounded-full gradient-bg" style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="text-xs font-medium text-right">{s.count}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Pipeline stages */}
+          <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
+            <h3 className="font-semibold mb-4">Pipeline de Negocios</h3>
+
+            {hs.pipeline!.stages.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Sin negocios activos en el pipeline.</p>
+            ) : (
+              <div className="space-y-3">
+                {hs.pipeline!.stages.map((s) => {
+                  const pct = Math.round((s.count / maxDeals) * 100);
+                  return (
+                    <div key={s.stageId} className="space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium">{s.label}</span>
+                        <div className="flex items-center gap-4 text-muted-foreground text-xs">
+                          <span>{s.count} negocio{s.count !== 1 ? "s" : ""}</span>
+                          <span className="font-semibold text-foreground">{fmtMoney(s.amount)}</span>
+                        </div>
+                      </div>
+                      <div className="h-2 rounded-full bg-secondary/50 overflow-hidden">
+                        <div className="h-full rounded-full gradient-bg" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              <div className="bg-secondary rounded-full h-2">
-                <div
-                  className="gradient-bg h-2 rounded-full transition-all"
-                  style={{ width: `${Math.round((s.count / maxDealCount) * 100)}%` }}
-                />
+            )}
+
+            {/* Closed won / lost */}
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-4">
+                <p className="text-xs text-emerald-600 font-medium">Negocios Ganados</p>
+                <p className="mt-1 text-2xl font-bold text-emerald-600">{hs.pipeline!.closedWon.count}</p>
+                <p className="text-xs text-emerald-600/70">{fmtMoney(hs.pipeline!.closedWon.amount)}</p>
+              </div>
+              <div className="rounded-xl bg-red-500/10 border border-red-500/20 p-4">
+                <p className="text-xs text-red-500 font-medium">Negocios Perdidos</p>
+                <p className="mt-1 text-2xl font-bold text-red-500">{hs.pipeline!.closedLost.count}</p>
+                <p className="text-xs text-red-500/70">Este período</p>
               </div>
             </div>
-          ))}
-        </div>
+          </div>
+        </>
+      )}
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl p-4 text-center">
-            <p className="text-xs text-emerald-600 font-medium uppercase tracking-wide mb-1">Ganados</p>
-            <p className="text-3xl font-bold text-emerald-700 dark:text-emerald-400">{pipeline?.closedWon.count ?? 0}</p>
-            <p className="text-sm text-emerald-500 mt-0.5">{formatMXN(pipeline?.closedWon.amount ?? 0)}</p>
+      {/* Manual metrics table */}
+      {metrics.length > 0 && (
+        <div className="rounded-xl border border-border bg-card">
+          <div className="flex items-center justify-between border-b border-border p-4">
+            <h3 className="font-semibold">Registros Manuales</h3>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar..."
+                className="w-32 sm:w-48 rounded-lg border border-border bg-background pl-8 pr-3 py-1.5 text-xs"
+              />
+            </div>
           </div>
-          <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-xl p-4 text-center">
-            <p className="text-xs text-red-600 font-medium uppercase tracking-wide mb-1">Perdidos</p>
-            <p className="text-3xl font-bold text-red-700 dark:text-red-400">{pipeline?.closedLost.count ?? 0}</p>
+          {selected.size > 0 && (
+            <div className="flex items-center justify-between border-b border-border bg-primary/5 px-4 py-2">
+              <span className="text-xs font-medium">{selected.size} seleccionado{selected.size > 1 ? "s" : ""}</span>
+              <button
+                onClick={async () => {
+                  if (!confirm(`¿Eliminar ${selected.size} registro${selected.size > 1 ? "s" : ""}?`)) return;
+                  await Promise.all(Array.from(selected).map((id) => fetch(`/api/metrics/manual?id=${id}`, { method: "DELETE" })));
+                  setSelected(new Set());
+                  loadManual();
+                }}
+                className="text-xs font-medium text-red-500 hover:text-red-600"
+              >
+                Eliminar seleccionados
+              </button>
+            </div>
+          )}
+          <div className="overflow-x-auto">
+            {manualLoading ? (
+              <div className="flex justify-center p-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                    <th className="p-3 w-8">
+                      <input type="checkbox" checked={selected.size === metrics.length && metrics.length > 0} onChange={(e) => { if (e.target.checked) setSelected(new Set(metrics.map((m) => m.id))); else setSelected(new Set()); }} className="rounded border-border" />
+                    </th>
+                    <th className="p-3 font-medium">Concepto</th>
+                    <th className="p-3 font-medium text-right">Valor</th>
+                    <th className="p-3 font-medium">Fecha</th>
+                    <th className="p-3 font-medium w-10"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {metrics.filter((m) => !search || m.name.toLowerCase().includes(search.toLowerCase())).map((m) => (
+                    <tr key={m.id} className="border-b border-border last:border-0 hover:bg-secondary/30">
+                      <td className="p-3">
+                        <input type="checkbox" checked={selected.has(m.id)} onChange={(e) => { const n = new Set(selected); if (e.target.checked) n.add(m.id); else n.delete(m.id); setSelected(n); }} className="rounded border-border" />
+                      </td>
+                      <td className="p-3 font-medium">{m.name}</td>
+                      <td className="p-3 text-right font-semibold">
+                        {m.unit === "MXN" ? fmtMoney(m.value) : m.value.toLocaleString("es-MX")}
+                      </td>
+                      <td className="p-3 text-muted-foreground">{new Date(m.period).toLocaleDateString("es-MX")}</td>
+                      <td className="p-3">
+                        <button aria-label={`Eliminar ${m.name}`} onClick={() => handleDelete(m.id)} className="text-muted-foreground hover:text-red-500">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Empty state when no HubSpot and no manual data */}
+      {!hubspotConnected && metrics.length === 0 && !manualLoading && (
+        <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card py-14">
+          <LinkIcon className="h-10 w-10 text-muted-foreground mb-4" />
+          <h3 className="text-lg font-semibold">Sin datos de ventas</h3>
+          <p className="mt-1 text-sm text-muted-foreground text-center max-w-md">
+            Conecta HubSpot desde integraciones, importa un CSV o registra tus ventas manualmente.
+          </p>
+          <div className="mt-4 flex gap-3 flex-wrap justify-center">
+            <a href="/dashboard/integrations" className="rounded-lg border border-border bg-secondary/50 px-4 py-2 text-sm font-medium hover:bg-secondary">
+              Conectar HubSpot
+            </a>
+            <button onClick={() => setShowForm(true)} className="rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90">
+              Entrada Manual
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

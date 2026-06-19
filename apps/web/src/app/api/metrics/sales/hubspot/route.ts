@@ -1,55 +1,20 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getOrganizationId } from "@/lib/get-org";
+import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { db } from "@/server/db";
 import { ensureValidToken } from "@/server/services/integrations/token-refresh";
 
-// HubSpot API types
-interface HubSpotContact {
-  id: string;
-  properties: {
-    lifecyclestage?: string;
-    createdate?: string;
-  };
+const HS = "https://api.hubapi.com";
+
+async function hsFetch(token: string, path: string) {
+  const res = await fetch(`${HS}${path}`, {
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+  });
+  if (!res.ok) throw new Error(`HubSpot ${path} → ${res.status}`);
+  return res.json();
 }
 
-interface HubSpotContactsResponse {
-  results: HubSpotContact[];
-  paging?: { next?: { after?: string } };
-}
-
-interface HubSpotDeal {
-  id: string;
-  properties: {
-    dealname?: string;
-    amount?: string;
-    dealstage?: string;
-    closedate?: string;
-    pipeline?: string;
-  };
-}
-
-interface HubSpotDealsResponse {
-  results: HubSpotDeal[];
-  paging?: { next?: { after?: string } };
-}
-
-interface HubSpotStage {
-  id: string;
-  label: string;
-  metadata?: { probability?: string; isClosed?: string };
-}
-
-interface HubSpotPipeline {
-  id: string;
-  label: string;
-  stages: HubSpotStage[];
-}
-
-interface HubSpotPipelinesResponse {
-  results: HubSpotPipeline[];
-}
-
-const LIFECYCLE_LABELS: Record<string, string> = {
+const STAGE_LABELS: Record<string, string> = {
   subscriber: "Suscriptor",
   lead: "Lead",
   marketingqualifiedlead: "MQL",
@@ -60,184 +25,135 @@ const LIFECYCLE_LABELS: Record<string, string> = {
   other: "Otro",
 };
 
-function capitalize(str: string): string {
-  return str.charAt(0).toUpperCase() + str.slice(1);
-}
-
-function getLifecycleLabel(stage: string): string {
-  return LIFECYCLE_LABELS[stage.toLowerCase()] ?? capitalize(stage);
-}
-
-async function fetchAllContacts(accessToken: string): Promise<HubSpotContact[]> {
-  const all: HubSpotContact[] = [];
+async function fetchAllPages(
+  token: string,
+  basePath: string,
+  limit = 100
+): Promise<any[]> {
+  const results: any[] = [];
   let after: string | undefined;
-  let fetched = 0;
-  while (fetched < 500) {
-    const url = new URL("https://api.hubapi.com/crm/v3/objects/contacts");
-    url.searchParams.set("limit", "100");
-    url.searchParams.set("properties", "lifecyclestage,createdate");
-    if (after) url.searchParams.set("after", after);
-    const res = await fetch(url.toString(), {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    if (!res.ok) throw new Error(`HubSpot contacts error: ${res.status}`);
-    const data: HubSpotContactsResponse = await res.json();
-    all.push(...data.results);
-    fetched += data.results.length;
+  for (let page = 0; page < 10; page++) {
+    const url = `${basePath}&limit=${limit}${after ? `&after=${after}` : ""}`;
+    const data = await hsFetch(token, url);
+    results.push(...(data.results ?? []));
     after = data.paging?.next?.after;
-    if (!after || data.results.length === 0) break;
+    if (!after) break;
   }
-  return all;
+  return results;
 }
 
-async function fetchAllDeals(accessToken: string): Promise<HubSpotDeal[]> {
-  const all: HubSpotDeal[] = [];
-  let after: string | undefined;
-  let fetched = 0;
-  while (fetched < 500) {
-    const url = new URL("https://api.hubapi.com/crm/v3/objects/deals");
-    url.searchParams.set("limit", "100");
-    url.searchParams.set("properties", "dealname,amount,dealstage,closedate,pipeline");
-    if (after) url.searchParams.set("after", after);
-    const res = await fetch(url.toString(), {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    if (!res.ok) throw new Error(`HubSpot deals error: ${res.status}`);
-    const data: HubSpotDealsResponse = await res.json();
-    all.push(...data.results);
-    fetched += data.results.length;
-    after = data.paging?.next?.after;
-    if (!after || data.results.length === 0) break;
-  }
-  return all;
-}
+export async function GET() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-async function fetchPipelines(accessToken: string): Promise<HubSpotPipeline[]> {
-  const res = await fetch("https://api.hubapi.com/crm/v3/pipelines/deals", {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (!res.ok) throw new Error(`HubSpot pipelines error: ${res.status}`);
-  const data: HubSpotPipelinesResponse = await res.json();
-  return data.results;
-}
+  const membership = await db.membership.findFirst({ where: { userId: session.user.id } });
+  if (!membership) return NextResponse.json({ error: "No org" }, { status: 404 });
 
-export async function GET(req: NextRequest) {
-  const organizationId = await getOrganizationId(req);
-  if (!organizationId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { organizationId } = membership;
 
   const integration = await db.integration.findUnique({
     where: { organizationId_type: { organizationId, type: "HUBSPOT" } },
   });
-
-  if (!integration || !integration.isActive) {
-    return NextResponse.json({ connected: false });
-  }
+  if (!integration?.isActive) return NextResponse.json({ connected: false });
 
   try {
-    const accessToken = await ensureValidToken(organizationId, "HUBSPOT");
-    if (!accessToken) throw new Error("No access token available");
+    const token = await ensureValidToken(organizationId, "HUBSPOT");
 
-    const [contacts, deals, pipelines] = await Promise.all([
-      fetchAllContacts(accessToken),
-      fetchAllDeals(accessToken),
-      fetchPipelines(accessToken),
+    const [contacts, deals, pipelinesData] = await Promise.all([
+      fetchAllPages(token, "/crm/v3/objects/contacts?properties=lifecyclestage,createdate"),
+      fetchAllPages(token, "/crm/v3/objects/deals?properties=dealname,amount,dealstage,closedate,pipeline"),
+      hsFetch(token, "/crm/v3/pipelines/deals"),
     ]);
 
-    // Process contacts
+    // Build stage id→label map from pipeline definitions
+    const stageLabel: Record<string, string> = {};
+    const closedWonStages = new Set<string>();
+    const closedLostStages = new Set<string>();
+    for (const pipe of pipelinesData.results ?? []) {
+      for (const s of pipe.stages ?? []) {
+        stageLabel[s.id] = s.label;
+        if (s.metadata?.isClosed === "true" || s.metadata?.probability === "1.0") closedWonStages.add(s.id);
+        if (s.metadata?.isClosed === "true" || s.metadata?.probability === "0.0") {
+          if (s.metadata?.probability === "0.0") closedLostStages.add(s.id);
+        }
+        // Common HubSpot default stage IDs
+        if (s.id === "closedwon") closedWonStages.add(s.id);
+        if (s.id === "closedlost") closedLostStages.add(s.id);
+      }
+    }
+
+    // Contacts by lifecycle stage
     const now = new Date();
-    const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const stageCount: Record<string, number> = {};
     let newThisMonth = 0;
-    const stageCounts: Record<string, number> = {};
-    for (const contact of contacts) {
-      const createdate = contact.properties.createdate;
-      if (createdate && new Date(createdate) >= firstOfMonth) {
-        newThisMonth++;
-      }
-      const stage = contact.properties.lifecyclestage ?? "other";
-      stageCounts[stage] = (stageCounts[stage] ?? 0) + 1;
-    }
-    const byStage = Object.entries(stageCounts).map(([stage, count]) => ({
-      stage,
-      label: getLifecycleLabel(stage),
-      count,
-    }));
 
-    // Identify closed stages from pipelines
-    const closedWonStageIds = new Set<string>();
-    const closedLostStageIds = new Set<string>();
-    const stageLabelMap: Record<string, string> = {};
-    for (const pipeline of pipelines) {
-      for (const stage of pipeline.stages) {
-        stageLabelMap[stage.id] = stage.label;
-        const prob = stage.metadata?.probability;
-        if (prob === "1.0" || stage.id.includes("closedwon") || stage.id === "closedwon") {
-          closedWonStageIds.add(stage.id);
-        }
-        if (prob === "0.0" || stage.id.includes("closedlost") || stage.id === "closedlost") {
-          closedLostStageIds.add(stage.id);
-        }
-      }
+    for (const c of contacts) {
+      const stage = c.properties?.lifecyclestage ?? "other";
+      stageCount[stage] = (stageCount[stage] ?? 0) + 1;
+      const created = new Date(c.properties?.createdate ?? 0).getTime();
+      if (created >= monthStart) newThisMonth++;
     }
 
-    // Process deals
+    const byStage = Object.entries(stageCount)
+      .sort((a, b) => b[1] - a[1])
+      .map(([stage, count]) => ({
+        stage,
+        label: STAGE_LABELS[stage] ?? stage.charAt(0).toUpperCase() + stage.slice(1),
+        count,
+      }));
+
+    // Deals by pipeline stage
     const dealsByStage: Record<string, { count: number; amount: number }> = {};
-    let closedWonCount = 0;
-    let closedWonAmount = 0;
-    let closedLostCount = 0;
+    let cwCount = 0, cwAmount = 0, clCount = 0;
 
-    for (const deal of deals) {
-      const stageId = deal.properties.dealstage ?? "unknown";
-      const amount = parseFloat(deal.properties.amount ?? "0") || 0;
-      if (closedWonStageIds.has(stageId)) {
-        closedWonCount++;
-        closedWonAmount += amount;
-      } else if (closedLostStageIds.has(stageId)) {
-        closedLostCount++;
-      } else {
-        if (!dealsByStage[stageId]) dealsByStage[stageId] = { count: 0, amount: 0 };
-        dealsByStage[stageId].count++;
-        dealsByStage[stageId].amount += amount;
-      }
+    for (const d of deals) {
+      const stage = d.properties?.dealstage ?? "unknown";
+      const amount = parseFloat(d.properties?.amount ?? "0");
+      if (closedWonStages.has(stage)) { cwCount++; cwAmount += amount; continue; }
+      if (closedLostStages.has(stage)) { clCount++; continue; }
+      if (!dealsByStage[stage]) dealsByStage[stage] = { count: 0, amount: 0 };
+      dealsByStage[stage].count++;
+      dealsByStage[stage].amount += amount;
     }
 
-    const pipelineStages = Object.entries(dealsByStage).map(([stageId, data]) => ({
-      stageId,
-      label: stageLabelMap[stageId] ?? capitalize(stageId),
-      count: data.count,
-      amount: data.amount,
-    }));
+    const stages = Object.entries(dealsByStage)
+      .sort((a, b) => b[1].amount - a[1].amount)
+      .map(([stageId, { count, amount }]) => ({
+        stageId,
+        label: stageLabel[stageId] ?? stageId,
+        count,
+        amount,
+      }));
 
-    const pipelineValue = pipelineStages.reduce((sum, s) => sum + s.amount, 0);
+    const pipelineTotal = stages.reduce((s, st) => s + st.amount, 0);
 
-    // Save metrics to DB
+    // Save summary metrics to DB
+    const period = new Date();
     await db.metric.createMany({
       data: [
-        { source: "HUBSPOT", organizationId, category: "SALES", name: "total_contacts", value: contacts.length, period: now },
-        { source: "HUBSPOT", organizationId, category: "SALES", name: "new_contacts_month", value: newThisMonth, period: now },
-        { source: "HUBSPOT", organizationId, category: "SALES", name: "pipeline_value", value: pipelineValue, period: now },
-        { source: "HUBSPOT", organizationId, category: "SALES", name: "closed_won_count", value: closedWonCount, period: now },
-        { source: "HUBSPOT", organizationId, category: "SALES", name: "closed_won_amount", value: closedWonAmount, period: now },
+        { organizationId, category: "SALES", name: "total_contacts", value: contacts.length, period, source: "HUBSPOT" },
+        { organizationId, category: "SALES", name: "new_contacts_month", value: newThisMonth, period, source: "HUBSPOT" },
+        { organizationId, category: "SALES", name: "pipeline_value", value: pipelineTotal, unit: "MXN", period, source: "HUBSPOT" },
+        { organizationId, category: "SALES", name: "closed_won_count", value: cwCount, period, source: "HUBSPOT" },
+        { organizationId, category: "SALES", name: "closed_won_amount", value: cwAmount, unit: "MXN", period, source: "HUBSPOT" },
       ],
-    }).catch(() => {}); // Don't fail if metrics save fails
+      skipDuplicates: true,
+    });
 
     return NextResponse.json({
       connected: true,
-      contacts: {
-        total: contacts.length,
-        newThisMonth,
-        byStage,
-      },
+      contacts: { total: contacts.length, newThisMonth, byStage },
       pipeline: {
-        stages: pipelineStages,
-        closedWon: { count: closedWonCount, amount: closedWonAmount },
-        closedLost: { count: closedLostCount },
+        stages,
+        total: pipelineTotal,
+        closedWon: { count: cwCount, amount: cwAmount },
+        closedLost: { count: clCount },
       },
-      lastSyncAt: now.toISOString(),
+      lastSyncAt: new Date().toISOString(),
     });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ connected: true, error: message }, { status: 500 });
+  } catch (err: any) {
+    console.error("HubSpot sales fetch error:", err);
+    return NextResponse.json({ connected: true, error: err.message });
   }
 }
