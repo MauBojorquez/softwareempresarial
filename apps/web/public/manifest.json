@@ -6,12 +6,20 @@
   "display": "standalone",
   "background_color": "#f5f6f8",
   "theme_color": "#1e4d8c",
+  "orientation": "portrait-primary",
+  "categories": ["business", "productivity", "finance"],
+  "lang": "es-MX",
   "icons": [
     {
       "src": "/favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any"
+      "purpose": "any maskable"
     }
+  ],
+  "shortcuts": [
+    { "name": "Overview", "url": "/dashboard/overview" },
+    { "name": "Reportes IA", "url": "/dashboard/reports" },
+    { "name": "Equipo", "url": "/dashboard/team" }
   ]
 }

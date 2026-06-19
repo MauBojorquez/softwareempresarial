@@ -24,8 +24,16 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: "Stratium" }],
   manifest: "/manifest.json",
+  applicationName: "MetrixPro",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "MetrixPro",
+  },
+  formatDetection: { telephone: false },
   icons: [
     { rel: "icon", url: "/favicon.svg", type: "image/svg+xml" },
+    { rel: "apple-touch-icon", url: "/favicon.svg" },
   ],
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#f5f6f8" },

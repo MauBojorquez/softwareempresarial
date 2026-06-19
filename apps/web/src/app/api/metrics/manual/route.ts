@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/server/db";
+import { logActivity } from "@/lib/activity";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -72,6 +73,13 @@ export async function POST(req: NextRequest) {
       source: null,
       organizationId: membership.organizationId,
     },
+  });
+
+  logActivity({
+    userId: session.user.id,
+    organizationId: membership.organizationId,
+    action: "metric.create",
+    detail: `${name} (${category})`,
   });
 
   return NextResponse.json({ metric }, { status: 201 });

@@ -32,6 +32,7 @@ model User {
   notifications    Notification[]
   apiKeys          ApiKey[]
   sentInvitations  Invitation[]  @relation("SentInvitations")
+  activityLogs     ActivityLog[]
 }
 
 model Account {
@@ -95,6 +96,7 @@ model Organization {
   invitations    Invitation[]
   satCredential  SatCredential?
   satDownloadRequests SatDownloadRequest[]
+  activityLogs   ActivityLog[]
 }
 
 model Membership {
@@ -311,6 +313,24 @@ model Notification {
   user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, read])
+}
+
+// ─── Activity Log (team usage analytics + audit trail) ──────────────
+
+model ActivityLog {
+  id             String   @id @default(cuid())
+  action         String   // "login" | "page.view" | "metric.create" | "report.generate" | ...
+  detail         String?  @db.Text
+  path           String?
+  createdAt      DateTime @default(now())
+
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([userId, createdAt])
 }
 
 // ─── API Keys ───────────────────────────────────────────────────────

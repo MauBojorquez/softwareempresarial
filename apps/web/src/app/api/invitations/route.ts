@@ -5,6 +5,7 @@ import { db } from "@/server/db";
 import { sendEmail, inviteEmail } from "@/server/services/email";
 import type { MembershipRole } from "@prisma/client";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { logActivity } from "@/lib/activity";
 
 // GET /api/invitations — list pending invitations for the org
 export async function GET() {
@@ -96,6 +97,13 @@ export async function POST(req: NextRequest) {
     inviteUrl
   );
   await sendEmail(email, subject, html);
+
+  logActivity({
+    userId: session.user.id,
+    organizationId: membership.organizationId,
+    action: "invite.send",
+    detail: email,
+  });
 
   return NextResponse.json({ success: true, invitation });
 }

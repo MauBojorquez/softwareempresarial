@@ -8,7 +8,7 @@ import { useEffect, useState, useRef } from "react";
 import {
   LayoutDashboard, DollarSign, TrendingUp, Settings2, Users,
   Megaphone, FileText, Plug, CreditCard, LogOut, X, Settings, Target,
-  Building2, ChevronDown, Plus, Check,
+  Building2, ChevronDown, Plus, Check, UsersRound,
 } from "lucide-react";
 
 const navigation = [
@@ -20,6 +20,7 @@ const navigation = [
   { name: "RRHH", href: "/dashboard/hr", icon: Users },
   { name: "Marketing", href: "/dashboard/marketing", icon: Megaphone },
   { name: "Reportes IA", href: "/dashboard/reports", icon: FileText },
+  { name: "Equipo", href: "/dashboard/team", icon: UsersRound },
   { name: "Integraciones", href: "/dashboard/integrations", icon: Plug },
   { name: "Suscripción", href: "/dashboard/billing", icon: CreditCard },
   { name: "Configuración", href: "/dashboard/settings", icon: Settings },

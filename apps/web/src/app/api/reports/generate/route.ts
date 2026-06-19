@@ -5,6 +5,7 @@ import { db } from "@/server/db";
 import { generateMonthlyReport } from "@/server/services/ai/report-generator";
 import { checkFeatureAccess } from "@/server/services/billing/plan-limits";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { logActivity } from "@/lib/activity";
 
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req);
@@ -47,6 +48,12 @@ export async function POST(req: NextRequest) {
         },
       });
     } catch {}
+
+    logActivity({
+      userId: session.user.id,
+      organizationId: membership.organizationId,
+      action: "report.generate",
+    });
 
     return NextResponse.json({ reportId });
   } catch {

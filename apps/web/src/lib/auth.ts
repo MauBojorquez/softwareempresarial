@@ -37,6 +37,18 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   events: {
+    // Records a login event for team usage analytics (fire-and-forget).
+    async signIn({ user }) {
+      if (!user?.id) return;
+      try {
+        const m = await db.membership.findFirst({ where: { userId: user.id } });
+        if (!m) return;
+        const { logActivity } = await import("@/lib/activity");
+        await logActivity({ userId: user.id, organizationId: m.organizationId, action: "login" });
+      } catch {
+        // ignore
+      }
+    },
     // Fires AFTER the adapter persists a brand-new user (e.g. Google OAuth sign-up).
     // At this point user.id is a real DB id, so the Organization foreign key resolves.
     async createUser({ user }) {
