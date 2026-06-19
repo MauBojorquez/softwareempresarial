@@ -12,7 +12,7 @@ const plans = [
     name: "Gratis",
     price: 0,
     annualPrice: 0,
-    features: ["1 usuario", "Carga manual de métricas", "Finanzas, Ventas y Marketing", "Sin integraciones", "Sin reportes ni chat IA"],
+    features: ["1 usuario", "Carga manual de métricas", "Finanzas, Ventas y Marketing", "Sin integraciones", "Sin reportes IA"],
   },
   {
     key: "STARTER",
@@ -51,7 +51,7 @@ export default function BillingPage() {
     fetch("/api/billing/plan")
       .then((r) => r.json())
       .then((data) => {
-        setCurrentPlan(data.plan || null);
+        setCurrentPlan(data.plan || "FREE");
         setUsage(data.usage || null);
         setLoading(false);
       })
@@ -162,14 +162,16 @@ export default function BillingPage() {
               </div>
               <p className="mt-1 text-sm text-muted-foreground">Facturación mensual</p>
             </div>
-            <button
-              onClick={handlePortal}
-              disabled={portalLoading}
-              className="flex w-full sm:w-auto items-center justify-center gap-2 rounded-lg border border-border bg-secondary/50 px-3 py-2 sm:px-4 text-sm font-medium transition-colors hover:bg-secondary disabled:opacity-50"
-            >
-              {portalLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
-              Gestionar Facturación
-            </button>
+            {currentPlan !== "FREE" && (
+              <button
+                onClick={handlePortal}
+                disabled={portalLoading}
+                className="flex w-full sm:w-auto items-center justify-center gap-2 rounded-lg border border-border bg-secondary/50 px-3 py-2 sm:px-4 text-sm font-medium transition-colors hover:bg-secondary disabled:opacity-50"
+              >
+                {portalLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+                Gestionar Facturación
+              </button>
+            )}
           </div>
 
           {usage && (
@@ -296,7 +298,6 @@ export default function BillingPage() {
                 { name: "Usuarios", values: ["1", "3", "10", "Ilimitados"] },
                 { name: "Carga manual", values: ["✓", "✓", "✓", "✓"] },
                 { name: "Reportes IA", values: ["—", "Mensual", "Semanal", "On-demand"] },
-                { name: "Chat IA", values: ["—", "—", "✓", "✓"] },
                 { name: "Dashboards", values: ["1", "1", "Múltiples", "Ilimitados"] },
                 { name: "API Personalizada", values: ["—", "—", "—", "✓"] },
                 { name: "SSO / SAML", values: ["—", "—", "—", "✓"] },
