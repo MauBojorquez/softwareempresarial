@@ -66,6 +66,23 @@ const integrationConfig = [
   },
 ];
 
+const ERROR_MESSAGES: Record<string, string> = {
+  missing_code: "No se recibió el código de autorización. Intenta de nuevo.",
+  invalid_state: "La sesión de conexión expiró o no coincidió. Vuelve a intentar.",
+  meta_token_exchange: "Meta rechazó el intercambio de token. Revisa que la app y el redirect URI estén bien configurados.",
+  meta_failed: "Falló la conexión con Meta. Intenta de nuevo.",
+  token_exchange: "HubSpot rechazó el intercambio de token. Revisa la configuración de la app.",
+  hubspot_failed: "Falló la conexión con HubSpot. Intenta de nuevo.",
+  no_org: "No se encontró tu organización. Recarga la página.",
+  limit: "Alcanzaste el límite de integraciones de tu plan.",
+};
+
+const SUCCESS_MESSAGES: Record<string, string> = {
+  meta: "Meta Ads conectado correctamente",
+  hubspot: "HubSpot conectado correctamente",
+  quickbooks: "QuickBooks conectado correctamente",
+};
+
 function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
@@ -86,6 +103,24 @@ export default function IntegrationsPage() {
       .then((r) => r.json())
       .then((d) => setStatuses(d.integrations ?? []))
       .catch((e) => { console.error(e); });
+  }, []);
+
+  // Show feedback from OAuth callbacks (?success=... or ?error=...) so the
+  // user understands why a connection "bounced" instead of seeing nothing.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const error = params.get("error");
+    const success = params.get("success");
+    const message = params.get("message");
+    if (success) {
+      toast(SUCCESS_MESSAGES[success] ?? "Integración conectada", "success");
+    } else if (error) {
+      toast(message ? decodeURIComponent(message) : ERROR_MESSAGES[error] ?? `Error: ${error}`, "error");
+    }
+    if (error || success) {
+      window.history.replaceState({}, "", "/dashboard/integrations");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const isConnected = (type: string) => statuses.some((s) => s.type === type && s.isActive);
