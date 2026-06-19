@@ -3,37 +3,22 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/server/db";
 import { ensureMembership } from "@/server/services/membership";
-import {
-  createFacturapiOrg,
-  uploadFiel,
-} from "@/server/services/sat/facturapi-service";
+import { encrypt } from "@/lib/sat-crypto";
+import { buildService } from "@/server/services/sat/nodecfdi-service";
+import { startSatDownload } from "@/server/services/sat/sync-sat-metrics";
 
-// Triggers a background sync after connect — fire-and-forget
-async function triggerInitialSync(organizationId: string) {
-  try {
-    const { syncSatMetrics } = await import(
-      "@/server/services/sat/sync-sat-metrics"
-    );
-    await syncSatMetrics(organizationId);
-  } catch (err) {
-    console.error("[SAT] Initial sync failed:", err);
-  }
-}
+export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
   const membership = await ensureMembership(session.user.id);
   if (!membership) {
-    return NextResponse.redirect(
-      new URL("/login?error=session_expired", req.url),
-    );
+    return NextResponse.json({ error: "session_expired" }, { status: 401 });
   }
 
-  // Parse multipart form
   let formData: FormData;
   try {
     formData = await req.formData();
@@ -51,49 +36,50 @@ export async function POST(req: NextRequest) {
 
   if (!rfc || !cerFile || !keyFile || !password) {
     return NextResponse.json(
-      { error: "Missing required fields: rfc, cer, key, password" },
+      { error: "Faltan campos requeridos: rfc, cer, key, password" },
       { status: 400 },
     );
   }
 
-  // Get organization name for Facturapi
-  const org = await db.organization.findUnique({
-    where: { id: membership.organizationId },
-    select: { name: true },
-  });
-
   try {
-    // 1. Create Facturapi sub-organization
-    const facturapiOrg = await createFacturapiOrg(org?.name ?? rfc);
+    const cerBin = Buffer.from(await cerFile.arrayBuffer());
+    const keyBin = Buffer.from(await keyFile.arrayBuffer());
 
-    // 2. Upload FIEL/e.firma to Facturapi (files stay on their servers only)
-    await uploadFiel(facturapiOrg.id, cerFile, keyFile, password, rfc);
+    // Validate the e.firma against the package — throws if invalid.
+    await buildService(cerBin, keyBin, password);
 
-    // 3. Upsert SatCredential
+    // Encrypt at rest. Never store plaintext.
+    const encryptedCer = encrypt(cerBin);
+    const encryptedKey = encrypt(keyBin);
+    const encryptedPassword = encrypt(password);
+
     await db.satCredential.upsert({
       where: { organizationId: membership.organizationId },
       create: {
         organizationId: membership.organizationId,
         rfc,
-        facturapiOrgId: facturapiOrg.id,
+        encryptedCer,
+        encryptedKey,
+        encryptedPassword,
         syncStatus: "pending",
       },
       update: {
         rfc,
-        facturapiOrgId: facturapiOrg.id,
+        encryptedCer,
+        encryptedKey,
+        encryptedPassword,
         syncStatus: "pending",
         lastError: null,
       },
     });
 
-    // 4. Fire-and-forget initial sync
-    void triggerInitialSync(membership.organizationId);
+    // Kick off the SAT query (quick — seconds). Polling happens later via cron.
+    await startSatDownload(membership.organizationId);
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("[SAT] Connect error:", err);
     const message =
       err instanceof Error ? err.message : "Error al conectar con el SAT";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }

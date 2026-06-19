@@ -88,6 +88,7 @@ model Organization {
   chatMessages   AIChatMessage[]
   invitations    Invitation[]
   satCredential  SatCredential?
+  satDownloadRequests SatDownloadRequest[]
 }
 
 model Membership {
@@ -328,10 +329,31 @@ model SatCredential {
   organizationId String       @unique
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   rfc            String
-  facturapiOrgId String
+  encryptedCer      String @db.Text
+  encryptedKey      String @db.Text
+  encryptedPassword String @db.Text
   syncStatus     String       @default("pending") // pending | syncing | synced | error
   lastSyncAt     DateTime?
   lastError      String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+}
+
+model SatDownloadRequest {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  satRequestId   String?  // request id returned by SAT query
+  downloadType   String   // "issued" | "received"
+  periodFrom     DateTime
+  periodTo       DateTime
+  status         String   @default("pending") // pending | accepted | finished | downloaded | failed | expired
+  packageIds     String[] @default([])
+  attempts       Int      @default(0)
+  lastError      String?
+  lastCheckedAt  DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId, status])
 }

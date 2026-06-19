@@ -85,11 +85,13 @@ export default function SatConnectionPage() {
             <div>
               <h2 className="font-semibold text-sm">Aviso de Privacidad</h2>
               <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                Para importar tus facturas necesitamos conectar tu RFC al SAT a
-                través de{" "}
-                <strong>Facturapi</strong> — un PAC (Proveedor Autorizado de
-                Certificación) certificado por el SAT con certificación{" "}
-                <strong>SOC 2 Type II</strong>.
+                Para importar tus facturas nos conectamos directamente al
+                servicio de <strong>Descarga Masiva del SAT</strong> usando tu{" "}
+                <strong>e.firma (FIEL)</strong>. Tu e.firma se cifra con{" "}
+                <strong>AES-256</strong> y se almacena siempre cifrada en
+                nuestros servidores. Se usa únicamente para descargar tus CFDIs
+                desde el SAT y puedes eliminarla en cualquier momento al
+                desconectar la integración.
               </p>
             </div>
           </div>
@@ -112,11 +114,11 @@ export default function SatConnectionPage() {
               ¿Qué NO hacemos con tus datos?
             </p>
             <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-              <li>No almacenamos tu e.firma en nuestros servidores</li>
-              <li>No compartimos tu información con terceros fuera de Facturapi</li>
+              <li>Nunca guardamos tu e.firma ni tu contraseña en texto plano</li>
+              <li>No compartimos tu información con terceros</li>
               <li>
-                Puedes revocar el acceso en cualquier momento desde esta misma
-                pantalla
+                Puedes revocar el acceso y borrar tu e.firma en cualquier
+                momento al desconectar esta integración
               </li>
             </ul>
           </div>
@@ -133,9 +135,9 @@ export default function SatConnectionPage() {
               htmlFor="accept-privacy"
               className="text-sm cursor-pointer leading-relaxed"
             >
-              Acepto el Aviso de Privacidad y autorizo el acceso a mis CFDIs a
-              través de Facturapi para calcular mis métricas financieras en
-              MetrixPro.
+              Acepto el Aviso de Privacidad y autorizo el uso de mi e.firma
+              (FIEL) para descargar mis CFDIs del SAT y calcular mis métricas
+              financieras en MetrixPro.
             </label>
           </div>
 
@@ -163,11 +165,11 @@ export default function SatConnectionPage() {
             ← Volver
           </button>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
-            Sube tu e.firma
+            Sube tu e.firma (FIEL)
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Tus archivos se envían de forma cifrada directamente a Facturapi y
-            nunca se guardan en nuestros servidores.
+            Sube los archivos .cer y .key de tu <strong>e.firma (FIEL)</strong>{" "}
+            (no del CSD). Se cifran con AES-256 y se almacenan siempre cifrados.
           </p>
         </div>
 
@@ -287,8 +289,10 @@ export default function SatConnectionPage() {
         <div>
           <h2 className="text-xl font-bold">Conectado</h2>
           <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
-            Estamos importando tus facturas desde el SAT. Esto puede tomar unos
-            minutos dependiendo del volumen de CFDIs.
+            Ya solicitamos tus CFDIs al SAT. El SAT puede tardar entre 24 y 72
+            horas en preparar la primera descarga; tus datos aparecerán
+            automáticamente en cuanto estén listos. No necesitas hacer nada
+            más.
           </p>
         </div>
         <button
