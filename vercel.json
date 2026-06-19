@@ -1,5 +1,5 @@
 {
   "crons": [
-    { "path": "/api/cron/sat-sync", "schedule": "0 * * * *" }
+    { "path": "/api/cron/sat-sync", "schedule": "0 8 * * *" }
   ]
 }
