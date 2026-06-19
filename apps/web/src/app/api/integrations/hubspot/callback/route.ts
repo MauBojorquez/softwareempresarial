@@ -12,9 +12,16 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const code = searchParams.get("code");
+  const returnedState = searchParams.get("state");
+  const storedState = req.cookies.get("hs_oauth_state")?.value;
 
   if (!code) {
     return NextResponse.redirect(new URL("/dashboard/integrations?error=missing_code", req.url));
+  }
+
+  // CSRF validation
+  if (!storedState || !returnedState || returnedState !== storedState) {
+    return NextResponse.redirect(new URL("/dashboard/integrations?error=invalid_state", req.url));
   }
 
   try {
@@ -70,7 +77,9 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    return NextResponse.redirect(new URL("/dashboard/integrations?success=hubspot", req.url));
+    const successRes = NextResponse.redirect(new URL("/dashboard/integrations?success=hubspot", req.url));
+    successRes.cookies.delete("hs_oauth_state");
+    return successRes;
   } catch {
     return NextResponse.redirect(new URL("/dashboard/integrations?error=hubspot_failed", req.url));
   }
