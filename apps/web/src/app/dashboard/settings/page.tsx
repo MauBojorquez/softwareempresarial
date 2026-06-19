@@ -9,8 +9,9 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import {
   Sun, Moon, Monitor, Bell, User, Building2, Download, Trash2,
   AlertTriangle, Key, Plus, Copy, Eye, EyeOff, Loader2, Save, Lock, Users, Mail, X,
-  Palette, Camera, ImagePlus, BellRing,
+  Palette, Camera, ImagePlus, BellRing, MessageCircle, Phone,
 } from "lucide-react";
+import { PhoneInput } from "@/components/settings/phone-input";
 
 const NOTIF_STORAGE_KEY = "metrixpro-notifications-prefs";
 
@@ -78,6 +79,9 @@ export default function SettingsPage() {
 
   const [notifications, setNotifications] = useState({ metrics: false, reports: false, goals: false });
 
+  const [contact, setContact] = useState({ phone: "", notifyEmail: true, notifyWhatsapp: false });
+  const [savingContact, setSavingContact] = useState(false);
+
   const [apiKeys, setApiKeys] = useState<ApiKeyItem[]>([]);
   const [newKeyName, setNewKeyName] = useState("");
   const [creatingKey, setCreatingKey] = useState(false);
@@ -111,6 +115,11 @@ export default function SettingsPage() {
           setProfile({ name: data.user.name || "", email: data.user.email || "" });
           if (data.user.theme && data.user.theme !== theme) setTheme(data.user.theme);
           if (data.user.avatar) setAvatar(data.user.avatar);
+          setContact({
+            phone: data.user.phone || "",
+            notifyEmail: data.user.notifyEmail ?? true,
+            notifyWhatsapp: data.user.notifyWhatsapp ?? false,
+          });
         }
         if (data.organization) {
           setOrg({ name: data.organization.name || "", industry: data.organization.industry || "" });
@@ -232,6 +241,31 @@ export default function SettingsPage() {
         body: JSON.stringify({ theme: newTheme }),
       });
     } catch {}
+  };
+
+  const handleSaveContact = async () => {
+    if (contact.notifyWhatsapp && !contact.phone) {
+      toast("Agrega tu número de WhatsApp para recibir por ese medio", "error");
+      return;
+    }
+    setSavingContact(true);
+    try {
+      const res = await fetch("/api/user", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: contact.phone,
+          notifyEmail: contact.notifyEmail,
+          notifyWhatsapp: contact.notifyWhatsapp,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) toast("Preferencias guardadas", "success");
+      else toast(data.error || "Error al guardar", "error");
+    } catch {
+      toast("Error de conexión", "error");
+    }
+    setSavingContact(false);
   };
 
   const handleNotificationToggle = async (key: keyof typeof notifications, value: boolean) => {
@@ -650,6 +684,65 @@ export default function SettingsPage() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* ── Cómo recibir reportes ── */}
+      <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
+        <div className="flex items-center gap-3">
+          <MessageCircle className="h-5 w-5 text-primary" />
+          <h2 className="text-lg font-semibold text-foreground">Cómo recibir reportes</h2>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Elige cómo quieres recibir tus resúmenes, alertas y avisos. Puedes activar correo, WhatsApp o ambos.
+        </p>
+
+        {/* Teléfono */}
+        <div>
+          <label className="text-xs text-muted-foreground flex items-center gap-1.5">
+            <Phone className="h-3 w-3" /> Número de WhatsApp
+          </label>
+          <div className="mt-1">
+            <PhoneInput value={contact.phone} onChange={(phone) => setContact((c) => ({ ...c, phone }))} />
+          </div>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Selecciona tu país (lada) y escribe tu número. Ej: 🇲🇽 +52 442 123 4567
+          </p>
+        </div>
+
+        {/* Canales */}
+        <div className="space-y-3 pt-1">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <Mail className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium text-foreground">Por correo</p>
+                <p className="text-xs text-muted-foreground">{profile.email}</p>
+              </div>
+            </div>
+            <Toggle enabled={contact.notifyEmail} onChange={(v) => setContact((c) => ({ ...c, notifyEmail: v }))} />
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <MessageCircle className="h-4 w-4 text-emerald-600" />
+              <div>
+                <p className="text-sm font-medium text-foreground">Por WhatsApp</p>
+                <p className="text-xs text-muted-foreground">
+                  {contact.phone ? "Al número de arriba" : "Agrega tu número primero"}
+                </p>
+              </div>
+            </div>
+            <Toggle enabled={contact.notifyWhatsapp} onChange={(v) => setContact((c) => ({ ...c, notifyWhatsapp: v }))} />
+          </div>
+        </div>
+
+        <button
+          onClick={handleSaveContact}
+          disabled={savingContact}
+          className="flex items-center gap-2 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+        >
+          {savingContact ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+          {savingContact ? "Guardando..." : "Guardar preferencias"}
+        </button>
       </div>
 
       {/* ── Alertas ── */}

@@ -85,6 +85,22 @@ export async function GET(req: NextRequest) {
 
   const text = lines.join("\n");
 
+  // Recipients: org members who opted in to each channel. Make iterates over
+  // these arrays and sends the digest to every phone / email.
+  const members = await db.membership.findMany({
+    where: { organizationId: apiKey.organizationId },
+    select: { user: { select: { name: true, email: true, phone: true, notifyEmail: true, notifyWhatsapp: true } } },
+  });
+
+  const whatsapp: { name: string; phone: string }[] = [];
+  const email: { name: string; email: string }[] = [];
+  for (const m of members) {
+    const u = m.user;
+    if (!u) continue;
+    if (u.notifyWhatsapp && u.phone) whatsapp.push({ name: u.name ?? "", phone: u.phone });
+    if (u.notifyEmail && u.email) email.push({ name: u.name ?? "", email: u.email });
+  }
+
   const format = req.nextUrl.searchParams.get("format");
   if (format === "text") {
     return new NextResponse(text, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
@@ -96,5 +112,6 @@ export async function GET(req: NextRequest) {
     kpis,
     alerts: anomalies,
     text,
+    recipients: { whatsapp, email },
   });
 }

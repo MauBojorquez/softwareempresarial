@@ -20,6 +20,9 @@ model User {
   theme         String    @default("system")
   avatar        String?   @db.Text
   activeOrgId   String?
+  phone          String?   // E.164 with country code, e.g. +5214423399798
+  notifyEmail    Boolean   @default(true)
+  notifyWhatsapp Boolean   @default(false)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 

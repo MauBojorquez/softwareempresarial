@@ -13,7 +13,7 @@ export async function GET() {
   try {
     const user = await db.user.findUnique({
       where: { id: session.user.id },
-      select: { id: true, name: true, email: true, theme: true, avatar: true, activeOrgId: true, createdAt: true },
+      select: { id: true, name: true, email: true, theme: true, avatar: true, activeOrgId: true, createdAt: true, phone: true, notifyEmail: true, notifyWhatsapp: true },
     });
 
     const membership = await db.membership.findFirst({
@@ -48,11 +48,21 @@ export async function PATCH(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { name, theme, orgName, industry, currentPassword, newPassword, avatar } = body;
+  const { name, theme, orgName, industry, currentPassword, newPassword, avatar, phone, notifyEmail, notifyWhatsapp } = body;
 
   const updates: Record<string, unknown> = {};
   if (typeof name === "string" && name.trim()) updates.name = name.trim().slice(0, 100);
   if (typeof theme === "string" && ["light", "dark", "system"].includes(theme)) updates.theme = theme;
+
+  if (typeof phone === "string") {
+    const cleaned = phone.replace(/[^\d+]/g, "");
+    if (cleaned && !/^\+\d{8,16}$/.test(cleaned)) {
+      return NextResponse.json({ error: "Número de teléfono inválido" }, { status: 400 });
+    }
+    updates.phone = cleaned || null;
+  }
+  if (typeof notifyEmail === "boolean") updates.notifyEmail = notifyEmail;
+  if (typeof notifyWhatsapp === "boolean") updates.notifyWhatsapp = notifyWhatsapp;
 
   if (typeof avatar === "string") {
     if (avatar && avatar.length > 2_800_000) {
