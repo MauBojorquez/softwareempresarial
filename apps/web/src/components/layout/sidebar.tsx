@@ -62,13 +62,16 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
                 onClick={onClose}
                 aria-current={isActive ? "page" : undefined}
                 className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                  "nav-item group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium",
                   isActive
-                    ? "bg-primary/8 text-primary"
+                    ? "bg-gradient-to-r from-primary/15 to-primary/5 text-primary font-semibold"
                     : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                 )}
               >
-                <item.icon className="h-4 w-4" />
+                {isActive && (
+                  <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full gradient-bg" />
+                )}
+                <item.icon className={cn("h-4 w-4 transition-transform", isActive ? "scale-110" : "group-hover:scale-110")} />
                 {item.name}
               </Link>
             );

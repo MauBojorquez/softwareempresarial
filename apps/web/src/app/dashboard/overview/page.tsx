@@ -7,6 +7,7 @@ import {
   SlidersHorizontal, Check, Sparkles,
 } from "lucide-react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { GoalProgress } from "@/components/dashboard/goal-progress";
 import { cn } from "@/lib/utils";
@@ -49,6 +50,7 @@ const WIDGET_CATALOG: Array<{ id: string; label: string; requires?: "META_ADS" }
 const WIDGETS_KEY = "metrixpro-overview-widgets";
 
 export default function OverviewPage() {
+  const { data: session } = useSession();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
@@ -161,8 +163,29 @@ export default function OverviewPage() {
   // Whether the middle section (calculated/history/marketing) renders anything.
   const showMiddle = show("calculated") || show("history") || show("marketing");
 
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Buenos días" : hour < 19 ? "Buenas tardes" : "Buenas noches";
+  const firstName = session?.user?.name?.split(" ")[0] ?? "Bienvenido";
+  const dateStr = new Date().toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "long" });
+
   return (
     <div className="space-y-5">
+      {/* Aurora welcome banner */}
+      <div className="relative overflow-hidden rounded-2xl aurora p-5 text-white shadow-lg shadow-primary/20 animate-fade-in-up sm:p-6">
+        <div className="aurora-shine pointer-events-none absolute inset-0" />
+        <div className="relative flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm text-white/80">{greeting},</p>
+            <h2 className="text-xl font-bold sm:text-2xl">{firstName} 👋</h2>
+            <p className="mt-1 text-xs capitalize text-white/75">{dateStr}</p>
+          </div>
+          <div className="hidden flex-col items-end sm:flex">
+            <p className="text-2xl font-bold tabular-nums">{fmtMoney(data.revenue)}</p>
+            <p className="text-xs text-white/75">Ingresos del mes</p>
+          </div>
+        </div>
+      </div>
+
       <div className="hidden lg:flex items-center gap-2 animate-fade-in-up">
         <a href="/dashboard/finance" className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium transition-colors hover:bg-secondary">
           <PlusCircle className="h-3.5 w-3.5" />Agregar dato
