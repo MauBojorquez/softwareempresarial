@@ -91,6 +91,7 @@ export function NotificationBell() {
       <button
         onClick={() => { setOpen(!open); if (!open) markAllRead(); }}
         aria-label="Notificaciones"
+        data-tour="notifications"
         className="relative rounded-lg border border-border bg-card p-2 text-muted-foreground transition-colors hover:text-foreground hover:bg-secondary"
       >
         <Bell className="h-4 w-4" />
@@ -141,6 +142,17 @@ export function NotificationBell() {
 
             {supported && (
               <div className="border-t border-border p-3">
+                {!subscribed && (
+                  <div className="mb-2.5 rounded-lg bg-secondary/50 p-2.5">
+                    <p className="text-[11px] font-medium text-foreground">Te avisamos cuando:</p>
+                    <ul className="mt-1 space-y-0.5 text-[10px] text-muted-foreground">
+                      <li>📊 Un reporte de IA está listo</li>
+                      <li>⚠️ Una métrica sube o baja de forma importante</li>
+                      <li>🎯 Se dispara una alerta que configuraste</li>
+                    </ul>
+                    <p className="mt-1.5 text-[10px] text-muted-foreground">Te llegan aquí y a tu celular o navegador, aunque la app esté cerrada.</p>
+                  </div>
+                )}
                 <button
                   onClick={togglePush}
                   disabled={pushBusy}
@@ -157,7 +169,7 @@ export function NotificationBell() {
                   ) : (
                     <Bell className="h-3.5 w-3.5" />
                   )}
-                  {subscribed ? "Push activado en este dispositivo" : "Activar notificaciones push"}
+                  {subscribed ? "Notificaciones activadas en este dispositivo" : "Activar notificaciones"}
                 </button>
                 {subscribed && (
                   <button

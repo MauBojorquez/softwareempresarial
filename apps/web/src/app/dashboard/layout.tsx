@@ -42,6 +42,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     document.title = match ? `${match[1]} | StratiuMetrics` : "StratiuMetrics";
   }, [pathname]);
 
+  // Let the guided tour reveal the sidebar on mobile while it runs.
+  useEffect(() => {
+    const open = () => setSidebarOpen(true);
+    const close = () => setSidebarOpen(false);
+    window.addEventListener("stratiumetrics:open-sidebar", open);
+    window.addEventListener("stratiumetrics:close-sidebar", close);
+    return () => {
+      window.removeEventListener("stratiumetrics:open-sidebar", open);
+      window.removeEventListener("stratiumetrics:close-sidebar", close);
+    };
+  }, []);
+
   useEffect(() => {
     const last = parseInt(localStorage.getItem("metrixpro-last-autosync") ?? "0", 10);
     if (Date.now() - last > AUTO_SYNC_INTERVAL_MS) {

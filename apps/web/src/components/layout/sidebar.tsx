@@ -188,6 +188,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
               <Link
                 key={item.href}
                 href={item.href}
+                data-tour={item.href}
                 onClick={onClose}
                 aria-current={isActive ? "page" : undefined}
                 className={cn(
