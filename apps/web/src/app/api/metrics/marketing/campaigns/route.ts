@@ -193,6 +193,16 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Persist the chosen account so the background sync (alerts, overview,
+    // digest) uses the same single account the user is looking at — not the
+    // sum of every ad account, which inflates the numbers.
+    if (selectedAccountId && metadata?.selectedAccountId !== selectedAccountId) {
+      await db.integration.update({
+        where: { id: integration.id },
+        data: { metadata: { ...metadata, selectedAccountId } },
+      }).catch(() => {});
+    }
+
     const accountsToFetch = selectedAccountId
       ? adAccounts.filter((a) => a.id === selectedAccountId)
       : [adAccounts[0]];

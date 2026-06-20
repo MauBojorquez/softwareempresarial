@@ -6,6 +6,8 @@ import {
 import {
   MetaLogo, GoogleLogo, HubSpotLogo, GoogleSheetsLogo, SATLogo,
 } from "@/components/brand-logos";
+import { Logo } from "@/components/logo";
+import { LandingThemeToggle } from "@/components/landing-theme-toggle";
 
 export default function HomePage() {
   return (
@@ -14,10 +16,10 @@ export default function HomePage() {
       <header className="fixed top-0 z-50 w-full border-b border-border/60 bg-card/70 backdrop-blur-md">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg gradient-bg flex items-center justify-center animate-float-logo">
-              <span className="text-xs font-bold text-white">S</span>
+            <div className="h-8 w-8 rounded-lg gradient-bg flex items-center justify-center animate-float-logo text-white">
+              <Logo className="h-5 w-5" />
             </div>
-            <span className="text-lg font-bold text-foreground">MetrixPro</span>
+            <span className="text-lg font-bold text-foreground">StratiuMetrics</span>
           </div>
           <nav className="hidden items-center gap-8 md:flex">
             <Link href="#features" className="text-sm text-muted-foreground transition-colors hover:text-foreground">Funciones</Link>
@@ -25,6 +27,7 @@ export default function HomePage() {
             <Link href="/pricing" className="text-sm text-muted-foreground transition-colors hover:text-foreground">Precios</Link>
           </nav>
           <div className="flex items-center gap-3">
+            <LandingThemeToggle />
             <Link href="/login" className="hidden text-sm text-muted-foreground transition-colors hover:text-foreground sm:inline">Iniciar Sesión</Link>
             <Link href="/register" className="rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white transition-all hover:opacity-90 hover:shadow-lg hover:shadow-primary/25 pulse-glow">
               Comenzar Gratis
@@ -206,7 +209,7 @@ export default function HomePage() {
           <div className="container mx-auto px-4">
             <div className="text-center animate-fade-in-up">
               <h2 className="text-3xl font-bold text-foreground sm:text-4xl">Mira lo que puedes <span className="gradient-text">lograr</span></h2>
-              <p className="mx-auto mt-4 max-w-xl text-muted-foreground">Ejemplos reales de cómo se ve tu información dentro de MetrixPro.</p>
+              <p className="mx-auto mt-4 max-w-xl text-muted-foreground">Ejemplos reales de cómo se ve tu información dentro de StratiuMetrics.</p>
             </div>
 
             <div className="mt-16 grid gap-6 lg:grid-cols-2">
@@ -388,7 +391,7 @@ export default function HomePage() {
                   role: "Dueña · Consultora AG",
                   avatar: "AG",
                   color: "from-sky-500 to-cyan-500",
-                  text: "Soy de las que evitaba los dashboards porque eran complicados. MetrixPro es tan simple que lo uso todos los días desde el celular.",
+                  text: "Soy de las que evitaba los dashboards porque eran complicados. StratiuMetrics es tan simple que lo uso todos los días desde el celular.",
                 },
               ].map((t, i) => (
                 <div key={t.name} className={`group rounded-2xl border border-border bg-card p-6 transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/5 card-hover anim-d${(i % 3) + 1}`}>
@@ -421,9 +424,9 @@ export default function HomePage() {
               </div>
               <div className="space-y-4">
                 {[
-                  { q: "¿Necesito conocimientos técnicos para usar MetrixPro?", a: "No. MetrixPro está diseñado para dueños de negocio y directivos. La interfaz es intuitiva y puedes comenzar a ver tus métricas en minutos, sin necesidad de configuración técnica compleja." },
+                  { q: "¿Necesito conocimientos técnicos para usar StratiuMetrics?", a: "No. StratiuMetrics está diseñado para dueños de negocio y directivos. La interfaz es intuitiva y puedes comenzar a ver tus métricas en minutos, sin necesidad de configuración técnica compleja." },
                   { q: "¿Mis datos financieros están seguros?", a: "Sí. Usamos cifrado AES-256 para todas las credenciales, conexiones TLS en tránsito, y nunca almacenamos contraseñas de SAT o bancarias. Solo leemos datos mediante APIs oficiales." },
-                  { q: "¿Puedo conectar mi empresa con el SAT?", a: "Sí. MetrixPro se conecta directamente al SAT mediante el servicio de descarga masiva de CFDIs. Solo necesitas tu e.firma (.cer y .key) para autenticarte de forma segura." },
+                  { q: "¿Puedo conectar mi empresa con el SAT?", a: "Sí. StratiuMetrics se conecta directamente al SAT mediante el servicio de descarga masiva de CFDIs. Solo necesitas tu e.firma (.cer y .key) para autenticarte de forma segura." },
                   { q: "¿Qué pasa si tengo datos en Excel o CSV?", a: "Puedes importar datos manualmente desde archivos CSV con nuestra plantilla predefinida. También puedes conectar HubSpot, Meta Ads y más integraciones según tu plan." },
                   { q: "¿Puedo cancelar en cualquier momento?", a: "Sí, sin penalizaciones ni contratos de permanencia. Puedes cancelar tu suscripción desde el panel de facturación y tu cuenta volverá al plan gratuito automáticamente." },
                   { q: "¿Cuántos usuarios puede tener mi equipo?", a: "El plan Starter incluye 3 usuarios, Professional 10 usuarios, y Enterprise usuarios ilimitados. Puedes invitar a tu equipo con diferentes roles: Admin, Editor o Viewer." },
@@ -465,7 +468,7 @@ export default function HomePage() {
 
       <footer className="border-t border-border py-8">
         <div className="container mx-auto flex flex-col items-center gap-4 px-4 text-center text-sm text-muted-foreground sm:flex-row sm:justify-between">
-          <p>&copy; {new Date().getFullYear()} MetrixPro by Stratium. Todos los derechos reservados.</p>
+          <p>&copy; {new Date().getFullYear()} StratiuMetrics. Todos los derechos reservados.</p>
           <div className="flex gap-6">
             <Link href="#" className="transition-colors hover:text-foreground">Privacidad</Link>
             <Link href="#" className="transition-colors hover:text-foreground">Términos</Link>

@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
       ? metrics.map((m) => `${m.name}: ${m.value}${m.unit ? ` ${m.unit}` : ""} (${m.category}, ${m.period.toISOString().split("T")[0]})`).join("\n")
       : "No hay métricas registradas aún.";
 
-    const systemPrompt = `Eres un consultor empresarial experto de MetrixPro. Tu rol es ayudar a empresarios mexicanos a tomar mejores decisiones basadas en datos.
+    const systemPrompt = `Eres un consultor empresarial experto de StratiuMetrics. Tu rol es ayudar a empresarios mexicanos a tomar mejores decisiones basadas en datos.
 
 Contexto de la empresa:
 - Nombre: ${membership.organization.name}

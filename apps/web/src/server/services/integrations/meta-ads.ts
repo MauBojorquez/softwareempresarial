@@ -21,13 +21,19 @@ export async function syncMetaAdsMetrics(organizationId: string) {
     throw new Error("No ad accounts found");
   }
 
+  // Use a SINGLE account — the one the user selected in the dashboard, or the
+  // first one as a default. Summing every account inflated the totals.
+  const selectedId = metadata?.selectedAccountId;
+  const account =
+    (selectedId && adAccounts.find((a: any) => a.id === selectedId)) || adAccounts[0];
+
   const now = new Date();
   const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
 
   const allMetrics: any[] = [];
 
-  for (const account of adAccounts) {
+  {
     const accountId = account.id;
 
     // Current month insights

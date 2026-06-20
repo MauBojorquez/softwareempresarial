@@ -109,7 +109,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
               </div>
             )}
             <div className="min-w-0">
-              <p className="text-[11px] font-medium text-muted-foreground leading-none">MetrixPro</p>
+              <p className="text-[11px] font-medium text-muted-foreground leading-none">StratiuMetrics</p>
               <p className="text-sm font-bold text-foreground truncate leading-tight mt-0.5">
                 {orgData?.name || "Mi Empresa"}
               </p>

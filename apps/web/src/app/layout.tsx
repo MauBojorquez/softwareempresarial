@@ -7,8 +7,8 @@ const inter = Inter({ subsets: ["latin"], weight: ["400", "500", "600", "700"] }
 
 export const metadata: Metadata = {
   title: {
-    default: "MetrixPro — Dashboard Empresarial con IA",
-    template: "%s | MetrixPro",
+    default: "StratiuMetrics — Dashboard Empresarial con IA",
+    template: "%s | StratiuMetrics",
   },
   description:
     "Centraliza las métricas de tu empresa. Finanzas, ventas, operaciones, RH y marketing en un solo lugar con reportes inteligentes.",
@@ -24,11 +24,11 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: "Stratium" }],
   manifest: "/manifest.json",
-  applicationName: "MetrixPro",
+  applicationName: "StratiuMetrics",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "MetrixPro",
+    title: "StratiuMetrics",
   },
   formatDetection: { telephone: false },
   icons: [
@@ -36,16 +36,16 @@ export const metadata: Metadata = {
     { rel: "apple-touch-icon", url: "/favicon.svg" },
   ],
   openGraph: {
-    title: "MetrixPro — Dashboard Empresarial con IA",
+    title: "StratiuMetrics — Dashboard Empresarial con IA",
     description:
       "Centraliza las métricas de tu empresa con inteligencia artificial.",
     type: "website",
     locale: "es_MX",
-    siteName: "MetrixPro",
+    siteName: "StratiuMetrics",
   },
   twitter: {
     card: "summary_large_image",
-    title: "MetrixPro — Dashboard Empresarial con IA",
+    title: "StratiuMetrics — Dashboard Empresarial con IA",
     description: "Centraliza las métricas de tu empresa. Finanzas, ventas, operaciones, RH y marketing en un solo lugar.",
   },
 };
@@ -60,6 +60,16 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es" suppressHydrationWarning>
+      <head>
+        {/* Apply the theme before paint so every page (landing, login,
+            dashboard) respects the stored choice or the OS preference,
+            with no flash of the wrong theme. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('metrixpro-theme');var d=t==='dark'||((!t||t==='system')&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body className={inter.className}>
         <AuthProvider>{children}</AuthProvider>
       </body>

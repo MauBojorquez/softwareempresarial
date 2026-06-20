@@ -156,12 +156,12 @@ async function handle(req: NextRequest) {
         // Send alert email to org owner
         const ownerEmail = rule.organization.owner?.email;
         if (ownerEmail) {
-          const subject = `⚠️ Alerta MetrixPro: ${rule.metricName}`;
+          const subject = `⚠️ Alerta StratiuMetrics: ${rule.metricName}`;
           const html = `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f4f4f5;font-family:Inter,sans-serif;">
 <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:40px 16px;">
 <table width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;border:1px solid #e4e4e7;">
 <tr><td style="background:linear-gradient(135deg,#6366f1,#8b5cf6);padding:28px 32px;">
-<h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;">MetrixPro</h1>
+<h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;">StratiuMetrics</h1>
 <p style="margin:4px 0 0;color:rgba(255,255,255,0.8);font-size:13px;">Dashboard Empresarial Inteligente</p>
 </td></tr>
 <tr><td style="padding:32px;">
@@ -174,7 +174,7 @@ async function handle(req: NextRequest) {
 <a href="${process.env.NEXTAUTH_URL}/dashboard/overview" style="display:inline-block;margin-top:20px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:600;font-size:14px;">Ver Dashboard</a>
 </td></tr>
 <tr><td style="padding:20px 32px;border-top:1px solid #f4f4f5;text-align:center;">
-<p style="margin:0;font-size:12px;color:#a1a1aa;">© 2026 MetrixPro · Todos los derechos reservados</p>
+<p style="margin:0;font-size:12px;color:#a1a1aa;">© 2026 StratiuMetrics · Todos los derechos reservados</p>
 </td></tr>
 </table></td></tr></table></body></html>`;
           await sendEmail(ownerEmail, subject, html);

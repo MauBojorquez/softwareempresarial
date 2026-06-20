@@ -5,6 +5,7 @@ import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
+import { Logo } from "@/components/logo";
 
 function GoogleIcon() {
   return (
@@ -47,10 +48,10 @@ export default function LoginPage() {
       <div className="w-full max-w-sm space-y-6 px-4 animate-fade-in-up">
         <div className="text-center">
           <Link href="/" className="inline-flex items-center gap-2 group">
-            <div className="h-10 w-10 rounded-xl gradient-bg flex items-center justify-center shadow-lg shadow-purple-500/25 animate-float-logo group-hover:scale-105 transition-transform">
-              <span className="text-sm font-bold text-white">S</span>
+            <div className="h-10 w-10 rounded-xl gradient-bg flex items-center justify-center shadow-lg shadow-purple-500/25 animate-float-logo group-hover:scale-105 transition-transform text-white">
+              <Logo className="h-6 w-6" />
             </div>
-            <span className="text-xl font-bold text-foreground">MetrixPro</span>
+            <span className="text-xl font-bold text-foreground">StratiuMetrics</span>
           </Link>
           <h1 className="mt-8 text-2xl font-bold text-foreground anim-d1">Iniciar Sesión</h1>
           <p className="mt-1 text-sm text-muted-foreground anim-d2">Ingresa a tu dashboard empresarial</p>

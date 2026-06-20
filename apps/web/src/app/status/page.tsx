@@ -43,7 +43,7 @@ export default function StatusPage() {
       <div style={{ maxWidth: 640, margin: "0 auto", padding: "48px 20px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 28 }}>
           <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg,#6366f1,#8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700 }}>M</div>
-          <span style={{ fontSize: 18, fontWeight: 700, color: "#18181b" }}>MetrixPro · Estado</span>
+          <span style={{ fontSize: 18, fontWeight: 700, color: "#18181b" }}>StratiuMetrics · Estado</span>
         </div>
 
         {loading && !data ? (
@@ -86,7 +86,7 @@ export default function StatusPage() {
         )}
 
         <p style={{ textAlign: "center", fontSize: 12, color: "#a1a1aa", marginTop: 28 }}>
-          © 2026 MetrixPro · Esta página se actualiza automáticamente cada minuto
+          © 2026 StratiuMetrics · Esta página se actualiza automáticamente cada minuto
         </p>
       </div>
     </div>

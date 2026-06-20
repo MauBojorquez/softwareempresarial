@@ -46,7 +46,7 @@ export default function InvitePage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md rounded-2xl border border-border bg-card p-8 text-center shadow-lg">
-        <div className="mb-2 text-3xl font-bold tracking-tight gradient-text">MetrixPro</div>
+        <div className="mb-2 text-3xl font-bold tracking-tight gradient-text">StratiuMetrics</div>
 
         {state === "success" && (
           <>

@@ -1,6 +1,6 @@
 {
-  "name": "MetrixPro",
-  "short_name": "MetrixPro",
+  "name": "StratiuMetrics",
+  "short_name": "StratiuMetrics",
   "description": "Dashboard empresarial con métricas en tiempo real e IA",
   "start_url": "/dashboard/overview",
   "display": "standalone",

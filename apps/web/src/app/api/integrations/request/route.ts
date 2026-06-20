@@ -20,10 +20,10 @@ export async function POST(req: NextRequest) {
 
   await sendEmail(
     "maubojorquez@somosstratium.com",
-    `🔌 Solicitud de integración — MetrixPro`,
+    `🔌 Solicitud de integración — StratiuMetrics`,
     `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:32px;">
       <h2 style="color:#18181b;margin:0 0 8px;">Nueva solicitud de integración</h2>
-      <p style="color:#71717a;font-size:14px;margin:0 0 24px;">Un usuario solicita una nueva integración en MetrixPro.</p>
+      <p style="color:#71717a;font-size:14px;margin:0 0 24px;">Un usuario solicita una nueva integración en StratiuMetrics.</p>
       <table style="width:100%;border-collapse:collapse;font-size:14px;">
         <tr><td style="padding:8px 0;color:#71717a;width:120px;">Usuario</td><td style="padding:8px 0;color:#18181b;font-weight:600;">${userName}</td></tr>
         <tr><td style="padding:8px 0;color:#71717a;">Correo</td><td style="padding:8px 0;color:#18181b;">${userEmail}</td></tr>

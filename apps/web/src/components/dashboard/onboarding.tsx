@@ -39,7 +39,7 @@ export function Onboarding() {
     <div className="rounded-xl border border-primary/20 bg-card p-4 sm:p-6">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-sm font-semibold sm:text-base">Bienvenido a MetrixPro</h3>
+          <h3 className="text-sm font-semibold sm:text-base">Bienvenido a StratiuMetrics</h3>
           <p className="text-xs text-muted-foreground mt-0.5">Completa estos pasos para aprovechar al máximo la plataforma</p>
         </div>
         <button onClick={dismiss} className="text-xs text-muted-foreground hover:text-foreground">

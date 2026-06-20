@@ -54,7 +54,7 @@ export function PWARegister() {
           <Download className="h-5 w-5 text-white" />
         </div>
         <div className="flex-1">
-          <p className="text-sm font-semibold text-foreground">Instala MetrixPro</p>
+          <p className="text-sm font-semibold text-foreground">Instala StratiuMetrics</p>
           <p className="mt-0.5 text-xs text-muted-foreground">Agrégalo a tu pantalla de inicio para acceso rápido, incluso sin conexión.</p>
           <div className="mt-3 flex gap-2">
             <button onClick={install} className="rounded-lg gradient-bg px-3 py-1.5 text-xs font-semibold text-white">Instalar</button>

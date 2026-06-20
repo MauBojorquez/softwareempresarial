@@ -14,7 +14,7 @@ import { sendEmail } from "@/server/services/email";
 //   { event: "digest.request", orgId }   → triggers an immediate digest email
 //   { event: "alert.notify", orgId, metricName, value, threshold, condition }
 //
-// Make calls this after its own WhatsApp / messaging module so MetrixPro can
+// Make calls this after its own WhatsApp / messaging module so StratiuMetrics can
 // log the delivery and optionally emit a notification to the user.
 export async function POST(req: NextRequest) {
   const secret = process.env.MAKE_WEBHOOK_SECRET;
@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
     }
 
     case "alert.notify": {
-      // Make detected an alert threshold crossing and wants MetrixPro to record
+      // Make detected an alert threshold crossing and wants StratiuMetrics to record
       // it as an in-app notification.
       const metricName = typeof body.metricName === "string" ? body.metricName : "métrica";
       const value = typeof body.value === "number" ? body.value : 0;

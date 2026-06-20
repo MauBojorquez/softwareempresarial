@@ -5,6 +5,7 @@ import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2, Eye, EyeOff, Check } from "lucide-react";
+import { Logo } from "@/components/logo";
 import { cn } from "@/lib/utils";
 
 function GoogleIcon() {
@@ -75,10 +76,10 @@ export default function RegisterPage() {
       <div className="w-full max-w-sm space-y-6 px-4 animate-fade-in-up">
         <div className="text-center">
           <Link href="/" className="inline-flex items-center gap-2 group">
-            <div className="h-10 w-10 rounded-xl gradient-bg flex items-center justify-center shadow-lg shadow-primary/25 animate-float-logo group-hover:scale-105 transition-transform">
-              <span className="text-sm font-bold text-white">S</span>
+            <div className="h-10 w-10 rounded-xl gradient-bg flex items-center justify-center shadow-lg shadow-primary/25 animate-float-logo group-hover:scale-105 transition-transform text-white">
+              <Logo className="h-6 w-6" />
             </div>
-            <span className="text-xl font-bold">MetrixPro</span>
+            <span className="text-xl font-bold">StratiuMetrics</span>
           </Link>
           <h1 className="mt-8 text-2xl font-bold">Crear Cuenta</h1>
           <p className="mt-1 text-sm text-muted-foreground">Elige cómo quieres empezar</p>

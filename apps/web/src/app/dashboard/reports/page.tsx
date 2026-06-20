@@ -34,22 +34,60 @@ export default function ReportsPage() {
 
   useEffect(() => { load(); }, []);
 
+  // Polls the reports list until the target report finishes (or any new report
+  // stops being GENERATING). Returns the ready report, or null on timeout.
+  const pollUntilReady = async (knownId?: string): Promise<Report | null> => {
+    for (let i = 0; i < 30; i++) {
+      await new Promise((r) => setTimeout(r, 3000));
+      try {
+        const d = await fetch("/api/reports").then((r) => r.json());
+        if (d?.reports) {
+          setReports(d.reports);
+          const target: Report | undefined = knownId
+            ? d.reports.find((r: Report) => r.id === knownId)
+            : d.reports[0];
+          if (target && target.status !== "GENERATING") return target;
+        }
+      } catch {
+        // keep polling
+      }
+    }
+    return null;
+  };
+
   const handleGenerate = async () => {
     setGenerating(true);
     try {
-      const res = await fetch("/api/reports/generate", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        toast(data.error || "Error al generar reporte", "error");
-      } else {
-        load();
+      let reportId: string | undefined;
+      let postError: string | undefined;
+      try {
+        const res = await fetch("/api/reports/generate", { method: "POST" });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) reportId = data.reportId;
+        else postError = data.error || "Error al generar reporte";
+      } catch {
+        // The request may have timed out at the platform even though the
+        // report keeps generating server-side — fall through to polling.
+      }
+
+      // Poll until the report is ready, so it appears on its own without a
+      // manual page refresh (even if the POST connection dropped).
+      const ready = await pollUntilReady(reportId);
+      if (ready && ready.status === "COMPLETED") {
+        setExpandedReport(ready.id);
         toast("Reporte generado exitosamente", "success");
         addActivityLog("Reporte IA generado", "Análisis mensual con IA", "report");
+      } else if (postError) {
+        toast(postError, "error");
+      } else if (ready && ready.status === "FAILED") {
+        toast("El reporte no se pudo generar. Verifica que tengas datos.", "error");
+      } else {
+        toast("El reporte está tardando más de lo normal. Aparecerá en la lista cuando termine.", "info");
+        load();
       }
-    } catch {
-      toast("Error al generar reporte", "error");
+    } finally {
+      setGenerating(false);
     }
-    setGenerating(false);
   };
 
   const downloadReport = async (id: string) => {

@@ -1,7 +1,7 @@
 // EMAIL_FROM must use a domain verified in Resend (resend.com → Domains).
 // For testing without a verified domain, use "onboarding@resend.dev" but
 // Resend only allows sending to the account owner's email in that case.
-const FROM = process.env.EMAIL_FROM ?? "MetrixPro <onboarding@resend.dev>";
+const FROM = process.env.EMAIL_FROM ?? "StratiuMetrics <onboarding@resend.dev>";
 const RESEND_KEY = process.env.RESEND_API_KEY_2 ?? process.env.RESEND_API_KEY;
 
 export async function sendEmail(to: string, subject: string, html: string) {
@@ -41,19 +41,19 @@ function base(content: string) {
 <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:40px 16px;">
 <table width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;border:1px solid #e4e4e7;">
 <tr><td style="background:linear-gradient(135deg,#6366f1,#8b5cf6);padding:28px 32px;">
-<h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;">MetrixPro</h1>
+<h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;">StratiuMetrics</h1>
 <p style="margin:4px 0 0;color:rgba(255,255,255,0.8);font-size:13px;">Dashboard Empresarial Inteligente</p>
 </td></tr>
 <tr><td style="padding:32px;">${content}</td></tr>
 <tr><td style="padding:20px 32px;border-top:1px solid #f4f4f5;text-align:center;">
-<p style="margin:0;font-size:12px;color:#a1a1aa;">© 2026 MetrixPro · Todos los derechos reservados</p>
+<p style="margin:0;font-size:12px;color:#a1a1aa;">© 2026 StratiuMetrics · Todos los derechos reservados</p>
 </td></tr>
 </table></td></tr></table></body></html>`;
 }
 
 export function welcomeEmail(name: string, email: string) {
   return {
-    subject: "Bienvenido a MetrixPro 🚀",
+    subject: "Bienvenido a StratiuMetrics 🚀",
     html: base(`
       <h2 style="margin:0 0 8px;color:#18181b;font-size:20px;">¡Hola, ${esc(name)}!</h2>
       <p style="color:#71717a;font-size:15px;line-height:1.6;">Tu cuenta ha sido creada exitosamente con el correo <strong>${esc(email)}</strong>. Ya puedes acceder a tu dashboard empresarial.</p>
@@ -79,10 +79,10 @@ export function reportEmail(name: string, reportTitle: string, summary: string, 
 
 export function inviteEmail(inviterName: string, orgName: string, inviteUrl: string) {
   return {
-    subject: `${esc(inviterName)} te invitó a MetrixPro`,
+    subject: `${esc(inviterName)} te invitó a StratiuMetrics`,
     html: base(`
       <h2 style="margin:0 0 8px;color:#18181b;font-size:20px;">Tienes una invitación</h2>
-      <p style="color:#71717a;font-size:15px;line-height:1.6;"><strong>${esc(inviterName)}</strong> te invitó a unirte a <strong>${esc(orgName)}</strong> en MetrixPro, el dashboard empresarial inteligente.</p>
+      <p style="color:#71717a;font-size:15px;line-height:1.6;"><strong>${esc(inviterName)}</strong> te invitó a unirte a <strong>${esc(orgName)}</strong> en StratiuMetrics, el dashboard empresarial inteligente.</p>
       <a href="${inviteUrl}" style="display:inline-block;margin-top:16px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:600;font-size:14px;">Aceptar Invitación</a>
       <p style="margin-top:24px;color:#a1a1aa;font-size:13px;">Este enlace expira en 7 días.</p>
     `),
@@ -101,7 +101,7 @@ export function billingEmail(name: string, event: "upgraded" | "canceled" | "pay
     },
     payment_failed: {
       title: "Pago fallido",
-      body: `No pudimos procesar tu pago. Por favor actualiza tu método de pago para continuar usando MetrixPro.`,
+      body: `No pudimos procesar tu pago. Por favor actualiza tu método de pago para continuar usando StratiuMetrics.`,
     },
     trial_ending: {
       title: "Tu período de prueba termina pronto",
@@ -110,7 +110,7 @@ export function billingEmail(name: string, event: "upgraded" | "canceled" | "pay
   };
   const { title, body } = content[event];
   return {
-    subject: `MetrixPro: ${title}`,
+    subject: `StratiuMetrics: ${title}`,
     html: base(`
       <h2 style="margin:0 0 8px;color:#18181b;font-size:20px;">${title}</h2>
       <p style="color:#71717a;font-size:15px;line-height:1.6;">Hola <strong>${esc(name)}</strong>, ${body}</p>

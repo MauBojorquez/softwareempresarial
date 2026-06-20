@@ -75,7 +75,7 @@ export default function InviteSetupPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <div className="w-full max-w-md rounded-2xl border border-border bg-card p-8 text-center shadow-lg">
-          <div className="mb-2 text-3xl font-bold tracking-tight gradient-text">MetrixPro</div>
+          <div className="mb-2 text-3xl font-bold tracking-tight gradient-text">StratiuMetrics</div>
           <XCircle className="mx-auto mt-6 h-12 w-12 text-destructive" />
           <h2 className="mt-4 text-xl font-semibold">Invitación inválida</h2>
           <p className="mt-2 text-sm text-muted-foreground">{inviteError}</p>
@@ -99,7 +99,7 @@ export default function InviteSetupPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <div className="w-full max-w-md rounded-2xl border border-border bg-card p-8 text-center shadow-lg">
-          <div className="mb-2 text-3xl font-bold tracking-tight gradient-text">MetrixPro</div>
+          <div className="mb-2 text-3xl font-bold tracking-tight gradient-text">StratiuMetrics</div>
           <Check className="mx-auto mt-6 h-12 w-12 text-emerald-500" />
           <h2 className="mt-4 text-xl font-semibold">¡Bienvenido a {invite.orgName}!</h2>
           <p className="mt-2 text-sm text-muted-foreground">Entrando al dashboard...</p>
@@ -116,7 +116,7 @@ export default function InviteSetupPage() {
 
       <div className="w-full max-w-sm space-y-6 px-4">
         <div className="text-center">
-          <div className="text-3xl font-bold tracking-tight gradient-text">MetrixPro</div>
+          <div className="text-3xl font-bold tracking-tight gradient-text">StratiuMetrics</div>
           <h1 className="mt-6 text-2xl font-bold">Únete a {invite.orgName}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Fuiste invitado como <span className="font-medium text-foreground">{invite.email}</span>. Crea tu contraseña para entrar.

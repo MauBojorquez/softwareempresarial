@@ -71,7 +71,7 @@ function buildReportHTML(title: string, summary: string, content: string, date: 
 </head>
 <body>
   <h1>${esc(title)}</h1>
-  <p class="meta">Generado el ${date.toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })} | MetrixPro by Stratium</p>
+  <p class="meta">Generado el ${date.toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })} | StratiuMetrics</p>
   <div class="summary">
     <h2>Resumen Ejecutivo</h2>
     <p>${esc(summary).replace(/\n/g, "<br>")}</p>
@@ -81,7 +81,7 @@ function buildReportHTML(title: string, summary: string, content: string, date: 
     ${esc(content).replace(/\n/g, "<br>")}
   </div>
   <div class="footer">
-    <p>Este reporte fue generado automáticamente por MetrixPro. Los datos reflejan la información disponible al momento de la generación.</p>
+    <p>Este reporte fue generado automáticamente por StratiuMetrics. Los datos reflejan la información disponible al momento de la generación.</p>
   </div>
 </body>
 </html>`;
@@ -128,7 +128,7 @@ function buildMetricsHTML(orgName: string, metrics: Array<{ name: string; value:
   <p style="color:#64748b;font-size:13px;">Generado el ${new Date().toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })}</p>
   ${rows}
   <div class="footer">
-    <p>MetrixPro by Stratium | Reporte generado automáticamente</p>
+    <p>StratiuMetrics | Reporte generado automáticamente</p>
   </div>
 </body>
 </html>`;

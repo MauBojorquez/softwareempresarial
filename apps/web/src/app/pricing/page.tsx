@@ -73,7 +73,7 @@ export default function PricingPage() {
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <Link href="/" className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg gradient-bg" />
-            <span className="text-lg font-bold">MetrixPro</span>
+            <span className="text-lg font-bold">StratiuMetrics</span>
           </Link>
           <Link href="/login" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
             Iniciar Sesión

@@ -137,7 +137,7 @@ export default function SatConnectionPage() {
             >
               Acepto el Aviso de Privacidad y autorizo el uso de mi e.firma
               (FIEL) para descargar mis CFDIs del SAT y calcular mis métricas
-              financieras en MetrixPro.
+              financieras en StratiuMetrics.
             </label>
           </div>
 

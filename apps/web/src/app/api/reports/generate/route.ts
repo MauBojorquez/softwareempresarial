@@ -7,6 +7,10 @@ import { checkFeatureAccess } from "@/server/services/billing/plan-limits";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { logActivity } from "@/lib/activity";
 
+// AI generation can take 20-40s; give the function room so it isn't killed
+// mid-flight (which would leave the report stuck as GENERATING).
+export const maxDuration = 60;
+
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req);
   const rl = rateLimit(`report-gen:${ip}`, 5, 60 * 60_000); // 5 per hour
