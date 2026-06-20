@@ -138,16 +138,29 @@ export async function syncSalesMetrics(organizationId: string) {
   const pipelineTotal = stages.reduce((s, st) => s + st.amount, 0);
   const conversionRate = (cwCount + clCount) > 0 ? (cwCount / (cwCount + clCount)) * 100 : 0;
 
+  // Use UTC-midnight of current month as period (idempotent across multiple syncs)
+  const period = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+
+  // Delete existing HUBSPOT metrics for this month before re-inserting so the
+  // dashboard always reflects the latest data without accumulating duplicates.
+  await db.metric.deleteMany({
+    where: {
+      organizationId,
+      source: "HUBSPOT",
+      period,
+    },
+  });
+
   // 1. Save summary metric rows
   await db.metric.createMany({
     data: [
-      { organizationId, category: "SALES", name: "pipeline_value", value: pipelineTotal, unit: "MXN", period: now, source: "HUBSPOT" },
-      { organizationId, category: "SALES", name: "won_revenue", value: cwAmount, unit: "MXN", period: now, source: "HUBSPOT" },
-      { organizationId, category: "SALES", name: "conversion_rate", value: conversionRate, unit: "%", period: now, source: "HUBSPOT" },
-      { organizationId, category: "SALES", name: "total_deals", value: deals.length, period: now, source: "HUBSPOT" },
-      { organizationId, category: "SALES", name: "total_contacts", value: contacts.length, period: now, source: "HUBSPOT" },
-      { organizationId, category: "SALES", name: "new_contacts_month", value: newThisMonth, period: now, source: "HUBSPOT" },
-      { organizationId, category: "SALES", name: "closed_won_count", value: cwCount, period: now, source: "HUBSPOT" },
+      { organizationId, category: "SALES", name: "pipeline_value", value: pipelineTotal, unit: "MXN", period, source: "HUBSPOT" },
+      { organizationId, category: "SALES", name: "won_revenue", value: cwAmount, unit: "MXN", period, source: "HUBSPOT" },
+      { organizationId, category: "SALES", name: "conversion_rate", value: conversionRate, unit: "%", period, source: "HUBSPOT" },
+      { organizationId, category: "SALES", name: "total_deals", value: deals.length, period, source: "HUBSPOT" },
+      { organizationId, category: "SALES", name: "total_contacts", value: contacts.length, period, source: "HUBSPOT" },
+      { organizationId, category: "SALES", name: "new_contacts_month", value: newThisMonth, period, source: "HUBSPOT" },
+      { organizationId, category: "SALES", name: "closed_won_count", value: cwCount, period, source: "HUBSPOT" },
     ],
   });
 
