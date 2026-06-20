@@ -10,7 +10,10 @@ export default function MarketingPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"overview" | "campaigns" | "history">("overview");
-  const [selectedAccount, setSelectedAccount] = useState<string>("");
+  const [selectedAccount, setSelectedAccount] = useState<string>(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("mkt_account") ?? "";
+    return "";
+  });
 
   const load = (accountId?: string) => {
     setLoading(true);
@@ -171,7 +174,7 @@ export default function MarketingPage() {
           ) : (
             <select
               value={selectedAccount || campaigns.adAccounts[0]?.id || ""}
-              onChange={(e) => { setSelectedAccount(e.target.value); load(e.target.value); }}
+              onChange={(e) => { setSelectedAccount(e.target.value); localStorage.setItem("mkt_account", e.target.value); load(e.target.value); }}
               className="rounded-md border border-border bg-card px-2 py-1 text-xs font-medium text-foreground"
             >
               {campaigns.adAccounts.map((a: any) => (

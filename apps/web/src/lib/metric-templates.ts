@@ -32,16 +32,17 @@ export const CATEGORY_TEMPLATES: Record<MetricCategoryKey, MetricTemplate[]> = {
     { name: "Flujo de Caja", unit: "MXN", computed: "Ingresos - Gastos" },
   ],
   SALES: [
-    { name: "Proyectos", unit: "MXN" },
-    { name: "Valor Cartera", unit: "MXN" },
-    // Computed — sum of Proyectos + Valor Cartera for the same month.
-    { name: "Ventas del Mes", unit: "MXN", computed: "Proyectos + Valor Cartera" },
+    { name: "Ventas del Mes", unit: "MXN" },
     { name: "Deals Cerrados", unit: "unidades" },
     { name: "Nuevos Leads", unit: "unidades" },
     { name: "Pipeline Total", unit: "MXN" },
     { name: "Ticket Promedio", unit: "MXN" },
   ],
   OPERATIONS: [
+    // Cartera de Clientes
+    { name: "Proyectos", unit: "MXN" },
+    { name: "Valor Cartera", unit: "MXN" },
+    // Operacional
     { name: "Tareas Completadas", unit: "unidades" },
     { name: "Incidencias", unit: "unidades" },
     { name: "Tiempo Promedio (días)", unit: "días" },

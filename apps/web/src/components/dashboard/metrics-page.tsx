@@ -33,6 +33,8 @@ export interface MetricsDashboardProps {
   emptySubtitle: string;
   /** Optional extra content rendered after metric cards */
   extraContent?: (metrics: MetricEntry[], months: number) => React.ReactNode;
+  /** Hide the built-in title/subtitle header (use when parent renders its own) */
+  hideTitle?: boolean;
 }
 
 export function MetricsDashboard({
@@ -47,6 +49,7 @@ export function MetricsDashboard({
   emptyTitle,
   emptySubtitle,
   extraContent,
+  hideTitle,
 }: MetricsDashboardProps) {
   const { toast } = useToast();
   const [metrics, setMetrics] = useState<MetricEntry[]>([]);
@@ -268,10 +271,13 @@ export function MetricsDashboard({
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">{title}</h1>
-          <p className="text-sm text-muted-foreground">{subtitle}</p>
-        </div>
+        {!hideTitle && (
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">{title}</h1>
+            <p className="text-sm text-muted-foreground">{subtitle}</p>
+          </div>
+        )}
+        {hideTitle && <div />}
         <div className="flex items-center gap-2">
           <ExportButton category={category} label="Exportar" />
           <a
