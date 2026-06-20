@@ -33,7 +33,6 @@ export const metadata: Metadata = {
   formatDetection: { telephone: false },
   icons: [
     { rel: "icon", url: "/brand-logo.png", type: "image/png" },
-    { rel: "icon", url: "/favicon.svg", type: "image/svg+xml" },
     { rel: "apple-touch-icon", url: "/brand-logo.png" },
   ],
   openGraph: {
