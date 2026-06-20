@@ -1,4 +1,5 @@
 import { db } from "@/server/db";
+import { metricLabel } from "@/lib/metric-labels";
 
 /**
  * Lightweight, dependency-free analytics over the org's monthly metrics:
@@ -108,18 +109,14 @@ export async function detectAnomalies(orgId: string): Promise<Anomaly[]> {
     const keys = lastMonths(7).filter((k) => series.has(k));
     if (keys.length < 2) continue;
 
-    const current = series.get(keys[keys.length - 1]) ?? 0;
-    const previous = series.get(keys[keys.length - 2]) ?? 0;
-    if (previous === 0 && current === 0) continue;
-
-    // Trailing average of up to 3 months before the current one.
-    const trailing = keys.slice(Math.max(0, keys.length - 4), keys.length - 1);
-    const avg = trailing.length
-      ? trailing.reduce((s, k) => s + (series.get(k) ?? 0), 0) / trailing.length
-      : previous;
-
-    const ref = avg || previous;
+    const curKey = keys[keys.length - 1];
+    const prevKey = keys[keys.length - 2];
+    const current = series.get(curKey) ?? 0;
+    const ref = series.get(prevKey) ?? 0;
+    // Straightforward month-over-month comparison — what an owner understands.
+    if (ref === 0 && current === 0) continue;
     if (ref === 0) continue;
+
     const changePct = ((current - ref) / Math.abs(ref)) * 100;
     const abs = Math.abs(changePct);
     if (abs < 20) continue; // ignore noise
@@ -133,12 +130,13 @@ export async function detectAnomalies(orgId: string): Promise<Anomaly[]> {
     if (abs >= 50) severity = bad ? "critical" : "warning";
     else if (abs >= 30) severity = bad ? "warning" : "info";
 
+    // Friendly, plain-language message comparing this month vs the previous one.
+    const label = metricLabel(name);
     const arrow = direction === "up" ? "subió" : "bajó";
-    const pctTxt = `${abs.toFixed(0)}%`;
-    const message = `${name} ${arrow} ${pctTxt} respecto al promedio reciente.`;
+    const message = `${label} ${arrow} ${abs.toFixed(0)}% frente al mes pasado.`;
 
     anomalies.push({
-      metric: name,
+      metric: label,
       category,
       severity,
       direction,
@@ -210,7 +208,7 @@ export async function forecastMetric(
   const nextChangePct = last !== 0 ? parseFloat((((next - last) / Math.abs(last)) * 100).toFixed(1)) : 0;
   const trend: "up" | "down" | "flat" = slope > Math.abs(last) * 0.02 ? "up" : slope < -Math.abs(last) * 0.02 ? "down" : "flat";
 
-  return { metric: name, category, history, forecast, trend, nextValue: next, nextChangePct };
+  return { metric: metricLabel(name), category, history, forecast, trend, nextValue: next, nextChangePct };
 }
 
 /** Forecasts the headline money metrics that exist for the org. */

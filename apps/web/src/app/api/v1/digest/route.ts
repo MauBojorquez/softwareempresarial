@@ -31,20 +31,21 @@ export async function GET(req: NextRequest) {
     select: { name: true },
   });
 
-  // Latest value per metric name (last 60 days).
-  const since = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+  // Current-month total per metric name. Multiple entries for the same metric
+  // in the month are summed so totals match the dashboard.
+  const now = new Date();
+  const since = new Date(now.getFullYear(), now.getMonth(), 1);
   const metrics = await db.metric.findMany({
     where: { organizationId: apiKey.organizationId, period: { gte: since }, name: { not: { startsWith: "META_" } } },
     orderBy: { period: "desc" },
   });
 
-  const seen = new Set<string>();
-  const latest: { name: string; value: number; unit: string | null }[] = [];
+  const totals = new Map<string, { value: number; unit: string | null }>();
   for (const m of metrics) {
-    if (seen.has(m.name)) continue;
-    seen.add(m.name);
-    latest.push({ name: m.name, value: m.value, unit: m.unit });
+    const prev = totals.get(m.name);
+    totals.set(m.name, { value: (prev?.value ?? 0) + m.value, unit: m.unit ?? prev?.unit ?? null });
   }
+  const latest = Array.from(totals.entries()).map(([name, v]) => ({ name, value: v.value, unit: v.unit }));
 
   const fmt = (v: number, unit: string | null) =>
     unit === "MXN"

@@ -127,7 +127,13 @@ function buildMetricsSummary(metrics: Array<{ category: string; name: string; va
   const summary: Record<string, Record<string, { value: number; unit: string | null }>> = {};
   for (const m of metrics) {
     if (!summary[m.category]) summary[m.category] = {};
-    summary[m.category][m.name] = { value: m.value, unit: m.unit };
+    // Sum multiple entries for the same metric within the period so the totals
+    // match what the dashboard shows (e.g. several "Ingresos" entries add up).
+    const existing = summary[m.category][m.name];
+    summary[m.category][m.name] = {
+      value: (existing?.value ?? 0) + m.value,
+      unit: m.unit ?? existing?.unit ?? null,
+    };
   }
   return summary;
 }
