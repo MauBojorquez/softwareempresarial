@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { X, Loader2, ArrowRight, ArrowLeft, Check, Link2, Trash2, Table2, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/toast";
-import { colLetter, parseCellNumber } from "@/lib/google-sheets";
+import { colLetter, parseCellNumber, toCsvUrl, parseCsv } from "@/lib/google-sheets";
 import {
   CATEGORY_TEMPLATES, CATEGORY_LABELS, ALL_CATEGORIES, type MetricCategoryKey,
 } from "@/lib/metric-templates";
@@ -56,17 +56,28 @@ export function SheetsConnectModal({
     if (!url.trim()) return;
     setLoading(true);
     try {
-      const res = await fetch("/api/integrations/sheets/preview", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
-      });
-      const data = await res.json();
-      if (!res.ok) { toast(data.error || "No se pudo leer la hoja", "error"); setLoading(false); return; }
-      setGrid(data.grid ?? []);
+      const csvUrl = toCsvUrl(url.trim());
+      if (!csvUrl) {
+        toast("URL de Google Sheets inválida. Pega el enlace completo de la hoja.", "error");
+        setLoading(false);
+        return;
+      }
+      const res = await fetch(csvUrl);
+      if (!res.ok) {
+        toast("No se pudo leer la hoja. Compártela como 'Cualquier persona con el enlace puede ver'.", "error");
+        setLoading(false);
+        return;
+      }
+      const text = await res.text();
+      if (text.trimStart().startsWith("<")) {
+        toast("La hoja no es pública. En Google Sheets → Compartir → 'Cualquier persona con el enlace → Lector'.", "error");
+        setLoading(false);
+        return;
+      }
+      setGrid(parseCsv(text));
       setStep(2);
     } catch {
-      toast("Error de conexión", "error");
+      toast("Error de conexión con Google Sheets", "error");
     }
     setLoading(false);
   };
