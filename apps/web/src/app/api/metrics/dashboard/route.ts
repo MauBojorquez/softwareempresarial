@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
 
     const flow = (category: string, keywords: string[], excludes: string[] = [], source?: string | null) => {
       const curr = sumMonth(category, keywords, currentYear, currentMonth, excludes, source);
-      const before = sumMonth(category, keywords, prev.getFullYear(), prev.getMonth(), excludes, source);
+      const before = sumMonth(category, keywords, prev.getUTCFullYear(), prev.getUTCMonth(), excludes, source);
       return { value: curr, change: pctChange(curr, before) };
     };
 
@@ -99,15 +99,15 @@ export async function GET(req: NextRequest) {
       change: 0,
     };
     const conversion = leads.value > 0 ? parseFloat(((dealsCurr / leads.value) * 100).toFixed(1)) : 0;
-    const prevLeads = sumMonth("SALES", ["lead", "prospecto", "contacto"], prev.getFullYear(), prev.getMonth(), ["pipeline"]);
-    const prevDeals = sumMonth("SALES", ["deal", "cerrado", "cierre", "ganado"], prev.getFullYear(), prev.getMonth(), ["pipeline"]);
+    const prevLeads = sumMonth("SALES", ["lead", "prospecto", "contacto"], prev.getUTCFullYear(), prev.getUTCMonth(), ["pipeline"]);
+    const prevDeals = sumMonth("SALES", ["deal", "cerrado", "cierre", "ganado"], prev.getUTCFullYear(), prev.getUTCMonth(), ["pipeline"]);
     const prevConversion = prevLeads > 0 ? (prevDeals / prevLeads) * 100 : 0;
     const conversionChange = pctChange(conversion, prevConversion);
 
     // ── RRHH ──────────────────────────────────────────────
     const headcount = latestMatch("HR", ["headcount", "empleado", "colaborador", "equipo", "personal", "plantilla"]);
     const prevHeadcount = (() => {
-      const m = metrics.find((x) => x.category === "HR" && inMonth(x.period, prev.getFullYear(), prev.getMonth()) &&
+      const m = metrics.find((x) => x.category === "HR" && inMonth(x.period, prev.getUTCFullYear(), prev.getUTCMonth()) &&
         ["headcount", "empleado", "colaborador", "equipo", "personal", "plantilla"].some((k) => norm(x.name).includes(k)));
       return m?.value ?? 0;
     })();
