@@ -34,29 +34,29 @@
   }
 
   .dark {
-    --background: 222 20% 10%;
-    --foreground: 220 14% 93%;
-    --card: 222 20% 13%;
-    --card-foreground: 220 14% 93%;
-    --primary: 220 65% 55%;
+    --background: 224 28% 4%;
+    --foreground: 0 0% 96%;
+    --card: 224 22% 7%;
+    --card-foreground: 0 0% 95%;
+    --primary: 220 85% 62%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 222 15% 18%;
-    --secondary-foreground: 220 14% 85%;
-    --muted: 222 15% 18%;
-    --muted-foreground: 220 10% 55%;
-    --accent: 222 15% 18%;
-    --accent-foreground: 220 14% 93%;
-    --destructive: 0 72% 51%;
+    --secondary: 224 20% 11%;
+    --secondary-foreground: 0 0% 80%;
+    --muted: 224 20% 11%;
+    --muted-foreground: 220 10% 48%;
+    --accent: 224 20% 11%;
+    --accent-foreground: 0 0% 90%;
+    --destructive: 0 80% 55%;
     --destructive-foreground: 0 0% 100%;
-    --success: 152 60% 42%;
+    --success: 152 80% 45%;
     --success-foreground: 0 0% 100%;
-    --warning: 38 92% 50%;
+    --warning: 38 95% 52%;
     --warning-foreground: 0 0% 100%;
-    --border: 222 15% 22%;
-    --input: 222 15% 22%;
-    --ring: 220 65% 55%;
-    --gradient-start: 220 65% 50%;
-    --gradient-end: 220 50% 40%;
+    --border: 224 18% 12%;
+    --input: 224 18% 12%;
+    --ring: 220 85% 62%;
+    --gradient-start: 220 85% 58%;
+    --gradient-end: 230 70% 45%;
   }
 }
 
@@ -410,6 +410,11 @@ button {
   animation-timing-function: cubic-bezier(0.25, 0.6, 0.4, 1);
   animation-fill-mode: forwards;
 }
+
+/* Trading chart glow filters */
+.chart-glow-green { filter: drop-shadow(0 0 6px rgba(0,232,123,0.6)); }
+.chart-glow-blue  { filter: drop-shadow(0 0 6px rgba(61,127,255,0.5)); }
+.chart-glow-red   { filter: drop-shadow(0 0 6px rgba(255,68,68,0.5)); }
 
 /* Respect users who prefer reduced motion: kill non-essential animation */
 @media (prefers-reduced-motion: reduce) {
