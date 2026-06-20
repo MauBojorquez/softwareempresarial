@@ -150,14 +150,25 @@ export async function GET(req: NextRequest) {
     });
     const uniqueGoals = new Map<string, typeof goalMetrics[0]>();
     for (const g of goalMetrics) if (!uniqueGoals.has(g.name)) uniqueGoals.set(g.name, g);
+    // Current value for a goal = sum of its latest month (same logic as the charts)
+    const goalMonthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const goalLatestSum = (name: string) => {
+      const rows = metrics.filter((m) => m.name === name);
+      if (!rows.length) return { value: 0, unit: null };
+      const months = [...new Set(rows.map((m) => goalMonthKey(m.period)))].sort().reverse();
+      const mk = months[0];
+      const value = rows.filter((m) => goalMonthKey(m.period) === mk).reduce((s, m) => s + m.value, 0);
+      return { value, unit: rows[0].unit };
+    };
+
     const goalList = Array.from(uniqueGoals.values()).map((g) => {
       const metricName = g.name.replace("META_", "");
-      const currentMetric = metrics.find((m) => m.name === metricName);
+      const cur = goalLatestSum(metricName);
       return {
         name: metricName,
-        current: currentMetric?.value ?? 0,
+        current: cur.value,
         target: g.value,
-        unit: currentMetric?.unit || g.unit || "",
+        unit: cur.unit || g.unit || "",
       };
     });
 

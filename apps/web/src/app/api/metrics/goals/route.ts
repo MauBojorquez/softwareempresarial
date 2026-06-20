@@ -14,11 +14,33 @@ export async function GET() {
     orderBy: { period: "desc" },
   });
 
-  const latest = (name: string) => metrics.find((m) => m.name === name);
+  // Returns "YYYY-MM" for a given date
+  const monthKey = (d: Date | string) =>
+    new Date(d).toISOString().slice(0, 7);
+
+  // All distinct months (desc) where a metric has entries
+  const monthsFor = (name: string) =>
+    [...new Set(metrics.filter((m) => m.name === name).map((m) => monthKey(m.period)))]
+      .sort()
+      .reverse();
+
+  // Sum of all entries for a metric in a specific month
+  const monthSum = (name: string, mk: string) =>
+    metrics
+      .filter((m) => m.name === name && monthKey(m.period) === mk)
+      .reduce((s, m) => s + m.value, 0);
+
+  // Current value = sum of latest month's entries (same logic as the dashboard charts)
+  const latestSum = (name: string) => {
+    const months = monthsFor(name);
+    if (!months.length) return null;
+    const unit = metrics.find((m) => m.name === name)?.unit ?? null;
+    return { value: monthSum(name, months[0]), unit };
+  };
 
   // Conversión is derived from leads/deals, not stored directly.
-  const leads = latest("Nuevos Leads")?.value ?? 0;
-  const deals = latest("Deals Cerrados")?.value ?? 0;
+  const leads = latestSum("Nuevos Leads")?.value ?? 0;
+  const deals = latestSum("Deals Cerrados")?.value ?? 0;
   const conversion = leads > 0 ? parseFloat(((deals / leads) * 100).toFixed(1)) : 0;
 
   const unique = new Map<string, (typeof metrics)[number]>();
@@ -28,7 +50,7 @@ export async function GET() {
 
   const goals = Array.from(unique.values()).map((g) => {
     const metricName = g.name.replace("META_", "");
-    const cur = metricName === "Conversión" ? { value: conversion, unit: "%" } : latest(metricName);
+    const cur = metricName === "Conversión" ? { value: conversion, unit: "%" } : latestSum(metricName);
     const meta = g.metadata as Record<string, unknown> | null;
     return {
       name: metricName,
