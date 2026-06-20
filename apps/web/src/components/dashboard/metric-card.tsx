@@ -60,36 +60,38 @@ export function MetricCard({ title, value, change, icon: Icon, format, trend }: 
           : String(value);
 
   return (
-    <div role="article" aria-label={`${title}: ${formattedValue}`} className="group rounded-xl border border-border bg-card p-4 transition-all sm:p-5 card-hover">
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-medium text-muted-foreground sm:text-sm">{title}</p>
-        <div className="rounded-lg bg-primary/8 p-1.5 sm:p-2 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3">
+    <div role="article" aria-label={`${title}: ${formattedValue}`} className="group relative rounded-2xl border border-border bg-card p-4 sm:p-5 transition-all card-hover overflow-hidden">
+      {/* Top accent line */}
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">{title}</p>
+        <div className="rounded-xl bg-primary/10 p-1.5 sm:p-2 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3 shrink-0">
           <Icon className="h-3.5 w-3.5 text-primary sm:h-4 sm:w-4" />
         </div>
       </div>
-      <div className="mt-2 sm:mt-3">
-        <p className="text-lg font-bold tracking-tight text-foreground sm:text-2xl">{formattedValue}</p>
+      <div className="mt-3">
+        <p className="text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl tabular-nums">{formattedValue}</p>
         {change !== undefined && (
           <p
             className={cn(
-              "mt-1 flex items-center gap-0.5 text-[11px] font-medium sm:mt-1.5 sm:text-xs animate-scale-in",
-              change > 0 ? "text-emerald-600" : change < 0 ? "text-red-500" : "text-muted-foreground"
+              "mt-1.5 flex items-center gap-1 text-xs font-medium animate-scale-in",
+              change > 0 ? "text-emerald-400" : change < 0 ? "text-red-400" : "text-muted-foreground"
             )}
           >
             {change > 0
-              ? <TrendingUp className="h-3 w-3" />
+              ? <TrendingUp className="h-3.5 w-3.5" />
               : change < 0
-              ? <TrendingDown className="h-3 w-3" />
-              : <Minus className="h-3 w-3" />}
+              ? <TrendingDown className="h-3.5 w-3.5" />
+              : <Minus className="h-3.5 w-3.5" />}
             {formatPercentage(change)} vs mes anterior
           </p>
         )}
         {trend && trend.length > 1 && (
-          <div className="mt-2">
-            <svg viewBox="0 0 100 24" className="w-full h-6" preserveAspectRatio="none">
+          <div className="mt-3">
+            <svg viewBox="0 0 100 28" className="w-full h-7" preserveAspectRatio="none" style={{ filter: "drop-shadow(0 0 4px rgba(61,127,255,0.5))" }}>
               <polyline
                 fill="none"
-                stroke="hsl(var(--primary))"
+                stroke="#3D7FFF"
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -98,7 +100,7 @@ export function MetricCard({ title, value, change, icon: Icon, format, trend }: 
                   const max = Math.max(...trend);
                   const range = max - min || 1;
                   const x = (i / (trend.length - 1)) * 100;
-                  const y = 22 - ((v - min) / range) * 20;
+                  const y = 26 - ((v - min) / range) * 24;
                   return `${x},${y}`;
                 }).join(" ")}
               />
