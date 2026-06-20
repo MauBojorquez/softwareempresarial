@@ -37,6 +37,7 @@ model User {
   sentInvitations  Invitation[]  @relation("SentInvitations")
   activityLogs     ActivityLog[]
   alertRules       AlertRule[]
+  pushSubscriptions PushSubscription[]
 }
 
 model Account {
@@ -321,6 +322,22 @@ model Notification {
   user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, read])
+}
+
+// ─── Web Push subscriptions (one per browser/device) ────────────────
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  endpoint  String   @unique @db.Text
+  p256dh    String   @db.Text
+  auth      String   @db.Text
+  userAgent String?  @db.Text
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // ─── Activity Log (team usage analytics + audit trail) ──────────────

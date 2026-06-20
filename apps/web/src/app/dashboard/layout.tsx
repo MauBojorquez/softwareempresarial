@@ -8,6 +8,7 @@ import { Breadcrumb } from "@/components/dashboard/breadcrumb";
 import { ShortcutsHelp } from "@/components/dashboard/shortcuts-help";
 import { CommandPalette } from "@/components/command-palette";
 import { ActivityTracker } from "@/components/dashboard/activity-tracker";
+import { GuidedTour } from "@/components/dashboard/guided-tour";
 import { PWARegister } from "@/components/pwa-register";
 import { ThemeProvider } from "@/components/theme-provider";
 import { BrandProvider } from "@/components/brand-provider";
@@ -61,6 +62,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <ShortcutsHelp />
       <CommandPalette />
       <ActivityTracker />
+      <GuidedTour />
       <PWARegister />
       <a href="#main-content" className="skip-link">Ir al contenido principal</a>
       <div className="relative flex h-screen bg-background">

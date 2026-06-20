@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Bell, BellOff, X } from "lucide-react";
+import { Bell, BellOff, X, Loader2, Check } from "lucide-react";
+import { pushSupported, isSubscribed, subscribeToPush, unsubscribeFromPush } from "@/lib/push-client";
 
 type AppNotification = {
   id: string;
@@ -14,9 +15,11 @@ type AppNotification = {
 
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
-  const [permission, setPermission] = useState<NotificationPermission>("default");
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [supported, setSupported] = useState(false);
+  const [subscribed, setSubscribed] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
 
   const loadNotifications = useCallback(async () => {
     try {
@@ -30,17 +33,26 @@ export function NotificationBell() {
   }, []);
 
   useEffect(() => {
-    if ("Notification" in window) setPermission(Notification.permission);
+    const ok = pushSupported();
+    setSupported(ok);
+    if (ok) isSubscribed().then(setSubscribed).catch(() => {});
     loadNotifications();
     const interval = setInterval(loadNotifications, 60000);
     return () => clearInterval(interval);
   }, [loadNotifications]);
 
-  const requestPermission = async () => {
-    if ("Notification" in window) {
-      const perm = await Notification.requestPermission();
-      setPermission(perm);
-    }
+  const togglePush = async () => {
+    setPushBusy(true);
+    try {
+      if (subscribed) {
+        await unsubscribeFromPush();
+        setSubscribed(false);
+      } else {
+        const ok = await subscribeToPush();
+        setSubscribed(ok);
+      }
+    } catch {}
+    setPushBusy(false);
   };
 
   const markAllRead = async () => {
@@ -127,14 +139,34 @@ export function NotificationBell() {
               )}
             </div>
 
-            {permission !== "granted" && (
+            {supported && (
               <div className="border-t border-border p-3">
                 <button
-                  onClick={requestPermission}
-                  className="w-full rounded-lg gradient-bg py-2 text-xs font-medium text-white hover:opacity-90"
+                  onClick={togglePush}
+                  disabled={pushBusy}
+                  className={
+                    subscribed
+                      ? "flex w-full items-center justify-center gap-1.5 rounded-lg border border-border py-2 text-xs font-medium text-muted-foreground hover:bg-secondary disabled:opacity-50"
+                      : "flex w-full items-center justify-center gap-1.5 rounded-lg gradient-bg py-2 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+                  }
                 >
-                  Activar Notificaciones Push
+                  {pushBusy ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : subscribed ? (
+                    <Check className="h-3.5 w-3.5" />
+                  ) : (
+                    <Bell className="h-3.5 w-3.5" />
+                  )}
+                  {subscribed ? "Push activado en este dispositivo" : "Activar notificaciones push"}
                 </button>
+                {subscribed && (
+                  <button
+                    onClick={() => fetch("/api/push/test", { method: "POST" }).catch(() => {})}
+                    className="mt-1.5 w-full text-center text-[10px] text-muted-foreground hover:text-foreground"
+                  >
+                    Enviar notificación de prueba · toca el botón de arriba para desactivar
+                  </button>
+                )}
               </div>
             )}
           </div>

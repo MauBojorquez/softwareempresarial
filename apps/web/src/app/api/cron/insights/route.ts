@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { detectAnomalies } from "@/server/services/metrics/insights";
 import { sendEmail, digestEmail, fmtMoneyForEmail } from "@/server/services/email";
+import { sendPushToUser } from "@/server/services/push/send-push";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,6 +52,12 @@ async function handle(req: NextRequest) {
             type: a.severity === "critical" ? "error" : "warning",
           },
         });
+        await sendPushToUser(org.ownerId, {
+          title,
+          body: a.message,
+          url: "/dashboard/overview",
+          tag: "insight",
+        }).catch(() => {});
         alerted++;
       }
 

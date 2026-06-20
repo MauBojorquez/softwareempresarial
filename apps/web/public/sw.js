@@ -1,5 +1,5 @@
-// MetrixPro service worker — offline support + asset caching.
-const CACHE = "metrixpro-v1";
+// StratiuMetrics service worker — offline support + asset caching + web push.
+const CACHE = "metrixpro-v2";
 const OFFLINE_URL = "/offline.html";
 const PRECACHE = [OFFLINE_URL, "/manifest.json", "/favicon.svg"];
 
@@ -47,4 +47,46 @@ self.addEventListener("fetch", (event) => {
       })
     );
   }
+});
+
+// ── Web Push ──────────────────────────────────────────────────────
+// A push message arrives (even when the app is fully closed). Show a
+// system notification on the device.
+self.addEventListener("push", (event) => {
+  let payload = { title: "StratiuMetrics", body: "Tienes una nueva notificación." };
+  try {
+    if (event.data) payload = { ...payload, ...event.data.json() };
+  } catch {
+    if (event.data) payload.body = event.data.text();
+  }
+
+  const options = {
+    body: payload.body,
+    icon: "/brand-icon.png",
+    badge: "/brand-icon.png",
+    tag: payload.tag || "stratiumetrics",
+    data: { url: payload.url || "/dashboard/overview" },
+    vibrate: [120, 60, 120],
+    renotify: true,
+  };
+
+  event.waitUntil(self.registration.showNotification(payload.title, options));
+});
+
+// Tapping a notification focuses an open tab (or opens a new one) at the URL.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const target = (event.notification.data && event.notification.data.url) || "/dashboard/overview";
+
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      for (const client of clients) {
+        if ("focus" in client) {
+          client.navigate(target).catch(() => {});
+          return client.focus();
+        }
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(target);
+    })
+  );
 });

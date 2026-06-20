@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { CheckCircle, ArrowRight, Sparkles, Database, Link2, FileBarChart } from "lucide-react";
+import { CheckCircle, ArrowRight, Sparkles, Database, Link2, FileBarChart, PlayCircle } from "lucide-react";
+import { startGuidedTour } from "@/components/dashboard/guided-tour";
 
 const STEPS = [
   { id: "profile", label: "Configura tu perfil", description: "Personaliza tu experiencia", href: "/dashboard/settings", icon: Sparkles },
@@ -42,9 +43,14 @@ export function Onboarding() {
           <h3 className="text-sm font-semibold sm:text-base">Bienvenido a StratiuMetrics</h3>
           <p className="text-xs text-muted-foreground mt-0.5">Completa estos pasos para aprovechar al máximo la plataforma</p>
         </div>
-        <button onClick={dismiss} className="text-xs text-muted-foreground hover:text-foreground">
-          Omitir
-        </button>
+        <div className="flex items-center gap-3">
+          <button onClick={startGuidedTour} className="flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+            <PlayCircle className="h-3.5 w-3.5" /> Ver tour
+          </button>
+          <button onClick={dismiss} className="text-xs text-muted-foreground hover:text-foreground">
+            Omitir
+          </button>
+        </div>
       </div>
 
       <div className="mb-4">

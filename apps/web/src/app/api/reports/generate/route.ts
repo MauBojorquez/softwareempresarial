@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/server/db";
 import { generateMonthlyReport } from "@/server/services/ai/report-generator";
+import { notify } from "@/server/services/push/notify";
 import { checkFeatureAccess } from "@/server/services/billing/plan-limits";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { logActivity } from "@/lib/activity";
@@ -42,16 +43,13 @@ export async function POST(req: NextRequest) {
   try {
     const reportId = await generateMonthlyReport(membership.organizationId, session.user.id);
 
-    try {
-      await db.notification.create({
-        data: {
-          userId: session.user.id,
-          title: "Reporte IA generado",
-          message: "Tu reporte mensual con análisis de IA está listo para revisión.",
-          type: "report",
-        },
-      });
-    } catch {}
+    await notify({
+      userId: session.user.id,
+      title: "Reporte IA generado",
+      message: "Tu reporte mensual con análisis de IA está listo para revisión.",
+      type: "report",
+      url: "/dashboard/reports",
+    });
 
     logActivity({
       userId: session.user.id,
