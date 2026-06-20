@@ -19,7 +19,9 @@ export function Logo({ className = "h-8 w-8" }: Props) {
     <img
       src="/brand-logo.png"
       alt="StratiuMetrics"
-      className={`${className} rounded-lg object-contain`}
+      // The mark is dark on transparent; invert it in dark mode so it stays
+      // visible against dark backgrounds.
+      className={`${className} object-contain dark:invert`}
       onError={(e) => {
         const img = e.currentTarget;
         if (!img.src.endsWith("/favicon.svg")) img.src = "/favicon.svg";
