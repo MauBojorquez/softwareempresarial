@@ -805,7 +805,7 @@ export default function SettingsPage() {
       </div>
 
       {/* ── Alertas ── */}
-      <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
+      <div id="alertas" className="scroll-mt-24 rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
         <div className="flex items-center gap-3">
           <BellRing className="h-5 w-5 text-primary" />
           <h2 className="text-lg font-semibold text-foreground">Alertas por Correo</h2>

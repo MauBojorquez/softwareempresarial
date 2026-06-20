@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Bell, BellOff, X, Loader2, Check } from "lucide-react";
+import { Bell, BellOff, X, Loader2, Check, SlidersHorizontal, ArrowRight } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { pushSupported, isSubscribed, subscribeToPush, unsubscribeFromPush } from "@/lib/push-client";
 
 type AppNotification = {
@@ -14,6 +15,7 @@ type AppNotification = {
 };
 
 export function NotificationBell() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -142,42 +144,56 @@ export function NotificationBell() {
 
             {supported && (
               <div className="border-t border-border p-3">
-                {!subscribed && (
-                  <div className="mb-2.5 rounded-lg bg-secondary/50 p-2.5">
-                    <p className="text-[11px] font-medium text-foreground">Te avisamos cuando:</p>
-                    <ul className="mt-1 space-y-0.5 text-[10px] text-muted-foreground">
-                      <li>📊 Un reporte de IA está listo</li>
-                      <li>⚠️ Una métrica sube o baja de forma importante</li>
-                      <li>🎯 Se dispara una alerta que configuraste</li>
-                    </ul>
-                    <p className="mt-1.5 text-[10px] text-muted-foreground">Te llegan aquí y a tu celular o navegador, aunque la app esté cerrada.</p>
-                  </div>
-                )}
-                <button
-                  onClick={togglePush}
-                  disabled={pushBusy}
-                  className={
-                    subscribed
-                      ? "flex w-full items-center justify-center gap-1.5 rounded-lg border border-border py-2 text-xs font-medium text-muted-foreground hover:bg-secondary disabled:opacity-50"
-                      : "flex w-full items-center justify-center gap-1.5 rounded-lg gradient-bg py-2 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
-                  }
-                >
-                  {pushBusy ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : subscribed ? (
-                    <Check className="h-3.5 w-3.5" />
-                  ) : (
-                    <Bell className="h-3.5 w-3.5" />
-                  )}
-                  {subscribed ? "Notificaciones activadas en este dispositivo" : "Activar notificaciones"}
-                </button>
-                {subscribed && (
-                  <button
-                    onClick={() => fetch("/api/push/test", { method: "POST" }).catch(() => {})}
-                    className="mt-1.5 w-full text-center text-[10px] text-muted-foreground hover:text-foreground"
-                  >
-                    Enviar notificación de prueba · toca el botón de arriba para desactivar
-                  </button>
+                {!subscribed ? (
+                  <>
+                    <div className="mb-2.5 rounded-lg bg-secondary/50 p-2.5">
+                      <p className="text-[11px] font-medium text-foreground">Te avisamos cuando:</p>
+                      <ul className="mt-1 space-y-0.5 text-[10px] text-muted-foreground">
+                        <li>📊 Un reporte de IA está listo</li>
+                        <li>⚠️ Una métrica sube o baja de forma importante</li>
+                        <li>🎯 Se dispara una alerta que configuraste</li>
+                      </ul>
+                      <p className="mt-1.5 text-[10px] text-muted-foreground">Te llegan aquí y a tu celular o navegador, aunque la app esté cerrada.</p>
+                    </div>
+                    <button
+                      onClick={togglePush}
+                      disabled={pushBusy}
+                      className="flex w-full items-center justify-center gap-1.5 rounded-lg gradient-bg py-2 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+                    >
+                      {pushBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Bell className="h-3.5 w-3.5" />}
+                      Activar notificaciones
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="mb-2.5 flex items-center justify-center gap-1.5 rounded-lg bg-emerald-500/10 py-1.5 text-[11px] font-medium text-emerald-600">
+                      <Check className="h-3.5 w-3.5" /> Notificaciones activadas
+                    </div>
+                    <button
+                      onClick={() => { setOpen(false); router.push("/dashboard/settings#alertas"); }}
+                      className="flex w-full items-center justify-center gap-1.5 rounded-lg gradient-bg py-2 text-xs font-medium text-white hover:opacity-90"
+                    >
+                      <SlidersHorizontal className="h-3.5 w-3.5" />
+                      Configurar alertas
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </button>
+                    <div className="mt-1.5 flex items-center justify-center gap-2 text-[10px] text-muted-foreground">
+                      <button
+                        onClick={() => fetch("/api/push/test", { method: "POST" }).catch(() => {})}
+                        className="hover:text-foreground"
+                      >
+                        Enviar prueba
+                      </button>
+                      <span>·</span>
+                      <button
+                        onClick={togglePush}
+                        disabled={pushBusy}
+                        className="hover:text-foreground disabled:opacity-50"
+                      >
+                        {pushBusy ? "..." : "Desactivar"}
+                      </button>
+                    </div>
+                  </>
                 )}
               </div>
             )}
