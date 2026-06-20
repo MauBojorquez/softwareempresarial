@@ -62,6 +62,50 @@ const DEFAULT_ORDER = WIDGET_CATALOG.map((w) => w.id);
 const WIDGETS_KEY = "metrixpro-overview-widgets-v2";
 const ORDER_KEY = "metrixpro-overview-order-v1";
 
+/**
+ * Builds a list of motivational, *data-aware* one-liners for the welcome card.
+ * Contextual lines (real wins from the data) come first; a few evergreen
+ * lines are always appended so there is never an empty list. A random one is
+ * shown each load so the dashboard feels alive without ever lying about a number.
+ */
+function buildMotivationalLines(firstName: string, data: DashboardData): string[] {
+  const lines: string[] = [];
+  const goals = (Array.isArray(data.goals) ? data.goals : []).filter((g) => g.target > 0);
+  const c = data.calculated;
+
+  // 1. A goal already crossed the finish line.
+  const completed = goals.find((g) => g.current >= g.target);
+  if (completed) lines.push(`¡Cumpliste tu meta de ${completed.name}, ${firstName}! Eso se celebra. 🎉`);
+
+  // 2. The goal closest to completion (≥60%, not done yet).
+  const close = goals
+    .filter((g) => g.current < g.target)
+    .map((g) => ({ name: g.name, pct: (g.current / g.target) * 100 }))
+    .filter((g) => g.pct >= 60)
+    .sort((a, b) => b.pct - a.pct)[0];
+  if (close) lines.push(`Vas al ${close.pct.toFixed(0)}% de tu meta de ${close.name}. ¡Ya casi la cierras! 🔥`);
+
+  // 3. Real growth signals.
+  if (data.satIngresosChange > 0)
+    lines.push(`Tus ingresos crecieron ${data.satIngresosChange.toFixed(1)}% vs el mes pasado. Vas con todo, ${firstName}. 📈`);
+  if (data.ventasChange > 0)
+    lines.push(`Tus ventas subieron ${data.ventasChange.toFixed(1)}% este mes. ¡Sigue empujando! 🚀`);
+  if (c && c.margen > 15)
+    lines.push(`Tu margen neto es de ${c.margen}%. Finanzas sólidas, ${firstName}. 💪`);
+  if (c && c.annualProjection > 0)
+    lines.push(`Si mantienes el ritmo, cerrarás el año cerca de ${formatCurrency(c.annualProjection)}. 🎯`);
+
+  // 4. Evergreen motivation — always available so the list is never empty.
+  lines.push(
+    `Las empresas que miden, crecen. Y tú estás midiendo, ${firstName}. 👏`,
+    `Cada dato que registras hoy es una mejor decisión mañana.`,
+    `Tienes el control de tus números, ${firstName}. Eso ya te pone adelante.`,
+    `Pequeñas mejoras cada mes se vuelven grandes resultados al año.`,
+  );
+
+  return lines;
+}
+
 export default function OverviewPage() {
   const { data: session } = useSession();
   const { toast } = useToast();
@@ -77,6 +121,9 @@ export default function OverviewPage() {
   const [orgs, setOrgs] = useState<OrgItem[]>([]);
   const [showOrgDropdown, setShowOrgDropdown] = useState(false);
   const orgDropdownRef = useRef<HTMLDivElement>(null);
+  // Stable random seed per page load so the motivational line doesn't change on
+  // every re-render, but rotates whenever the user reloads/refreshes.
+  const motivSeed = useRef(Math.random());
 
   const load = async () => {
     try {
@@ -229,6 +276,9 @@ export default function OverviewPage() {
   const firstName = session?.user?.name?.split(" ")[0] ?? "Bienvenido";
   const dateStr = new Date().toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "long" });
   const activeOrg = orgs.find((o) => o.isActive);
+
+  const motivLines = buildMotivationalLines(firstName, data);
+  const motivLine = motivLines[Math.floor(motivSeed.current * motivLines.length)] ?? motivLines[0];
 
   // ── Each widget as a renderable section, keyed by id ──
   const sections: Record<string, React.ReactNode> = {
@@ -433,15 +483,22 @@ export default function OverviewPage() {
       {/* Aurora welcome banner */}
       <div className="relative overflow-hidden rounded-2xl aurora p-5 text-white shadow-lg shadow-primary/20 animate-fade-in-up sm:p-6">
         <div className="aurora-shine pointer-events-none absolute inset-0" />
-        <div className="relative flex items-center justify-between gap-4">
-          <div>
+        <div className="relative flex items-start justify-between gap-4">
+          <div className="min-w-0">
             <p className="text-sm text-white/80">{greeting},</p>
             <h2 className="text-xl font-bold sm:text-2xl">{firstName} 👋</h2>
-            <p className="mt-1 text-xs capitalize text-white/75">{dateStr}</p>
+            <p key={motivLine} className="mt-1.5 max-w-md text-sm font-medium leading-snug text-white/90 animate-fade-in-up">
+              {motivLine}
+            </p>
+            <p className="mt-2 text-xs capitalize text-white/70">{dateStr}</p>
           </div>
-          <div className="hidden flex-col items-end sm:flex">
+          <div className="hidden shrink-0 flex-col items-end sm:flex">
             <p className="text-2xl font-bold tabular-nums">{fmtMoney(data.satIngresos || data.ventas || 0)}</p>
             <p className="text-xs text-white/75">{data.satConnected ? "Ingresos fiscales (SAT)" : "Ventas del mes"}</p>
+            {calculated.ytdRevenue > 0 && (
+              <p className="mt-2 text-sm font-semibold tabular-nums text-white/90">{fmtMoney(calculated.ytdRevenue)}</p>
+            )}
+            {calculated.ytdRevenue > 0 && <p className="text-[11px] text-white/70">Acumulado del año</p>}
           </div>
         </div>
       </div>
