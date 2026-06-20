@@ -1040,7 +1040,7 @@ export default function SettingsPage() {
           <h2 className="text-lg font-semibold text-destructive">Zona de peligro</h2>
         </div>
         <p className="text-sm text-muted-foreground">
-          Eliminar tu cuenta borrará permanentemente todos tus datos, métricas, reportes e integraciones. Esta acción no se puede deshacer.
+          Eliminar tu cuenta borrará permanentemente tu organización y todos sus datos: métricas, reportes, integraciones y metas. También se cancelará tu suscripción de Stripe y se eliminarán las cuentas de los miembros de tu equipo que solo pertenezcan a esta organización. Esta acción no se puede deshacer.
         </p>
         <div className="space-y-3">
           <div>

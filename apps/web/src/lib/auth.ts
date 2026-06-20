@@ -89,14 +89,13 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
     async jwt({ token, user }) {
-      if (user) {
-        token.sub = user.id;
-        // Load role + org into the token so every request has them without a DB hit
-        const m = await db.membership.findFirst({ where: { userId: user.id } });
-        if (m) {
-          token.role = m.role;
-          token.organizationId = m.organizationId;
-        }
+      if (user) token.sub = user.id;
+      // Load role + org into the token whenever they're missing — this covers
+      // both fresh logins and existing sessions whose token predates this field.
+      if (token.sub && token.role === undefined) {
+        const m = await db.membership.findFirst({ where: { userId: token.sub } });
+        token.role = m?.role ?? null;
+        token.organizationId = m?.organizationId ?? null;
       }
       return token;
     },

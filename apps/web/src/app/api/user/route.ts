@@ -135,31 +135,57 @@ export async function DELETE(req: NextRequest) {
     include: { organization: { include: { subscription: true } } },
   });
 
-  for (const m of memberships) {
-    const org = m.organization;
-    if (org.ownerId !== session.user.id) continue; // only delete orgs the user owns
+  // Track member users (other than the owner) belonging to orgs we're about to
+  // delete. After the org is gone we'll remove any of them who have no other
+  // organization left — so invited teammates (e.g. Anahí) don't linger as
+  // orphaned accounts.
+  const memberUserIds = new Set<string>();
 
-    const stripeSub = org.subscription;
-    if (stripeSub?.stripeSubscriptionId && process.env.STRIPE_SECRET_KEY) {
-      try {
-        const { stripe } = await import("@/lib/stripe");
-        await stripe.subscriptions.cancel(stripeSub.stripeSubscriptionId);
-      } catch (err) {
-        console.error("Failed to cancel Stripe subscription on account delete:", err);
+  try {
+    for (const m of memberships) {
+      const org = m.organization;
+      if (org.ownerId !== session.user.id) continue; // only delete orgs the user owns
+
+      // Collect everyone else who is a member of this org BEFORE we delete it.
+      const orgMembers = await db.membership.findMany({
+        where: { organizationId: org.id, userId: { not: session.user.id } },
+        select: { userId: true },
+      });
+      for (const om of orgMembers) memberUserIds.add(om.userId);
+
+      // Cancel the Stripe subscription if there is a real one.
+      const stripeSub = org.subscription;
+      if (stripeSub?.stripeSubscriptionId && process.env.STRIPE_SECRET_KEY) {
+        try {
+          const { stripe } = await import("@/lib/stripe");
+          await stripe.subscriptions.cancel(stripeSub.stripeSubscriptionId);
+        } catch (err) {
+          console.error("Failed to cancel Stripe subscription on account delete:", err);
+        }
+      }
+
+      // Deleting the organization cascades all org-scoped data (metrics,
+      // reports, chat, integrations, dashboards, subscription, memberships,
+      // invitations, alert rules, SAT credentials, activity logs).
+      await db.organization.delete({ where: { id: org.id } });
+    }
+
+    // Remove invited members who no longer belong to any organization.
+    for (const memberId of memberUserIds) {
+      const remaining = await db.membership.count({ where: { userId: memberId } });
+      const ownsOther = await db.organization.count({ where: { ownerId: memberId } });
+      if (remaining === 0 && ownsOther === 0) {
+        await db.user.delete({ where: { id: memberId } }).catch((err) => {
+          console.error("Failed to delete orphaned member on account delete:", memberId, err);
+        });
       }
     }
 
-    await db.metric.deleteMany({ where: { organizationId: org.id } });
-    await db.aIReport.deleteMany({ where: { organizationId: org.id } });
-    await db.aIChatMessage.deleteMany({ where: { organizationId: org.id } }).catch(() => {});
-    await db.integration.deleteMany({ where: { organizationId: org.id } });
-    await db.dashboard.deleteMany({ where: { organizationId: org.id } });
-    await db.subscription.deleteMany({ where: { organizationId: org.id } });
-    await db.membership.deleteMany({ where: { organizationId: org.id } });
-    await db.organization.delete({ where: { id: org.id } });
+    await db.user.delete({ where: { id: session.user.id } });
+  } catch (err) {
+    console.error("Account deletion failed:", err);
+    return NextResponse.json({ error: "No se pudo eliminar la cuenta. Intenta de nuevo." }, { status: 500 });
   }
-
-  await db.user.delete({ where: { id: session.user.id } });
 
   return NextResponse.json({ ok: true });
 }
