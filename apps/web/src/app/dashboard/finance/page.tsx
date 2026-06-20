@@ -2,16 +2,11 @@
 
 import { DollarSign, TrendingDown, Wallet, PiggyBank } from "lucide-react";
 import { MetricsDashboard } from "@/components/dashboard/metrics-page";
+import { CATEGORY_TEMPLATES } from "@/lib/metric-templates";
 
 type MetricEntry = { id: string; name: string; value: number; unit: string | null; period: string };
 
-const TEMPLATES = [
-  { name: "Ingresos", unit: "MXN" },
-  { name: "Gastos", unit: "MXN" },
-  { name: "Cuentas por Cobrar", unit: "MXN" },
-  { name: "Cuentas por Pagar", unit: "MXN" },
-  { name: "Flujo de Caja", unit: "MXN" },
-];
+const TEMPLATES = CATEGORY_TEMPLATES.FINANCE;
 
 const ICON_MAP: Record<string, typeof DollarSign> = {
   Ingresos: DollarSign,

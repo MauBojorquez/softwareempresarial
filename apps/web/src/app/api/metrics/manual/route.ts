@@ -19,8 +19,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Valid category is required" }, { status: 400 });
   }
 
-  const since = new Date();
-  since.setMonth(since.getMonth() - months);
+  // Anchor to the first day of the month `months` months ago so the
+  // filter is month-aligned (e.g. "3 months" = this month + last 2 months).
+  const now = new Date();
+  const since = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (months - 1), 1));
 
   const metrics = await db.metric.findMany({
     where: {

@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { TrendingUp, Target, Users, UserPlus, RefreshCw, Loader2, Link as LinkIcon, Plus, X, Trash2, Search, Pencil } from "lucide-react";
+import { TrendingUp, Target, Users, UserPlus, RefreshCw, Loader2, Link as LinkIcon, Plus, X, Trash2, Search, Pencil, Calculator } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { DashboardSkeleton } from "@/components/dashboard/skeleton";
 import { cn, formatCurrency } from "@/lib/utils";
 import { useToast } from "@/components/toast";
 import { addActivityLog } from "@/components/dashboard/activity-log";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { CATEGORY_TEMPLATES, evalFormula } from "@/lib/metric-templates";
 
 type Stage = { stage: string; label: string; count: number };
 type PipelineStage = { stageId: string; label: string; count: number; amount: number };
@@ -26,13 +27,8 @@ type HubSpotData = {
 
 type MetricEntry = { id: string; name: string; value: number; unit: string | null; period: string };
 
-const METRIC_TEMPLATES = [
-  { name: "Ventas del Mes", unit: "MXN" },
-  { name: "Deals Cerrados", unit: "unidades" },
-  { name: "Nuevos Leads", unit: "unidades" },
-  { name: "Pipeline Total", unit: "MXN" },
-  { name: "Ticket Promedio", unit: "MXN" },
-];
+const METRIC_TEMPLATES = CATEGORY_TEMPLATES.SALES;
+const MANUAL_TEMPLATES = METRIC_TEMPLATES.filter((t) => !t.computed);
 
 const fmtMoney = formatCurrency;
 
@@ -56,7 +52,7 @@ export default function SalesPage() {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
-  const [form, setForm] = useState({ name: "Ventas del Mes", value: "", period: new Date().toISOString().split("T")[0] });
+  const [form, setForm] = useState({ name: MANUAL_TEMPLATES[0].name, value: "", period: new Date().toISOString().split("T")[0] });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [bulkDeleteCount, setBulkDeleteCount] = useState(0);
@@ -86,7 +82,7 @@ export default function SalesPage() {
   const handleSave = async () => {
     if (!form.value) return;
     setSaving(true);
-    const template = METRIC_TEMPLATES.find((t) => t.name === form.name);
+    const template = MANUAL_TEMPLATES.find((t) => t.name === form.name);
     try {
       const res = await fetch("/api/metrics/manual", {
         method: "POST",
@@ -102,7 +98,7 @@ export default function SalesPage() {
       addActivityLog("Métrica registrada", `${form.name}: ${form.value} en Ventas`, "add");
       toast("Registro guardado correctamente", "success");
       setShowForm(false);
-      setForm({ name: "Ventas del Mes", value: "", period: new Date().toISOString().split("T")[0] });
+      setForm({ name: MANUAL_TEMPLATES[0].name, value: "", period: new Date().toISOString().split("T")[0] });
       loadManual();
     } catch {
       toast("Error de conexión", "error");
@@ -168,6 +164,18 @@ export default function SalesPage() {
 
   const maxDeals = Math.max(1, ...(hs?.pipeline?.stages?.map((s) => s.count) ?? [1]));
 
+  // Manual KPI aggregation — sum within most recent month for each metric.
+  const mk = (period: string) => period.slice(0, 7);
+  const thisMonthKey = [...new Set(metrics.map((m) => mk(m.period)))].sort().reverse()[0];
+  const monthSumOf = (name: string) =>
+    metrics.filter((m) => m.name === name && mk(m.period) === thisMonthKey).reduce((s, m) => s + m.value, 0);
+  const computedMetric = (name: string) => {
+    const tpl = METRIC_TEMPLATES.find((t) => t.name === name);
+    if (tpl?.computed) return evalFormula(tpl.computed, monthSumOf);
+    return monthSumOf(name);
+  };
+  const hasManualData = metrics.length > 0;
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -211,7 +219,7 @@ export default function SalesPage() {
             <div>
               <label className="text-xs font-medium text-muted-foreground">Tipo</label>
               <select value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">
-                {METRIC_TEMPLATES.map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}
+                {MANUAL_TEMPLATES.map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}
               </select>
             </div>
             <div>
@@ -226,6 +234,18 @@ export default function SalesPage() {
           <button onClick={handleSave} disabled={saving || !form.value} className="mt-4 rounded-lg gradient-bg px-6 py-2 text-sm font-medium text-white disabled:opacity-50">
             {saving ? "Guardando..." : "Guardar"}
           </button>
+        </div>
+      )}
+
+      {/* Manual KPIs — Proyectos, Valor Cartera, Ventas del Mes (computed) */}
+      {hasManualData && (
+        <div className="grid gap-3 grid-cols-2 lg:grid-cols-3">
+          <MetricCard title="Proyectos" value={computedMetric("Proyectos")} icon={TrendingUp} format="currency" />
+          <MetricCard title="Valor Cartera" value={computedMetric("Valor Cartera")} icon={Target} format="currency" />
+          <div className="relative">
+            <MetricCard title="Ventas del Mes" value={computedMetric("Ventas del Mes")} icon={Calculator} format="currency" />
+            <span className="absolute top-2 right-2 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold text-primary leading-none">= calculado</span>
+          </div>
         </div>
       )}
 

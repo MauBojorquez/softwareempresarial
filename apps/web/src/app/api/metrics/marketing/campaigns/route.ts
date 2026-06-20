@@ -347,6 +347,7 @@ export async function GET(req: NextRequest) {
     summary.ctr = summary.impressions > 0 ? Math.round((summary.clicks / summary.impressions) * 10000) / 100 : 0;
     summary.cpc = summary.clicks > 0 ? Math.round((summary.spend / summary.clicks) * 100) / 100 : 0;
     summary.cpm = summary.impressions > 0 ? Math.round((summary.spend / summary.impressions) * 1000 * 100) / 100 : 0;
+    (summary as Record<string, unknown>).costPerResult = summary.results > 0 ? Math.round((summary.spend / summary.results) * 100) / 100 : 0;
 
     // % change vs previous month (from account-level monthly aggregates).
     const curMonth = monthly[monthly.length - 1];

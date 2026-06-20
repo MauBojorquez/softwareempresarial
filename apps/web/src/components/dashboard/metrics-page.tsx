@@ -11,7 +11,9 @@ import { cn, formatCurrency } from "@/lib/utils";
 import { useToast } from "@/components/toast";
 import { addActivityLog } from "@/components/dashboard/activity-log";
 
-export type MetricTemplate = { name: string; unit: string };
+export type { MetricTemplate } from "@/lib/metric-templates";
+import { evalFormula } from "@/lib/metric-templates";
+import type { MetricTemplate } from "@/lib/metric-templates";
 type MetricEntry = { id: string; name: string; value: number; unit: string | null; period: string };
 type CompareData = { current: MetricEntry[]; previous: MetricEntry[] } | null;
 
@@ -189,19 +191,63 @@ export function MetricsDashboard({
   const formatFor = (unit: string | undefined) =>
     unit === "MXN" ? "currency" as const : unit === "%" ? "percentage" as const : "number" as const;
 
-  const byName = (name: string) => metrics.filter((m) => m.name === name).sort((a, b) => b.period.localeCompare(a.period));
-  const latest = (name: string) => byName(name)[0]?.value ?? 0;
-  const previous = (name: string) => byName(name)[1]?.value ?? null;
+  // --- Number aggregation ---
+  // Group raw entries by month key (YYYY-MM), sum within each month.
+  const monthKey = (period: string) => period.slice(0, 7);
+
+  const monthsWithData = (name: string) =>
+    [...new Set(metrics.filter((m) => m.name === name).map((m) => monthKey(m.period)))].sort().reverse();
+
+  /** Sum of all entries for a metric in a specific month (YYYY-MM). */
+  const monthSum = (name: string, mk: string) =>
+    metrics.filter((m) => m.name === name && monthKey(m.period) === mk).reduce((s, m) => s + m.value, 0);
+
+  /** Sum for current month (most recent month that has data for this metric). */
+  const rawLatest = (name: string) => {
+    const mks = monthsWithData(name);
+    return mks.length ? monthSum(name, mks[0]) : 0;
+  };
+
+  /** Sum for the previous month (second distinct month with data). */
+  const rawPrevious = (name: string): number | null => {
+    const mks = monthsWithData(name);
+    return mks.length >= 2 ? monthSum(name, mks[1]) : null;
+  };
+
+  /** Resolve a metric value: if computed, evaluate its formula; otherwise use raw sum. */
+  const latest = (name: string): number => {
+    const tpl = templates.find((t) => t.name === name);
+    if (tpl?.computed) return evalFormula(tpl.computed, rawLatest);
+    return rawLatest(name);
+  };
+
+  const previous = (name: string): number | null => {
+    const tpl = templates.find((t) => t.name === name);
+    if (tpl?.computed) {
+      const val = evalFormula(tpl.computed, (n) => rawPrevious(n) ?? 0);
+      const anyPrev = tpl.computed.match(/\b(\w[\w\s]*\w|\w+)\b/g)
+        ?.some((n) => rawPrevious(n.trim()) !== null);
+      return anyPrev ? val : null;
+    }
+    return rawPrevious(name);
+  };
+
   const pctChange = (name: string) => {
     const prev = previous(name);
-    return prev !== null && prev !== 0 ? ((latest(name) - prev) / Math.abs(prev)) * 100 : undefined;
+    const curr = latest(name);
+    return prev !== null && prev !== 0 ? ((curr - prev) / Math.abs(prev)) * 100 : undefined;
   };
 
   const filtered = metrics.filter((m) => !search || m.name.toLowerCase().includes(search.toLowerCase()));
 
-  // Compare helpers — uses the first (most recent) entry per metric name
-  const latestFromList = (list: MetricEntry[], name: string) =>
-    list.filter((m) => m.name === name).sort((a, b) => b.period.localeCompare(a.period))[0]?.value ?? null;
+  // Compare helpers — sum by month for each list
+  const sumFromList = (list: MetricEntry[], name: string) => {
+    const mk = [...new Set(list.filter((m) => m.name === name).map((m) => monthKey(m.period)))].sort().reverse()[0];
+    if (!mk) return null;
+    return list.filter((m) => m.name === name && monthKey(m.period) === mk).reduce((s, m) => s + m.value, 0);
+  };
+
+  const latestFromList = (list: MetricEntry[], name: string) => sumFromList(list, name);
 
   const comparePct = (curr: number, prev: number | null): number | null =>
     prev !== null && prev !== 0 ? ((curr - prev) / Math.abs(prev)) * 100 : null;
@@ -264,7 +310,7 @@ export function MetricsDashboard({
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
               >
-                {templates.map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}
+                {templates.filter((t) => !t.computed).map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}
               </select>
             </div>
             <div>
@@ -373,14 +419,20 @@ export function MetricsDashboard({
               const template = templates.find((t) => t.name === name);
               const Icon = iconMap[name] || defaultIcon;
               return (
-                <MetricCard
-                  key={name}
-                  title={name}
-                  value={latest(name)}
-                  icon={Icon}
-                  format={formatFor(template?.unit)}
-                  change={pctChange(name)}
-                />
+                <div key={name} className="relative">
+                  <MetricCard
+                    title={name}
+                    value={latest(name)}
+                    icon={Icon}
+                    format={formatFor(template?.unit)}
+                    change={pctChange(name)}
+                  />
+                  {template?.computed && (
+                    <span className="absolute top-2 right-2 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold text-primary leading-none">
+                      = calculado
+                    </span>
+                  )}
+                </div>
               );
             })}
           </div>
@@ -413,8 +465,15 @@ export function MetricsDashboard({
                     </thead>
                     <tbody>
                       {templates.map((t) => {
-                        const currVal = compareData ? latestFromList(compareData.current, t.name) : null;
-                        const prevVal = compareData ? latestFromList(compareData.previous, t.name) : null;
+                        const rawCurr = compareData ? latestFromList(compareData.current, t.name) : null;
+                        const rawPrev = compareData ? latestFromList(compareData.previous, t.name) : null;
+                        // For computed metrics, evaluate the formula against the compare lists.
+                        const currVal = t.computed && compareData
+                          ? evalFormula(t.computed, (n) => latestFromList(compareData.current, n) ?? 0)
+                          : rawCurr;
+                        const prevVal = t.computed && compareData
+                          ? evalFormula(t.computed, (n) => latestFromList(compareData.previous, n) ?? 0)
+                          : rawPrev;
                         const pct = currVal !== null ? comparePct(currVal, prevVal) : null;
                         const hasAny = currVal !== null || prevVal !== null;
                         return (

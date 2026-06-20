@@ -119,9 +119,9 @@ export default function MarketingPage() {
 
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <MetricCard title="Gasto" value={fmtMoney(current.spend)} change={changes.spend ?? undefined} icon={DollarSign} />
+        <MetricCard title="Conversiones" value={fmt(current.results)} icon={Target} />
+        <MetricCard title="Costo por Lead" value={fmtMoney(current.costPerResult ?? 0)} icon={BarChart3} />
         <MetricCard title="Clics" value={fmt(current.clicks)} change={changes.clicks ?? undefined} icon={MousePointerClick} />
-        <MetricCard title="CTR" value={`${n(current.ctr).toFixed(2)}%`} change={changes.ctr ?? undefined} icon={Target} />
-        <MetricCard title="Alcance" value={fmt(current.reach)} icon={Eye} />
       </div>
 
       <div className="flex items-center gap-1 rounded-lg border border-border bg-secondary/50 p-1 w-fit overflow-x-auto">
