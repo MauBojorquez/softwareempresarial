@@ -2,14 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { type LucideIcon } from "lucide-react";
-import { Plus, Trash2, X, Download, Upload, Search, RefreshCw, LinkIcon, Pencil, ArrowLeftRight } from "lucide-react";
+import { Plus, Trash2, X, Download, Upload, Search, RefreshCw, LinkIcon, Pencil, ArrowLeftRight, FileSpreadsheet } from "lucide-react";
+import { useSession } from "next-auth/react";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { DashboardSkeleton } from "@/components/dashboard/skeleton";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ExportButton } from "@/components/dashboard/export-button";
+import { ExcelImportModal } from "@/components/dashboard/excel-import-modal";
 import { cn, formatCurrency } from "@/lib/utils";
 import { useToast } from "@/components/toast";
 import { addActivityLog } from "@/components/dashboard/activity-log";
+import type { MetricCategoryKey } from "@/lib/metric-templates";
 
 export type MetricTemplate = { name: string; unit: string };
 type MetricEntry = { id: string; name: string; value: number; unit: string | null; period: string };
@@ -47,6 +50,9 @@ export function MetricsDashboard({
   extraContent,
 }: MetricsDashboardProps) {
   const { toast } = useToast();
+  const { data: session } = useSession();
+  const canImport = session?.user?.role !== "VIEWER";
+  const [showExcel, setShowExcel] = useState(false);
   const [metrics, setMetrics] = useState<MetricEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -230,9 +236,18 @@ export function MetricsDashboard({
           </a>
           <label className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium transition-colors hover:bg-secondary cursor-pointer">
             <Upload className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">{importing ? "Importando..." : "Importar"}</span>
+            <span className="hidden sm:inline">{importing ? "Importando..." : "CSV"}</span>
             <input type="file" accept=".csv" onChange={handleImport} className="hidden" />
           </label>
+          {canImport && (
+            <button
+              onClick={() => setShowExcel(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-xs font-medium text-emerald-600 transition-colors hover:bg-emerald-500/10"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Importar Excel</span>
+            </button>
+          )}
           <button
             onClick={() => setShowForm(true)}
             className="flex items-center gap-2 rounded-lg gradient-bg px-3 py-2 sm:px-4 text-sm font-medium text-white transition-opacity hover:opacity-90"
@@ -607,6 +622,13 @@ export function MetricsDashboard({
         destructive
         onConfirm={handleBulkDelete}
         onCancel={() => setBulkDeleteCount(0)}
+      />
+
+      <ExcelImportModal
+        open={showExcel}
+        onClose={() => setShowExcel(false)}
+        onImported={() => load()}
+        defaultCategory={category as MetricCategoryKey}
       />
     </div>
   );

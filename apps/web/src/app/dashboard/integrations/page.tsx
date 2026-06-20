@@ -88,17 +88,6 @@ export default function IntegrationsPage() {
   const { toast } = useToast();
   const router = useRouter();
 
-  if (session && session.user.role !== "ADMIN") {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center">
-        <Lock className="h-10 w-10 text-muted-foreground" />
-        <h2 className="text-xl font-semibold">Acceso restringido</h2>
-        <p className="text-sm text-muted-foreground max-w-xs">
-          Solo el administrador puede conectar y gestionar integraciones.
-        </p>
-      </div>
-    );
-  }
   const [statuses, setStatuses] = useState<IntegrationStatus[]>([]);
   const [syncing, setSyncing] = useState<Record<string, boolean>>({});
   const [satStatus, setSatStatus] = useState<SatStatus>({ connected: false });
@@ -228,6 +217,18 @@ export default function IntegrationsPage() {
       toast("Error al desconectar", "error");
     }
   };
+
+  if (session && session.user.role !== "ADMIN") {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center">
+        <Lock className="h-10 w-10 text-muted-foreground" />
+        <h2 className="text-xl font-semibold">Acceso restringido</h2>
+        <p className="text-sm text-muted-foreground max-w-xs">
+          Solo el administrador puede conectar y gestionar integraciones.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">

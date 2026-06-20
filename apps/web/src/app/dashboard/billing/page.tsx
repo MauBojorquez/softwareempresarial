@@ -42,17 +42,6 @@ export default function BillingPage() {
   const { data: session } = useSession();
   const { toast } = useToast();
 
-  if (session && session.user.role !== "ADMIN") {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center">
-        <Lock className="h-10 w-10 text-muted-foreground" />
-        <h2 className="text-xl font-semibold">Acceso restringido</h2>
-        <p className="text-sm text-muted-foreground max-w-xs">
-          Solo el administrador de la cuenta puede ver y gestionar la facturación.
-        </p>
-      </div>
-    );
-  }
   const [currentPlan, setCurrentPlan] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
@@ -149,6 +138,18 @@ export default function BillingPage() {
       setSyncLoading(false);
     }
   };
+
+  if (session && session.user.role !== "ADMIN") {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center">
+        <Lock className="h-10 w-10 text-muted-foreground" />
+        <h2 className="text-xl font-semibold">Acceso restringido</h2>
+        <p className="text-sm text-muted-foreground max-w-xs">
+          Solo el administrador de la cuenta puede ver y gestionar la facturación.
+        </p>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
