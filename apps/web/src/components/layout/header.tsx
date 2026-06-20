@@ -6,6 +6,7 @@ import { useTheme } from "@/components/theme-provider";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { NotificationBell } from "@/components/notifications";
+import { InstallButton } from "@/components/install-button";
 
 type SearchResult = {
   type: "metric" | "report";
@@ -139,6 +140,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
           <Sparkles className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
           <span className="hidden xs:inline sm:inline">Reporte IA</span>
         </a>
+        <InstallButton />
         <NotificationBell />
         <a href="/dashboard/settings" className="h-7 w-7 rounded-full overflow-hidden flex items-center justify-center sm:h-8 sm:w-8 border border-border" aria-label="Configuración de perfil">
           {userAvatar ? (

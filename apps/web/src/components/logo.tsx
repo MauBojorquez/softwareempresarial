@@ -1,27 +1,29 @@
+/* eslint-disable @next/next/no-img-element */
+"use client";
+
 /**
- * StratiuMetrics brand mark. Uses the SVG in /public/logo.svg via an <img>,
- * sized by className. The mark adapts to the current text color through
- * currentColor, so it works on both light and dark backgrounds.
+ * StratiuMetrics brand mark.
  *
- * To swap the logo, just replace /public/logo.svg — no code changes needed.
+ * Renders the real logo image from /public/brand-logo.png. To set the logo,
+ * drop the file at apps/web/public/brand-logo.png. The image is shown as-is
+ * with rounded corners, so use a square version of the mark.
+ *
+ * If the file isn't present yet, it falls back to /favicon.svg so the UI never
+ * shows a broken image.
  */
 
 type Props = { className?: string };
 
 export function Logo({ className = "h-8 w-8" }: Props) {
   return (
-    <svg
-      viewBox="0 0 100 100"
-      className={className}
-      fill="none"
-      aria-hidden
-    >
-      <g stroke="currentColor" strokeWidth={9} strokeLinecap="round" strokeLinejoin="round">
-        <path d="M58 22 L70 38" />
-        <path d="M44 36 L74 80" />
-        <path d="M24 80 L44 48 L62 74" />
-        <path d="M24 80 L72 80" />
-      </g>
-    </svg>
+    <img
+      src="/brand-logo.png"
+      alt="StratiuMetrics"
+      className={`${className} rounded-lg object-contain`}
+      onError={(e) => {
+        const img = e.currentTarget;
+        if (!img.src.endsWith("/favicon.svg")) img.src = "/favicon.svg";
+      }}
+    />
   );
 }

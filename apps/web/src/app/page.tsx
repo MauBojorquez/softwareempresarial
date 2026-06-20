@@ -8,6 +8,7 @@ import {
 } from "@/components/brand-logos";
 import { Logo } from "@/components/logo";
 import { LandingThemeToggle } from "@/components/landing-theme-toggle";
+import { InstallButton } from "@/components/install-button";
 
 export default function HomePage() {
   return (
@@ -16,9 +17,7 @@ export default function HomePage() {
       <header className="fixed top-0 z-50 w-full border-b border-border/60 bg-card/70 backdrop-blur-md">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg gradient-bg flex items-center justify-center animate-float-logo text-white">
-              <Logo className="h-5 w-5" />
-            </div>
+            <Logo className="h-8 w-8 animate-float-logo" />
             <span className="text-lg font-bold text-foreground">StratiuMetrics</span>
           </div>
           <nav className="hidden items-center gap-8 md:flex">
@@ -27,6 +26,7 @@ export default function HomePage() {
             <Link href="/pricing" className="text-sm text-muted-foreground transition-colors hover:text-foreground">Precios</Link>
           </nav>
           <div className="flex items-center gap-3">
+            <InstallButton />
             <LandingThemeToggle />
             <Link href="/login" className="hidden text-sm text-muted-foreground transition-colors hover:text-foreground sm:inline">Iniciar Sesión</Link>
             <Link href="/register" className="rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white transition-all hover:opacity-90 hover:shadow-lg hover:shadow-primary/25 pulse-glow">
