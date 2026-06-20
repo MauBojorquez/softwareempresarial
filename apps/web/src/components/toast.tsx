@@ -47,7 +47,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             >
               <Icon className="h-4 w-4 mt-0.5 shrink-0" />
               <p className="flex-1">{t.message}</p>
-              <button onClick={() => remove(t.id)} className="shrink-0 opacity-60 hover:opacity-100">
+              <button onClick={() => remove(t.id)} aria-label="Cerrar" className="shrink-0 opacity-60 hover:opacity-100">
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>

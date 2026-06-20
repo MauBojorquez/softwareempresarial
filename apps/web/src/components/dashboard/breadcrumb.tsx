@@ -28,8 +28,8 @@ export function Breadcrumb() {
   if (segments.length <= 1) return null;
 
   return (
-    <nav className="flex items-center gap-1 text-xs text-muted-foreground mb-4">
-      <a href="/dashboard/overview" className="hover:text-foreground transition-colors">
+    <nav aria-label="Ruta de navegación" className="flex items-center gap-1 text-xs text-muted-foreground mb-4">
+      <a href="/dashboard/overview" aria-label="Inicio" className="hover:text-foreground transition-colors">
         <Home className="h-3 w-3" />
       </a>
       {segments.slice(1).map((seg, i) => (

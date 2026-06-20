@@ -15,9 +15,12 @@ import { PhoneInput } from "@/components/settings/phone-input";
 
 const NOTIF_STORAGE_KEY = "metrixpro-notifications-prefs";
 
-function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean) => void }) {
+function Toggle({ enabled, onChange, label }: { enabled: boolean; onChange: (v: boolean) => void; label?: string }) {
   return (
     <button
+      role="switch"
+      aria-checked={enabled}
+      aria-label={label}
       onClick={() => onChange(!enabled)}
       className={`relative w-10 h-5 rounded-full transition-colors ${enabled ? "bg-primary" : "bg-muted-foreground/30"}`}
     >
@@ -739,7 +742,7 @@ export default function SettingsPage() {
                 <p className="text-sm font-medium text-foreground">{item.title}</p>
                 <p className="text-xs text-muted-foreground">{item.desc}</p>
               </div>
-              <Toggle enabled={notifications[item.key]} onChange={(v) => handleNotificationToggle(item.key, v)} />
+              <Toggle label={item.title} enabled={notifications[item.key]} onChange={(v) => handleNotificationToggle(item.key, v)} />
             </div>
           ))}
         </div>
@@ -778,7 +781,7 @@ export default function SettingsPage() {
                 <p className="text-xs text-muted-foreground">{profile.email}</p>
               </div>
             </div>
-            <Toggle enabled={contact.notifyEmail} onChange={(v) => setContact((c) => ({ ...c, notifyEmail: v }))} />
+            <Toggle label="Notificaciones por correo" enabled={contact.notifyEmail} onChange={(v) => setContact((c) => ({ ...c, notifyEmail: v }))} />
           </div>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
@@ -790,7 +793,7 @@ export default function SettingsPage() {
                 </p>
               </div>
             </div>
-            <Toggle enabled={contact.notifyWhatsapp} onChange={(v) => setContact((c) => ({ ...c, notifyWhatsapp: v }))} />
+            <Toggle label="Notificaciones por WhatsApp" enabled={contact.notifyWhatsapp} onChange={(v) => setContact((c) => ({ ...c, notifyWhatsapp: v }))} />
           </div>
         </div>
 

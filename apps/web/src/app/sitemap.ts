@@ -1,7 +1,7 @@
 import { MetadataRoute } from "next";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const base = process.env.NEXTAUTH_URL || "https://metrixpro.mx";
+  const base = process.env.NEXTAUTH_URL || "https://stratiumetrics.com";
 
   return [
     { url: base, lastModified: new Date(), changeFrequency: "weekly", priority: 1 },

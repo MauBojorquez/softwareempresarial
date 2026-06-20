@@ -106,18 +106,34 @@ export default function SalesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    await fetch(`/api/metrics/manual?id=${id}`, { method: "DELETE" });
-    addActivityLog("Registro eliminado", "Ventas", "delete");
-    toast("Registro eliminado", "success");
-    setDeleteId(null);
-    loadManual();
+    try {
+      const res = await fetch(`/api/metrics/manual?id=${id}`, { method: "DELETE" });
+      if (!res.ok) { toast("No se pudo eliminar el registro", "error"); return; }
+      addActivityLog("Registro eliminado", "Ventas", "delete");
+      toast("Registro eliminado", "success");
+      loadManual();
+    } catch {
+      toast("Error de conexión al eliminar", "error");
+    } finally {
+      setDeleteId(null);
+    }
   };
 
   const handleBulkDelete = async () => {
-    await Promise.all(Array.from(selected).map((id) => fetch(`/api/metrics/manual?id=${id}`, { method: "DELETE" })));
-    setSelected(new Set());
-    setBulkDeleteCount(0);
-    loadManual();
+    try {
+      const results = await Promise.all(
+        Array.from(selected).map((id) => fetch(`/api/metrics/manual?id=${id}`, { method: "DELETE" }).then((r) => r.ok).catch(() => false))
+      );
+      const failed = results.filter((ok) => !ok).length;
+      if (failed > 0) toast(`No se pudieron eliminar ${failed} registro(s)`, "error");
+      else toast("Registros eliminados", "success");
+      loadManual();
+    } catch {
+      toast("Error de conexión al eliminar", "error");
+    } finally {
+      setSelected(new Set());
+      setBulkDeleteCount(0);
+    }
   };
 
   const openEdit = (entry: MetricEntry) => {
@@ -202,7 +218,7 @@ export default function SalesPage() {
         <div className="rounded-xl border border-primary/20 bg-card p-4 sm:p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold">Nuevo Registro</h3>
-            <button onClick={() => setShowForm(false)} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+            <button onClick={() => setShowForm(false)} aria-label="Cerrar" className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
           </div>
           <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
             <div>
@@ -451,10 +467,10 @@ export default function SalesPage() {
       {editEntry && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={() => setEditEntry(null)} />
-          <div className="relative w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xl animate-in fade-in zoom-in-95">
+          <div role="dialog" aria-modal="true" aria-label={`Editar ${editEntry.name}`} className="relative w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xl animate-in fade-in zoom-in-95">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="font-semibold text-sm">Editar: {editEntry.name}</h3>
-              <button onClick={() => setEditEntry(null)} className="text-muted-foreground hover:text-foreground">
+              <button onClick={() => setEditEntry(null)} aria-label="Cerrar" className="text-muted-foreground hover:text-foreground">
                 <X className="h-4 w-4" />
               </button>
             </div>

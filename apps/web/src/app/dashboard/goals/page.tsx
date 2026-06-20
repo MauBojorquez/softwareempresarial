@@ -140,6 +140,7 @@ export default function GoalsPage() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => { setLoading(true); load(); }}
+            aria-label="Actualizar"
             className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium transition-colors hover:bg-secondary"
           >
             <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
@@ -193,7 +194,7 @@ export default function GoalsPage() {
         <div className="rounded-xl border border-primary/20 bg-card p-4 sm:p-5 animate-slide-up">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-semibold">Nueva Meta</h3>
-            <button onClick={() => setShowForm(false)} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+            <button onClick={() => setShowForm(false)} aria-label="Cerrar" className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
             <div className="flex flex-col gap-1">

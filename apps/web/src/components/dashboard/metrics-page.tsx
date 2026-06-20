@@ -162,24 +162,42 @@ export function MetricsDashboard({
     if (!form.value) return;
     setSaving(true);
     const template = templates.find((t) => t.name === form.name);
-    await fetch("/api/metrics/manual", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ category, name: form.name, value: parseFloat(form.value), unit: template?.unit || "", period: form.period }),
-    });
-    addActivityLog("Métrica registrada", `${form.name}: ${form.value} en ${activityLabel}`, "add");
-    setShowForm(false);
-    setForm({ name: templates[0].name, value: "", period: new Date().toISOString().split("T")[0] });
-    setSaving(false);
-    load();
+    try {
+      const res = await fetch("/api/metrics/manual", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category, name: form.name, value: parseFloat(form.value), unit: template?.unit || "", period: form.period }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        toast(d.error || "No se pudo guardar el dato", "error");
+        setSaving(false);
+        return;
+      }
+      addActivityLog("Métrica registrada", `${form.name}: ${form.value} en ${activityLabel}`, "add");
+      toast("Dato guardado", "success");
+      setShowForm(false);
+      setForm({ name: templates[0].name, value: "", period: new Date().toISOString().split("T")[0] });
+      load();
+    } catch {
+      toast("Error de conexión al guardar", "error");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDelete = async (id: string) => {
-    await fetch(`/api/metrics/manual?id=${id}`, { method: "DELETE" });
-    addActivityLog("Registro eliminado", activityLabel, "delete");
-    toast("Registro eliminado", "success");
-    setDeleteId(null);
-    load();
+    try {
+      const res = await fetch(`/api/metrics/manual?id=${id}`, { method: "DELETE" });
+      if (!res.ok) { toast("No se pudo eliminar el registro", "error"); return; }
+      addActivityLog("Registro eliminado", activityLabel, "delete");
+      toast("Registro eliminado", "success");
+      load();
+    } catch {
+      toast("Error de conexión al eliminar", "error");
+    } finally {
+      setDeleteId(null);
+    }
   };
 
   const openEdit = (entry: MetricEntry) => {
@@ -190,22 +208,43 @@ export function MetricsDashboard({
   const handleEdit = async () => {
     if (!editEntry) return;
     setEditSaving(true);
-    await fetch("/api/metrics/manual", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: editEntry.id, value: parseFloat(editForm.value), period: editForm.period }),
-    });
-    setEditEntry(null);
-    setEditSaving(false);
-    load();
-    toast("Registro actualizado", "success");
+    try {
+      const res = await fetch("/api/metrics/manual", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: editEntry.id, value: parseFloat(editForm.value), period: editForm.period }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        toast(d.error || "No se pudo actualizar el registro", "error");
+        setEditSaving(false);
+        return;
+      }
+      setEditEntry(null);
+      load();
+      toast("Registro actualizado", "success");
+    } catch {
+      toast("Error de conexión al actualizar", "error");
+    } finally {
+      setEditSaving(false);
+    }
   };
 
   const handleBulkDelete = async () => {
-    await Promise.all(Array.from(selected).map((id) => fetch(`/api/metrics/manual?id=${id}`, { method: "DELETE" })));
-    setSelected(new Set());
-    setBulkDeleteCount(0);
-    load();
+    try {
+      const results = await Promise.all(
+        Array.from(selected).map((id) => fetch(`/api/metrics/manual?id=${id}`, { method: "DELETE" }).then((r) => r.ok).catch(() => false))
+      );
+      const failed = results.filter((ok) => !ok).length;
+      if (failed > 0) toast(`No se pudieron eliminar ${failed} registro(s)`, "error");
+      else toast("Registros eliminados", "success");
+      load();
+    } catch {
+      toast("Error de conexión al eliminar", "error");
+    } finally {
+      setSelected(new Set());
+      setBulkDeleteCount(0);
+    }
   };
 
   const formatFor = (unit: string | undefined) =>
@@ -323,7 +362,7 @@ export function MetricsDashboard({
         <div className="rounded-xl border border-primary/20 bg-card p-4 sm:p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold">Nuevo Registro</h3>
-            <button onClick={() => setShowForm(false)} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+            <button onClick={() => setShowForm(false)} aria-label="Cerrar" className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
           </div>
           <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
             <div>
@@ -549,6 +588,7 @@ export function MetricsDashboard({
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
+                  aria-label="Buscar registros"
                   placeholder="Buscar..."
                   className="w-32 sm:w-48 rounded-lg border border-border bg-background pl-8 pr-3 py-1.5 text-xs focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
                 />
@@ -600,6 +640,7 @@ export function MetricsDashboard({
                     <th scope="col" className="p-3 w-8">
                       <input
                         type="checkbox"
+                        aria-label="Seleccionar todos los registros"
                         checked={selected.size === filtered.length && filtered.length > 0}
                         onChange={(e) => {
                           if (e.target.checked) setSelected(new Set(filtered.map((m) => m.id)));
@@ -623,6 +664,7 @@ export function MetricsDashboard({
                       <td className="p-3">
                         <input
                           type="checkbox"
+                          aria-label={`Seleccionar ${m.name}`}
                           checked={selected.has(m.id)}
                           onChange={(e) => {
                             const next = new Set(selected);
@@ -667,10 +709,10 @@ export function MetricsDashboard({
       {editEntry && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={() => setEditEntry(null)} />
-          <div className="relative w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xl animate-in fade-in zoom-in-95">
+          <div role="dialog" aria-modal="true" aria-label={`Editar ${editEntry.name}`} className="relative w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xl animate-in fade-in zoom-in-95">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="font-semibold text-sm">Editar: {editEntry.name}</h3>
-              <button onClick={() => setEditEntry(null)} className="text-muted-foreground hover:text-foreground">
+              <button onClick={() => setEditEntry(null)} aria-label="Cerrar" className="text-muted-foreground hover:text-foreground">
                 <X className="h-4 w-4" />
               </button>
             </div>

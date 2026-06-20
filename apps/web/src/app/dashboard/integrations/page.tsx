@@ -327,6 +327,7 @@ export default function IntegrationsPage() {
               <button
                 onClick={() => setConfirmDisconnect("SHEETS")}
                 title="Desconectar"
+                aria-label="Desconectar"
                 className="flex items-center justify-center rounded-lg border border-border px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-red-500"
               >
                 <AlertCircle className="h-4 w-4" />

@@ -15,11 +15,16 @@ export async function GET(req: NextRequest) {
     })) as unknown as M[];
 
     const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-    const prev = new Date(currentYear, currentMonth - 1, 1);
+    // Bucket everything by UTC month. Manual entries are stored as UTC-midnight
+    // day-1 dates ("2026-06-01" → June UTC), so reading in UTC keeps the
+    // dashboard consistent with the per-section pages and the goals API, which
+    // also bucket by the UTC month string. Reading in local time would shift a
+    // June-1 row into May for any timezone west of UTC (e.g. Mexico, UTC-6).
+    const currentMonth = now.getUTCMonth();
+    const currentYear = now.getUTCFullYear();
+    const prev = new Date(Date.UTC(currentYear, currentMonth - 1, 1));
 
-    const inMonth = (d: Date, y: number, mo: number) => d.getMonth() === mo && d.getFullYear() === y;
+    const inMonth = (d: Date, y: number, mo: number) => d.getUTCMonth() === mo && d.getUTCFullYear() === y;
     const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
     /**
@@ -114,7 +119,7 @@ export async function GET(req: NextRequest) {
         .filter((m) => {
           if (m.category !== category) return false;
           if (source !== undefined && m.source !== source) return false;
-          if (m.period.getFullYear() !== currentYear) return false;
+          if (m.period.getUTCFullYear() !== currentYear) return false;
           const n = norm(m.name);
           if (excludes.some((e) => n.includes(e))) return false;
           return keywords.some((k) => n.includes(k));
@@ -132,14 +137,14 @@ export async function GET(req: NextRequest) {
     // ── Monthly history (6 months) ────────────────────────
     const monthlyHistory: { month: string; ingresos: number; gastos: number }[] = [];
     for (let i = 5; i >= 0; i--) {
-      const m = new Date(currentYear, currentMonth - i, 1);
-      const monthName = m.toLocaleDateString("es-MX", { month: "short" });
+      const m = new Date(Date.UTC(currentYear, currentMonth - i, 1));
+      const monthName = m.toLocaleDateString("es-MX", { month: "short", timeZone: "UTC" });
       const ing = satConnected
-        ? sumMonth("FINANCE", ["ingreso"], m.getFullYear(), m.getMonth(), [], "SAT")
-        : sumMonth("FINANCE", ingresoKw, m.getFullYear(), m.getMonth());
+        ? sumMonth("FINANCE", ["ingreso"], m.getUTCFullYear(), m.getUTCMonth(), [], "SAT")
+        : sumMonth("FINANCE", ingresoKw, m.getUTCFullYear(), m.getUTCMonth());
       const gas = satConnected
-        ? sumMonth("FINANCE", ["egreso"], m.getFullYear(), m.getMonth(), [], "SAT")
-        : sumMonth("FINANCE", egresoKw, m.getFullYear(), m.getMonth());
+        ? sumMonth("FINANCE", ["egreso"], m.getUTCFullYear(), m.getUTCMonth(), [], "SAT")
+        : sumMonth("FINANCE", egresoKw, m.getUTCFullYear(), m.getUTCMonth());
       monthlyHistory.push({ month: monthName, ingresos: ing, gastos: gas });
     }
 
@@ -151,7 +156,7 @@ export async function GET(req: NextRequest) {
     const uniqueGoals = new Map<string, typeof goalMetrics[0]>();
     for (const g of goalMetrics) if (!uniqueGoals.has(g.name)) uniqueGoals.set(g.name, g);
     // Current value for a goal = sum of its latest month (same logic as the charts)
-    const goalMonthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const goalMonthKey = (d: Date) => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
     const goalLatestSum = (name: string) => {
       const rows = metrics.filter((m) => m.name === name);
       if (!rows.length) return { value: 0, unit: null };
@@ -163,7 +168,11 @@ export async function GET(req: NextRequest) {
 
     const goalList = Array.from(uniqueGoals.values()).map((g) => {
       const metricName = g.name.replace("META_", "");
-      const cur = goalLatestSum(metricName);
+      // Conversión is a derived ratio, not a stored row — use the live value so
+      // the overview matches the goals page instead of summing raw rows.
+      const cur = metricName === "Conversión"
+        ? { value: conversion, unit: "%" }
+        : goalLatestSum(metricName);
       return {
         name: metricName,
         current: cur.value,

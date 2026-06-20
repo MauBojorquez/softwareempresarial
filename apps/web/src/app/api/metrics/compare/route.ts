@@ -20,14 +20,17 @@ export async function GET(req: NextRequest) {
 
   const now = new Date();
 
-  // Current period: last N months
-  const currentStart = new Date(now);
-  currentStart.setMonth(currentStart.getMonth() - months);
-
-  // Previous period: N months before the current period start
-  const previousStart = new Date(currentStart);
-  previousStart.setMonth(previousStart.getMonth() - months);
-  const previousEnd = new Date(currentStart);
+  // Anchor both windows to the first day of a UTC month so they align with the
+  // monthly buckets the UI sums by (matching api/metrics/manual). Using
+  // setMonth on a day-of-month date overflows on month-ends (e.g. May 31 → "Apr
+  // 31" → May 1) and drifts the boundaries; Date.UTC(y, m, 1) avoids that.
+  const y = now.getUTCFullYear();
+  const m = now.getUTCMonth();
+  // Current period: the current month plus the previous N-1 months.
+  const currentStart = new Date(Date.UTC(y, m - (months - 1), 1));
+  // Previous period: the N months immediately before the current window.
+  const previousStart = new Date(Date.UTC(y, m - (2 * months - 1), 1));
+  const previousEnd = currentStart;
 
   const [current, previous] = await Promise.all([
     db.metric.findMany({

@@ -10,7 +10,9 @@ export async function generateMonthlyReport(organizationId: string, userId: stri
   });
 
   const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  // Use UTC month boundaries so the window matches how metrics are stored and
+  // bucketed elsewhere (UTC-midnight day-1 dates).
+  const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 
   const metrics = await db.metric.findMany({
     where: {
@@ -20,8 +22,8 @@ export async function generateMonthlyReport(organizationId: string, userId: stri
     orderBy: { period: "asc" },
   });
 
-  const previousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const endOfPreviousMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+  const previousMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+  const endOfPreviousMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0));
 
   const previousMetrics = await db.metric.findMany({
     where: {

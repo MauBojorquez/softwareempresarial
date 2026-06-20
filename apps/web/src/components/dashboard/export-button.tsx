@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Download, FileSpreadsheet, FileText, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/components/toast";
 
 type Format = "xlsx" | "csv";
 
@@ -15,6 +16,7 @@ interface ExportButtonProps {
 export function ExportButton({ category, label = "Exportar", className }: ExportButtonProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState<Format | null>(null);
+  const { toast } = useToast();
 
   const download = async (format: Format) => {
     setLoading(format);
@@ -29,13 +31,14 @@ export function ExportButton({ category, label = "Exportar", className }: Export
       const a = document.createElement("a");
       a.href = url;
       a.download = res.headers.get("content-disposition")?.match(/filename=(.+)/)?.[1] ??
-        `metrixpro.${format}`;
+        `stratiumetrics.${format}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+      toast("Exportación lista", "success");
     } catch {
-      // silent — could add toast here
+      toast("No se pudo exportar. Intenta de nuevo.", "error");
     } finally {
       setLoading(null);
     }

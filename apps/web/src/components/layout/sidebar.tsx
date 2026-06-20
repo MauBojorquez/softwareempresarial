@@ -32,7 +32,7 @@ type OrgItem = { id: string; name: string; logo?: string | null; brandColor?: st
 export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => void }) {
   const pathname = usePathname();
   const { data: session } = useSession();
-  const initials = session?.user?.name?.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase() || "MP";
+  const initials = session?.user?.name?.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase() || "SM";
 
   const [orgData, setOrgData] = useState<{ name: string; logo?: string | null; brandColor?: string | null } | null>(null);
   const [orgs, setOrgs] = useState<OrgItem[]>([]);

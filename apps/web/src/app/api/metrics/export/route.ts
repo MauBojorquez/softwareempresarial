@@ -84,7 +84,7 @@ export async function GET(req: NextRequest) {
     return new NextResponse(buffer, {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": `attachment; filename=metrixpro_${date}.xlsx`,
+        "Content-Disposition": `attachment; filename=stratiumetrics_${date}.xlsx`,
       },
     });
   }
@@ -105,7 +105,7 @@ export async function GET(req: NextRequest) {
   return new NextResponse([header, ...rows].join("\n"), {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename=metrixpro_${date}.csv`,
+      "Content-Disposition": `attachment; filename=stratiumetrics_${date}.csv`,
     },
   });
 }

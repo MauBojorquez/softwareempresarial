@@ -248,26 +248,26 @@ export default function ReportsPage() {
               <div className="mt-3 space-y-2 sm:mt-4">
                 {reports.slice(1).map((report) => (
                   <div key={report.id} className="rounded-lg border border-border p-3 sm:p-4">
-                    <button
-                      onClick={() => setExpandedReport(expandedReport === report.id ? null : report.id)}
-                      className="w-full text-left"
-                    >
-                      <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2">
+                      <button
+                        onClick={() => setExpandedReport(expandedReport === report.id ? null : report.id)}
+                        aria-expanded={expandedReport === report.id}
+                        className="flex flex-1 items-center justify-between gap-2 text-left"
+                      >
                         <div>
                           <p className="text-xs font-medium sm:text-sm">{report.title}</p>
                           <p className="text-[11px] text-muted-foreground sm:text-xs">{new Date(report.createdAt).toLocaleDateString("es-MX")}</p>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={(e) => { e.stopPropagation(); downloadReport(report.id); }}
-                            className="rounded p-1 text-muted-foreground hover:text-foreground"
-                          >
-                            <Download className="h-3.5 w-3.5" />
-                          </button>
-                          <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${expandedReport === report.id ? "rotate-90" : ""}`} />
-                        </div>
-                      </div>
-                    </button>
+                        <ChevronRight className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${expandedReport === report.id ? "rotate-90" : ""}`} />
+                      </button>
+                      <button
+                        onClick={() => downloadReport(report.id)}
+                        aria-label="Descargar reporte"
+                        className="rounded p-1 text-muted-foreground hover:text-foreground"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                     {expandedReport === report.id && (
                       <p className="mt-3 text-xs text-muted-foreground border-t border-border pt-3 sm:text-sm">{report.summary}</p>
                     )}

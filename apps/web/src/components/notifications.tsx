@@ -43,6 +43,14 @@ export function NotificationBell() {
     return () => clearInterval(interval);
   }, [loadNotifications]);
 
+  // Close the panel on Escape.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
   const togglePush = async () => {
     setPushBusy(true);
     try {
@@ -107,14 +115,14 @@ export function NotificationBell() {
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full mt-2 z-50 w-80 rounded-xl border border-border bg-card shadow-lg">
+          <div role="dialog" aria-label="Notificaciones" className="absolute right-0 top-full mt-2 z-50 w-80 rounded-xl border border-border bg-card shadow-lg">
             <div className="flex items-center justify-between border-b border-border p-3">
               <h3 className="text-sm font-semibold">Notificaciones</h3>
               <div className="flex items-center gap-2">
                 {notifications.length > 0 && (
                   <button onClick={clearAll} className="text-xs text-muted-foreground hover:text-foreground">Limpiar</button>
                 )}
-                <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground">
+                <button onClick={() => setOpen(false)} aria-label="Cerrar" className="text-muted-foreground hover:text-foreground">
                   <X className="h-3.5 w-3.5" />
                 </button>
               </div>

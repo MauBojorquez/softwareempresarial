@@ -192,19 +192,21 @@ export default function SatConnectionPage() {
             <label className="text-sm font-medium">
               Certificado (.cer)
             </label>
-            <div
+            <button
+              type="button"
               onClick={() => cerRef.current?.click()}
-              className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-border bg-secondary/20 px-4 py-3 text-sm transition-colors hover:bg-secondary/40"
+              className="flex w-full cursor-pointer items-center gap-3 rounded-lg border border-dashed border-border bg-secondary/20 px-4 py-3 text-left text-sm transition-colors hover:bg-secondary/40 focus:outline-none focus:ring-2 focus:ring-primary/30"
             >
               <Upload className="h-4 w-4 text-muted-foreground shrink-0" />
               <span className={cerFile ? "text-foreground" : "text-muted-foreground"}>
                 {cerFile ? cerFile.name : "Seleccionar archivo .cer"}
               </span>
-            </div>
+            </button>
             <input
               ref={cerRef}
               type="file"
               accept=".cer"
+              aria-label="Certificado .cer"
               className="hidden"
               onChange={(e) => setCerFile(e.target.files?.[0] ?? null)}
             />
@@ -215,19 +217,21 @@ export default function SatConnectionPage() {
             <label className="text-sm font-medium">
               Llave privada (.key)
             </label>
-            <div
+            <button
+              type="button"
               onClick={() => keyRef.current?.click()}
-              className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-border bg-secondary/20 px-4 py-3 text-sm transition-colors hover:bg-secondary/40"
+              className="flex w-full cursor-pointer items-center gap-3 rounded-lg border border-dashed border-border bg-secondary/20 px-4 py-3 text-left text-sm transition-colors hover:bg-secondary/40 focus:outline-none focus:ring-2 focus:ring-primary/30"
             >
               <Upload className="h-4 w-4 text-muted-foreground shrink-0" />
               <span className={keyFile ? "text-foreground" : "text-muted-foreground"}>
                 {keyFile ? keyFile.name : "Seleccionar archivo .key"}
               </span>
-            </div>
+            </button>
             <input
               ref={keyRef}
               type="file"
               accept=".key"
+              aria-label="Llave privada .key"
               className="hidden"
               onChange={(e) => setKeyFile(e.target.files?.[0] ?? null)}
             />

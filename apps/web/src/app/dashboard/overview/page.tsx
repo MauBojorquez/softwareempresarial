@@ -561,7 +561,7 @@ export default function OverviewPage() {
             <Download className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">{downloading ? "Descargando..." : "Exportar"}</span>
           </button>
-          <button onClick={() => { setLoading(true); load(); }} className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium transition-colors hover:bg-secondary">
+          <button onClick={() => { setLoading(true); load(); }} aria-label="Actualizar" className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium transition-colors hover:bg-secondary">
             <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
           </button>
         </div>

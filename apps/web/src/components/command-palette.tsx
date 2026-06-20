@@ -112,7 +112,7 @@ export function CommandPalette() {
     <>
       <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" onClick={() => setOpen(false)} />
       <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] px-4">
-        <div className="w-full max-w-lg rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
+        <div role="dialog" aria-modal="true" aria-label="Paleta de comandos" className="w-full max-w-lg rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
           <div className="flex items-center gap-3 border-b border-border px-4 py-3">
             <Search className="h-4 w-4 text-muted-foreground shrink-0" />
             <input
@@ -120,6 +120,7 @@ export function CommandPalette() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleKeyDown}
+              aria-label="Buscar páginas y acciones"
               placeholder="Buscar páginas y acciones..."
               className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
             />

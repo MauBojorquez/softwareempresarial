@@ -73,6 +73,10 @@ export async function syncMetaAdsMetrics(organizationId: string) {
         { organizationId, category: "MARKETING" as const, name: "meta_impressions", value: parseInt(previousInsights.impressions || "0"), period: lastMonth, source: "META_ADS" as const },
         { organizationId, category: "MARKETING" as const, name: "meta_clicks", value: parseInt(previousInsights.clicks || "0"), period: lastMonth, source: "META_ADS" as const },
         { organizationId, category: "MARKETING" as const, name: "meta_ctr", value: parseFloat(previousInsights.ctr || "0"), unit: "%", period: lastMonth, source: "META_ADS" as const },
+        { organizationId, category: "MARKETING" as const, name: "meta_cpc", value: parseFloat(previousInsights.cpc || "0"), unit: account.currency || "MXN", period: lastMonth, source: "META_ADS" as const },
+        { organizationId, category: "MARKETING" as const, name: "meta_cpm", value: parseFloat(previousInsights.cpm || "0"), unit: account.currency || "MXN", period: lastMonth, source: "META_ADS" as const },
+        { organizationId, category: "MARKETING" as const, name: "meta_reach", value: parseInt(previousInsights.reach || "0"), period: lastMonth, source: "META_ADS" as const },
+        { organizationId, category: "SALES" as const, name: "meta_conversions", value: countConversions(previousInsights), period: lastMonth, source: "META_ADS" as const },
         { organizationId, category: "MARKETING" as const, name: "meta_roas", value: calculateROAS(previousInsights), period: lastMonth, source: "META_ADS" as const }
       );
     }

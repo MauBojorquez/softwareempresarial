@@ -26,10 +26,10 @@ function groupByMonth(cfdis: ParsedCfdi[]): MonthlyFinancials[] {
     const d = new Date(c.date);
     if (Number.isNaN(d.getTime())) continue;
 
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
     if (!map.has(key)) {
       map.set(key, {
-        period: new Date(d.getFullYear(), d.getMonth(), 1),
+        period: new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)),
         ingresos: 0,
         egresos: 0,
         ivaCobrado: 0,
