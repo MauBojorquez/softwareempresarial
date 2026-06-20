@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Target, Plus, X, Trophy, Loader2, Sparkles, RefreshCw } from "lucide-react";
 import { GoalProgress } from "@/components/dashboard/goal-progress";
+import { Celebration } from "@/components/dashboard/celebration";
 import { useToast } from "@/components/toast";
 import { addActivityLog } from "@/components/dashboard/activity-log";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -36,6 +37,7 @@ export default function GoalsPage() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ metric: "Ingresos", target: "", unit: "MXN", deadline: "" });
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [celebrate, setCelebrate] = useState(false);
 
   const load = async () => {
     try {
@@ -49,6 +51,25 @@ export default function GoalsPage() {
   };
 
   useEffect(() => { load(); }, []);
+
+  // Fire a confetti burst the first time a goal crosses 100%. We remember which
+  // goals were already celebrated so it doesn't replay on every visit, but if a
+  // goal drops back below target it becomes eligible to celebrate again.
+  useEffect(() => {
+    if (!goals.length) return;
+    const KEY = "stratiumetrics-celebrated-goals";
+    let celebrated: string[] = [];
+    try { celebrated = JSON.parse(localStorage.getItem(KEY) || "[]"); } catch {}
+    const doneNow = goals.filter((g) => g.target > 0 && g.current >= g.target).map((g) => g.name);
+    const stillRelevant = celebrated.filter((n) => doneNow.includes(n));
+    const fresh = doneNow.filter((n) => !celebrated.includes(n));
+    if (fresh.length) {
+      setCelebrate(true);
+      localStorage.setItem(KEY, JSON.stringify([...stillRelevant, ...fresh]));
+    } else if (stillRelevant.length !== celebrated.length) {
+      localStorage.setItem(KEY, JSON.stringify(stillRelevant));
+    }
+  }, [goals]);
 
   const saveGoal = async () => {
     if (!form.target) return;
@@ -106,6 +127,7 @@ export default function GoalsPage() {
 
   return (
     <div className="space-y-5">
+      {celebrate && <Celebration onDone={() => setCelebrate(false)} />}
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>

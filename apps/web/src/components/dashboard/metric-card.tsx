@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { cn, formatCurrency, formatPercentage } from "@/lib/utils";
 import { type LucideIcon, TrendingUp, TrendingDown, Minus } from "lucide-react";
 
@@ -12,13 +13,51 @@ interface MetricCardProps {
   trend?: number[];
 }
 
+const prefersReducedMotion = () =>
+  typeof window !== "undefined" &&
+  window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+/**
+ * Counts up to `target` over ~900ms with an ease-out curve. Skips the
+ * animation entirely when the user prefers reduced motion (accessibility).
+ */
+function useCountUp(target: number, enabled: boolean): number {
+  const [val, setVal] = useState(enabled ? 0 : target);
+  const prev = useRef(0);
+  useEffect(() => {
+    if (!enabled || prefersReducedMotion()) { setVal(target); prev.current = target; return; }
+    const from = prev.current;
+    const delta = target - from;
+    if (delta === 0) { setVal(target); return; }
+    const duration = 900;
+    let raf = 0;
+    const start = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
+      setVal(from + delta * eased);
+      if (t < 1) raf = requestAnimationFrame(tick);
+      else prev.current = target;
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, enabled]);
+  return val;
+}
+
 export function MetricCard({ title, value, change, icon: Icon, format, trend }: MetricCardProps) {
+  const isNumeric = typeof value === "number";
+  const animated = useCountUp(isNumeric ? (value as number) : 0, isNumeric);
+  const display = isNumeric ? animated : 0;
+
   const formattedValue =
-    format === "currency" && typeof value === "number"
-      ? formatCurrency(value)
-      : format === "percentage" && typeof value === "number"
-        ? `${value.toFixed(1)}%`
-        : String(value);
+    format === "currency" && isNumeric
+      ? formatCurrency(display)
+      : format === "percentage" && isNumeric
+        ? `${display.toFixed(1)}%`
+        : isNumeric
+          ? Math.round(display).toLocaleString("es-MX")
+          : String(value);
 
   return (
     <div role="article" aria-label={`${title}: ${formattedValue}`} className="group rounded-xl border border-border bg-card p-4 transition-all sm:p-5 card-hover">
