@@ -10,7 +10,7 @@ async function getMembership(userId: string) {
   return db.membership.findFirst({ where: { userId } });
 }
 
-/** GET — current Google Sheets connection + mappings + last sync. */
+/** GET — current spreadsheet import status: mappings + last import time. */
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -18,7 +18,7 @@ export async function GET() {
   if (!membership) return NextResponse.json({ error: "No organization" }, { status: 404 });
 
   const integration = await db.integration.findFirst({
-    where: { organizationId: membership.organizationId, type: "CUSTOM_API" },
+    where: { organizationId: membership.organizationId, type: "SPREADSHEET" },
   });
   if (!integration) return NextResponse.json({ connected: false });
 
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
   }
   const clean = mappings.filter(
     (m) =>
-      Number.isInteger(m.row) && Number.isInteger(m.col) && m.name?.trim() &&
+      Number.isInteger(m.row) && m.row >= 0 && Number.isInteger(m.col) && m.col >= 0 && m.name?.trim() &&
       ALL_CATEGORIES.includes(m.category) && typeof m.value === "number" && Number.isFinite(m.value)
   ).slice(0, 200);
   if (clean.length === 0) {
@@ -58,10 +58,10 @@ export async function POST(req: NextRequest) {
   const { synced } = await upsertSheetMetrics(membership.organizationId, clean);
 
   await db.integration.upsert({
-    where: { organizationId_type: { organizationId: membership.organizationId, type: "CUSTOM_API" } },
+    where: { organizationId_type: { organizationId: membership.organizationId, type: "SPREADSHEET" } },
     create: {
       organizationId: membership.organizationId,
-      type: "CUSTOM_API",
+      type: "SPREADSHEET",
       accessToken: "spreadsheet_csv",
       isActive: true,
       metadata: meta as object,
@@ -91,14 +91,14 @@ export async function DELETE() {
   }
 
   await db.integration.deleteMany({
-    where: { organizationId: membership.organizationId, type: "CUSTOM_API" },
+    where: { organizationId: membership.organizationId, type: "SPREADSHEET" },
   });
 
   logActivity({
     userId: session.user.id,
     organizationId: membership.organizationId,
     action: "integration.disconnect",
-    detail: "Google Sheets desconectado",
+    detail: "Hoja de cálculo desconectada",
   });
 
   return NextResponse.json({ ok: true });

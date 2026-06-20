@@ -283,6 +283,7 @@ enum IntegrationType {
   META_ADS
   SAT
   CUSTOM_API
+  SPREADSHEET
 }
 
 enum MetricCategory {

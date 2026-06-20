@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle, RefreshCw, AlertCircle, Loader2, MessageSquarePlus, Lock, Table2 } from "lucide-react";
 import { useSession } from "next-auth/react";
@@ -116,7 +116,8 @@ export default function IntegrationsPage() {
 
   const handleSheetsDisconnect = async () => {
     try {
-      await fetch("/api/integrations/sheets", { method: "DELETE" });
+      const res = await fetch("/api/integrations/sheets", { method: "DELETE" });
+      if (!res.ok) { toast("No se pudo desconectar la hoja", "error"); return; }
       toast("Hoja desconectada", "success");
       fetchSheetsStatus();
     } catch { toast("Error al desconectar", "error"); }
@@ -269,7 +270,7 @@ export default function IntegrationsPage() {
       )}
 
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
-        {/* Google Sheets — always first. Live connection with cell mapping. */}
+        {/* Spreadsheet — always first. Manual CSV import with cell mapping. */}
         <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.03] p-4 sm:p-6 transition-all">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">

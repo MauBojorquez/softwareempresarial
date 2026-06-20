@@ -29,7 +29,7 @@ export function SheetsConnectModal({
   const [loading, setLoading] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [mappings, setMappings] = useState<Mapping[]>([]);
-  const [savedMappings, setSavedMappings] = useState<Mapping[]>([]);
+  const savedMappingsRef = useRef<Mapping[]>([]);
   const [sel, setSel] = useState<{ row: number; col: number } | null>(null);
   const [selCategory, setSelCategory] = useState<MetricCategoryKey>("FINANCE");
   const [selMetric, setSelMetric] = useState<string>(CATEGORY_TEMPLATES.FINANCE[0].name);
@@ -40,13 +40,14 @@ export function SheetsConnectModal({
     fetch("/api/integrations/sheets")
       .then((r) => r.json())
       .then((d) => {
-        if (d.connected && Array.isArray(d.mappings)) setSavedMappings(d.mappings);
+        if (d.connected && Array.isArray(d.mappings)) savedMappingsRef.current = d.mappings;
       })
       .catch(() => {});
   }, [open]);
 
   const reset = () => {
-    setStep(1); setFileName(""); setGrid([]); setMappings([]); setSavedMappings([]); setSel(null);
+    setStep(1); setFileName(""); setGrid([]); setMappings([]); setSel(null);
+    savedMappingsRef.current = [];
     setLoading(false); setConnecting(false);
   };
   const handleClose = () => { reset(); onClose(); };
@@ -61,7 +62,7 @@ export function SheetsConnectModal({
       setGrid(parsed);
       setFileName(file.name);
       // Re-apply saved mappings whose cells still exist in the new file.
-      setMappings(savedMappings.filter((m) => parsed[m.row]?.[m.col] !== undefined));
+      setMappings(savedMappingsRef.current.filter((m) => parsed[m.row]?.[m.col] !== undefined));
       setStep(2);
     } catch {
       toast("No se pudo leer el archivo. Asegúrate de que sea un CSV.", "error");

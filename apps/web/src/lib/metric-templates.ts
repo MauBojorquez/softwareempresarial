@@ -1,5 +1,5 @@
-// Shared catalog of metric templates per category. Used by the Excel import
-// mapper so users can map their spreadsheet columns to the right metric.
+// Shared catalog of metric templates per category. Used by the CSV cell mapper
+// so users can map an exact spreadsheet cell to the right metric.
 
 export type MetricCategoryKey = "FINANCE" | "SALES" | "OPERATIONS" | "HR" | "MARKETING";
 

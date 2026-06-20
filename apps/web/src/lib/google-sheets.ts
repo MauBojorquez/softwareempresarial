@@ -28,12 +28,32 @@ export function parseCsv(text: string): string[][] {
   return rows;
 }
 
-/** Parses a spreadsheet cell value into a number, stripping $ , % and spaces. */
+/**
+ * Parses a spreadsheet cell value into a number. Strips currency/percent symbols
+ * and handles both US ("1,234.56") and es-MX ("1.234,56") number formats, which
+ * matters because Mexican Excel/Sheets exports often use comma as the decimal.
+ */
 export function parseCellNumber(raw: string | undefined): number | null {
   if (raw === undefined || raw === null) return null;
-  const cleaned = String(raw).replace(/[$,%\s]/g, "");
-  if (cleaned === "") return null;
-  const n = parseFloat(cleaned);
+  let s = String(raw).trim().replace(/[$%\s]/g, "");
+  if (s === "") return null;
+
+  const lastComma = s.lastIndexOf(",");
+  const lastDot = s.lastIndexOf(".");
+
+  if (lastComma > -1 && lastDot > -1) {
+    // Both present: the right-most symbol is the decimal separator.
+    if (lastComma > lastDot) s = s.replace(/\./g, "").replace(",", "."); // es: 1.234,56
+    else s = s.replace(/,/g, ""); // us: 1,234.56
+  } else if (lastComma > -1) {
+    // Only commas. A single comma not acting as a thousands group (≠3 trailing
+    // digits) is treated as a decimal separator; otherwise it's a group.
+    const trailing = s.length - lastComma - 1;
+    const commaCount = (s.match(/,/g) || []).length;
+    s = commaCount === 1 && trailing !== 3 ? s.replace(",", ".") : s.replace(/,/g, "");
+  }
+
+  const n = parseFloat(s);
   return Number.isFinite(n) ? n : null;
 }
 

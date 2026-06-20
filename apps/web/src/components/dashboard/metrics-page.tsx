@@ -113,20 +113,27 @@ export function MetricsDashboard({
     const file = e.target.files?.[0];
     if (!file) return;
     setImporting(true);
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("category", category);
-    const res = await fetch("/api/metrics/import", { method: "POST", body: fd });
-    const data = await res.json();
-    if (data.errors?.length > 0) {
-      toast(`Importados: ${data.imported}/${data.total}. ${data.errors.length} errores.`, "error");
-    } else {
-      toast(`${data.imported} registros importados correctamente`, "success");
-      addActivityLog("CSV importado", `${data.imported} registros en ${activityLabel}`, "import");
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("category", category);
+      const res = await fetch("/api/metrics/import", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) {
+        toast(data.error || "No se pudo importar el archivo", "error");
+      } else if (data.errors?.length > 0) {
+        toast(`Importados: ${data.imported}/${data.total}. ${data.errors.length} errores.`, "error");
+      } else {
+        toast(`${data.imported} registros importados correctamente`, "success");
+        addActivityLog("CSV importado", `${data.imported} registros en ${activityLabel}`, "import");
+      }
+      load();
+    } catch {
+      toast("Error de conexión al importar", "error");
+    } finally {
+      setImporting(false);
+      e.target.value = "";
     }
-    setImporting(false);
-    load();
-    e.target.value = "";
   };
 
   const handleSave = async () => {
@@ -164,7 +171,7 @@ export function MetricsDashboard({
     await fetch("/api/metrics/manual", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: editEntry.id, value: editForm.value, period: editForm.period }),
+      body: JSON.stringify({ id: editEntry.id, value: parseFloat(editForm.value), period: editForm.period }),
     });
     setEditEntry(null);
     setEditSaving(false);

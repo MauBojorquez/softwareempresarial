@@ -34,13 +34,13 @@ export async function upsertSheetMetrics(
     if (typeof m.value !== "number" || !Number.isFinite(m.value)) continue;
 
     const existing = await db.metric.findFirst({
-      where: { organizationId, category: m.category, name: m.name, period, source: "CUSTOM_API" },
+      where: { organizationId, category: m.category, name: m.name, period, source: "SPREADSHEET" },
     });
     if (existing) {
       await db.metric.update({ where: { id: existing.id }, data: { value: m.value, unit: m.unit || null } });
     } else {
       await db.metric.create({
-        data: { organizationId, category: m.category, name: m.name, value: m.value, unit: m.unit || null, period, source: "CUSTOM_API" },
+        data: { organizationId, category: m.category, name: m.name, value: m.value, unit: m.unit || null, period, source: "SPREADSHEET" },
       });
     }
     synced++;
