@@ -15,6 +15,7 @@ import { Onboarding } from "@/components/dashboard/onboarding";
 import { ActivityLog } from "@/components/dashboard/activity-log";
 import { InsightsWidget } from "@/components/dashboard/insights-widget";
 import { useToast } from "@/components/toast";
+import { DashboardSkeleton } from "@/components/dashboard/skeleton";
 
 type DashboardData = {
   satIngresos: number; satIngresosChange: number;
@@ -172,13 +173,7 @@ export default function OverviewPage() {
     setDownloading(false);
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
+  if (loading) return <DashboardSkeleton />;
 
   if (!data || !data.hasData) {
     return (

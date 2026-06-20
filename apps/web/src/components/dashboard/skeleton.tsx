@@ -43,12 +43,18 @@ export function TableSkeleton({ rows = 5 }: { rows?: number }) {
 export function DashboardSkeleton() {
   return (
     <div className="space-y-5">
+      {/* Aurora welcome banner */}
+      <Pulse className="h-24 w-full rounded-2xl" />
       <div className="flex items-center justify-between">
         <div>
-          <Pulse className="h-7 w-40" />
-          <Pulse className="mt-2 h-4 w-56" />
+          <Pulse className="h-7 w-32" />
+          <Pulse className="mt-2 h-4 w-52" />
         </div>
-        <Pulse className="h-9 w-28 rounded-lg" />
+        <div className="flex gap-2">
+          <Pulse className="h-9 w-24 rounded-lg" />
+          <Pulse className="h-9 w-24 rounded-lg" />
+          <Pulse className="h-9 w-9 rounded-lg" />
+        </div>
       </div>
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <MetricCardSkeleton />
@@ -56,7 +62,12 @@ export function DashboardSkeleton() {
         <MetricCardSkeleton />
         <MetricCardSkeleton />
       </div>
-      <TableSkeleton />
+      <Pulse className="h-48 w-full rounded-xl" />
+      <Pulse className="h-32 w-full rounded-xl" />
     </div>
   );
+}
+
+export function OverviewSkeleton() {
+  return <DashboardSkeleton />;
 }

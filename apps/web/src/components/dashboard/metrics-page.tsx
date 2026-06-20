@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { type LucideIcon } from "lucide-react";
-import { Plus, Trash2, X, Download, Upload, Search, RefreshCw, LinkIcon, Pencil, ArrowLeftRight } from "lucide-react";
+import { Plus, Trash2, X, Download, Upload, Search, RefreshCw, LinkIcon, Pencil, ArrowLeftRight, Loader2 } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { DashboardSkeleton } from "@/components/dashboard/skeleton";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -74,6 +74,7 @@ export function MetricsDashboard({
   const [compareLoading, setCompareLoading] = useState(false);
 
   const storageKey = `metrixpro-display-${category}`;
+  const valueInputRef = useRef<HTMLInputElement>(null);
 
   const load = (signal?: AbortSignal) => {
     setLoading(true);
@@ -97,6 +98,22 @@ export function MetricsDashboard({
     const id = setInterval(() => load(), 30000);
     return () => clearInterval(id);
   }, [autoRefresh, months]);
+
+  // Focus the value input when the form opens
+  useEffect(() => {
+    if (showForm) setTimeout(() => valueInputRef.current?.focus(), 50);
+  }, [showForm]);
+
+  // Close modals on Escape key
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (editEntry) { setEditEntry(null); return; }
+      if (showForm) setShowForm(false);
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [editEntry, showForm]);
 
   useEffect(() => {
     const stored = localStorage.getItem(storageKey);
@@ -322,11 +339,14 @@ export function MetricsDashboard({
             <div>
               <label className="text-xs font-medium text-muted-foreground">Valor</label>
               <input
+                ref={valueInputRef}
                 type="number"
+                inputMode="decimal"
+                min="0"
                 value={form.value}
                 onChange={(e) => setForm({ ...form, value: e.target.value })}
                 placeholder="0"
-                className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
               />
             </div>
             <div>
@@ -342,8 +362,9 @@ export function MetricsDashboard({
           <button
             onClick={handleSave}
             disabled={saving || !form.value}
-            className="mt-4 rounded-lg gradient-bg px-6 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="mt-4 flex items-center gap-2 rounded-lg gradient-bg px-6 py-2 text-sm font-medium text-white disabled:opacity-50"
           >
+            {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             {saving ? "Guardando..." : "Guardar"}
           </button>
         </div>
@@ -529,7 +550,7 @@ export function MetricsDashboard({
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Buscar..."
-                  className="w-32 sm:w-48 rounded-lg border border-border bg-background pl-8 pr-3 py-1.5 text-xs"
+                  className="w-32 sm:w-48 rounded-lg border border-border bg-background pl-8 pr-3 py-1.5 text-xs focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
                 />
               </div>
             </div>
@@ -544,7 +565,35 @@ export function MetricsDashboard({
                 </button>
               </div>
             )}
-            <div className="overflow-x-auto">
+
+            {/* Mobile card list */}
+            <div className="sm:hidden divide-y divide-border">
+              {filtered.length === 0 && (
+                <p className="p-6 text-center text-sm text-muted-foreground">Sin resultados</p>
+              )}
+              {filtered.map((m) => (
+                <div key={m.id} className="flex items-center justify-between px-4 py-3 hover:bg-secondary/30">
+                  <div>
+                    <p className="text-sm font-medium">{m.name}</p>
+                    <p className="text-xs text-muted-foreground">{new Date(m.period).toLocaleDateString("es-MX")}</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-semibold">{fmtValue(m.value, m.unit)}</span>
+                    <div className="flex items-center gap-1">
+                      <button aria-label={`Editar ${m.name}`} onClick={() => openEdit(m)} className="text-muted-foreground hover:text-primary p-1">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button aria-label={`Eliminar ${m.name}`} onClick={() => setDeleteId(m.id)} className="text-muted-foreground hover:text-red-500 p-1">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop table */}
+            <div className="hidden sm:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left text-xs text-muted-foreground">
@@ -629,7 +678,10 @@ export function MetricsDashboard({
               <div>
                 <label className="text-xs font-medium text-muted-foreground">Valor</label>
                 <input
+                  autoFocus
                   type="number"
+                  inputMode="decimal"
+                  min="0"
                   value={editForm.value}
                   onChange={(e) => setEditForm({ ...editForm, value: e.target.value })}
                   className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
@@ -652,8 +704,9 @@ export function MetricsDashboard({
               <button
                 onClick={handleEdit}
                 disabled={editSaving || !editForm.value}
-                className="rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                className="flex items-center gap-2 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
               >
+                {editSaving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 {editSaving ? "Guardando..." : "Guardar"}
               </button>
             </div>

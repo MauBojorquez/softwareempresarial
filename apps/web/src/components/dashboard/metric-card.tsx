@@ -1,7 +1,7 @@
 "use client";
 
 import { cn, formatCurrency, formatPercentage } from "@/lib/utils";
-import { type LucideIcon } from "lucide-react";
+import { type LucideIcon, TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 interface MetricCardProps {
   title: string;
@@ -33,10 +33,15 @@ export function MetricCard({ title, value, change, icon: Icon, format, trend }: 
         {change !== undefined && (
           <p
             className={cn(
-              "mt-1 text-[11px] font-medium sm:mt-1.5 sm:text-xs animate-scale-in",
-              change >= 0 ? "text-emerald-600" : "text-red-500"
+              "mt-1 flex items-center gap-0.5 text-[11px] font-medium sm:mt-1.5 sm:text-xs animate-scale-in",
+              change > 0 ? "text-emerald-600" : change < 0 ? "text-red-500" : "text-muted-foreground"
             )}
           >
+            {change > 0
+              ? <TrendingUp className="h-3 w-3" />
+              : change < 0
+              ? <TrendingDown className="h-3 w-3" />
+              : <Minus className="h-3 w-3" />}
             {formatPercentage(change)} vs mes anterior
           </p>
         )}
