@@ -2,17 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { type LucideIcon } from "lucide-react";
-import { Plus, Trash2, X, Download, Upload, Search, RefreshCw, LinkIcon, Pencil, ArrowLeftRight, FileSpreadsheet } from "lucide-react";
-import { useSession } from "next-auth/react";
+import { Plus, Trash2, X, Download, Upload, Search, RefreshCw, LinkIcon, Pencil, ArrowLeftRight } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { DashboardSkeleton } from "@/components/dashboard/skeleton";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ExportButton } from "@/components/dashboard/export-button";
-import { ExcelImportModal } from "@/components/dashboard/excel-import-modal";
 import { cn, formatCurrency } from "@/lib/utils";
 import { useToast } from "@/components/toast";
 import { addActivityLog } from "@/components/dashboard/activity-log";
-import type { MetricCategoryKey } from "@/lib/metric-templates";
 
 export type MetricTemplate = { name: string; unit: string };
 type MetricEntry = { id: string; name: string; value: number; unit: string | null; period: string };
@@ -50,9 +47,6 @@ export function MetricsDashboard({
   extraContent,
 }: MetricsDashboardProps) {
   const { toast } = useToast();
-  const { data: session } = useSession();
-  const canImport = session?.user?.role !== "VIEWER";
-  const [showExcel, setShowExcel] = useState(false);
   const [metrics, setMetrics] = useState<MetricEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -79,10 +73,15 @@ export function MetricsDashboard({
   const load = (signal?: AbortSignal) => {
     setLoading(true);
     setError(null);
-    fetch(`/api/metrics/manual?category=${category}&months=${months}`, { signal })
-      .then((r) => { if (!r.ok) throw new Error("Error al cargar datos"); return r.json(); })
-      .then((d) => { setMetrics(d.metrics || []); setLoading(false); })
-      .catch((e) => { if (e.name !== "AbortError") { setError(e.message); setLoading(false); } });
+    // Refresh values from any connected spreadsheet first (best-effort), then load.
+    fetch("/api/integrations/sheets/sync", { method: "POST" })
+      .catch(() => {})
+      .finally(() => {
+        fetch(`/api/metrics/manual?category=${category}&months=${months}`, { signal })
+          .then((r) => { if (!r.ok) throw new Error("Error al cargar datos"); return r.json(); })
+          .then((d) => { setMetrics(d.metrics || []); setLoading(false); })
+          .catch((e) => { if (e.name !== "AbortError") { setError(e.message); setLoading(false); } });
+      });
   };
 
   // Abort the previous request when `months` changes so a stale response
@@ -239,16 +238,6 @@ export function MetricsDashboard({
             <span className="hidden sm:inline">{importing ? "Importando..." : "CSV"}</span>
             <input type="file" accept=".csv" onChange={handleImport} className="hidden" />
           </label>
-          {canImport && (
-            <button
-              onClick={() => setShowExcel(true)}
-              title="Importar desde Excel"
-              className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-            >
-              <FileSpreadsheet className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Excel</span>
-            </button>
-          )}
           <button
             onClick={() => setShowForm(true)}
             className="flex items-center gap-2 rounded-lg gradient-bg px-3 py-2 sm:px-4 text-sm font-medium text-white transition-opacity hover:opacity-90"
@@ -623,13 +612,6 @@ export function MetricsDashboard({
         destructive
         onConfirm={handleBulkDelete}
         onCancel={() => setBulkDeleteCount(0)}
-      />
-
-      <ExcelImportModal
-        open={showExcel}
-        onClose={() => setShowExcel(false)}
-        onImported={() => load()}
-        defaultCategory={category as MetricCategoryKey}
       />
     </div>
   );

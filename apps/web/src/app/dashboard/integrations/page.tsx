@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle, RefreshCw, AlertCircle, Loader2, MessageSquarePlus, Lock, FileSpreadsheet, ArrowRight } from "lucide-react";
+import { CheckCircle, RefreshCw, AlertCircle, Loader2, MessageSquarePlus, Lock, Table2 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useToast } from "@/components/toast";
 import { addActivityLog } from "@/components/dashboard/activity-log";
 import { ConfirmDialog } from "@/components/confirm-dialog";
-import { ExcelImportModal } from "@/components/dashboard/excel-import-modal";
+import { SheetsConnectModal } from "@/components/dashboard/sheets-connect-modal";
+import { cn } from "@/lib/utils";
 import {
   MetaLogo, HubSpotLogo, SATLogo,
 } from "@/components/brand-logos";
@@ -96,7 +97,9 @@ export default function IntegrationsPage() {
   const [requestMsg, setRequestMsg] = useState("");
   const [sendingRequest, setSendingRequest] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
-  const [showExcel, setShowExcel] = useState(false);
+  const [showSheets, setShowSheets] = useState(false);
+  const [sheetsStatus, setSheetsStatus] = useState<{ connected: boolean; lastSyncAt: string | null; mappings: unknown[] }>({ connected: false, lastSyncAt: null, mappings: [] });
+  const [sheetsSyncing, setSheetsSyncing] = useState(false);
 
   const fetchSatStatus = () => {
     fetch("/api/integrations/sat/status")
@@ -105,12 +108,39 @@ export default function IntegrationsPage() {
       .catch((e) => { console.error(e); });
   };
 
+  const fetchSheetsStatus = () => {
+    fetch("/api/integrations/sheets")
+      .then((r) => r.json())
+      .then((d) => setSheetsStatus({ connected: !!d.connected, lastSyncAt: d.lastSyncAt ?? null, mappings: d.mappings ?? [] }))
+      .catch(() => {});
+  };
+
+  const handleSheetsSync = async () => {
+    setSheetsSyncing(true);
+    try {
+      const res = await fetch("/api/integrations/sheets/sync", { method: "POST" });
+      const data = await res.json();
+      if (res.ok) { toast(`${data.synced} datos actualizados`, "success"); fetchSheetsStatus(); }
+      else toast(data.error || "Error al sincronizar", "error");
+    } catch { toast("Error de conexión", "error"); }
+    setSheetsSyncing(false);
+  };
+
+  const handleSheetsDisconnect = async () => {
+    try {
+      await fetch("/api/integrations/sheets", { method: "DELETE" });
+      toast("Hoja desconectada", "success");
+      fetchSheetsStatus();
+    } catch { toast("Error al desconectar", "error"); }
+  };
+
   useEffect(() => {
     fetch("/api/integrations/status")
       .then((r) => r.json())
       .then((d) => setStatuses(d.integrations ?? []))
       .catch((e) => { console.error(e); });
     fetchSatStatus();
+    fetchSheetsStatus();
   }, []);
 
   // Show feedback from OAuth callbacks (?success=... or ?error=...) so the
@@ -250,27 +280,76 @@ export default function IntegrationsPage() {
         </div>
       )}
 
-      {/* Excel — import from any spreadsheet, map to any section */}
-      <button
-        onClick={() => setShowExcel(true)}
-        className="group flex w-full items-center gap-4 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 text-left transition-all hover:border-emerald-500/50 hover:bg-emerald-500/10"
-      >
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15">
-          <FileSpreadsheet className="h-6 w-6 text-emerald-600" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <h3 className="font-semibold">Excel</h3>
-            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-600">Recomendado</span>
-          </div>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Sube tu hoja de cálculo y elige a qué sección conectarla — Finanzas, Ventas, Marketing, RRHH u Operaciones. Mapea tus columnas a los datos del software.
-          </p>
-        </div>
-        <ArrowRight className="h-5 w-5 shrink-0 text-emerald-600 transition-transform group-hover:translate-x-0.5" />
-      </button>
-
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+        {/* Google Sheets — always first. Live connection with cell mapping. */}
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.03] p-4 sm:p-6 transition-all">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-white shadow-sm">
+                <Table2 className="h-6 w-6 text-emerald-600" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold">Hojas de Cálculo</h3>
+                  <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-600">Recomendado</span>
+                </div>
+                <p className="text-xs text-muted-foreground">Excel / Google Sheets · en vivo</p>
+              </div>
+            </div>
+            {sheetsStatus.connected ? (
+              <div className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-600">
+                <CheckCircle className="h-3 w-3" /> Conectado
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 rounded-full bg-secondary/50 px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                <AlertCircle className="h-3 w-3" /> Desconectado
+              </div>
+            )}
+          </div>
+
+          <p className="mt-3 text-sm text-muted-foreground">
+            Conecta tu hoja y mapea celda por celda (ej. C4 → Ventas). Cuando cambies la hoja, tus números se actualizan solos.
+          </p>
+
+          {sheetsStatus.connected && (
+            <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground">
+              <div className="flex items-center gap-1.5">
+                <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                <span>{sheetsStatus.mappings.length} celdas mapeadas</span>
+              </div>
+              {sheetsStatus.lastSyncAt && <span className="font-medium">{timeAgo(sheetsStatus.lastSyncAt)}</span>}
+            </div>
+          )}
+
+          <div className="mt-4 flex items-center gap-2">
+            <button
+              onClick={() => setShowSheets(true)}
+              className="flex-1 rounded-lg gradient-bg px-3 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
+            >
+              {sheetsStatus.connected ? "Editar mapeo" : "Conectar"}
+            </button>
+            {sheetsStatus.connected && (
+              <>
+                <button
+                  onClick={handleSheetsSync}
+                  disabled={sheetsSyncing}
+                  title="Sincronizar ahora"
+                  className="flex items-center justify-center rounded-lg border border-border px-3 py-2 text-sm font-medium transition-colors hover:bg-secondary disabled:opacity-50"
+                >
+                  <RefreshCw className={cn("h-4 w-4", sheetsSyncing && "animate-spin")} />
+                </button>
+                <button
+                  onClick={() => setConfirmDisconnect("SHEETS")}
+                  title="Desconectar"
+                  className="flex items-center justify-center rounded-lg border border-border px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-red-500"
+                >
+                  <AlertCircle className="h-4 w-4" />
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
         {integrationConfig.map((integration) => {
           const connected = isConnected(integration.type);
           const status = getStatus(integration.type);
@@ -492,24 +571,28 @@ export default function IntegrationsPage() {
 
       <ConfirmDialog
         open={confirmDisconnect !== null}
-        title={`Desconectar ${confirmDisconnect}`}
+        title={confirmDisconnect === "SHEETS" ? "Desconectar hoja de cálculo" : `Desconectar ${confirmDisconnect}`}
         description={
           confirmDisconnect === "SAT"
             ? "¿Desconectar SAT? Se dejará de sincronizar tus CFDIs automáticamente."
-            : `¿Desconectar ${confirmDisconnect}? Se dejarán de sincronizar sus métricas.`
+            : confirmDisconnect === "SHEETS"
+              ? "¿Desconectar tu hoja de cálculo? Se dejarán de actualizar los datos mapeados (los ya importados se conservan)."
+              : `¿Desconectar ${confirmDisconnect}? Se dejarán de sincronizar sus métricas.`
         }
         confirmLabel="Desconectar"
         destructive
         onConfirm={() => {
           if (confirmDisconnect === "SAT") handleSatDisconnect();
+          else if (confirmDisconnect === "SHEETS") handleSheetsDisconnect();
           else if (confirmDisconnect) handleDisconnect(confirmDisconnect);
         }}
         onCancel={() => setConfirmDisconnect(null)}
       />
 
-      <ExcelImportModal
-        open={showExcel}
-        onClose={() => setShowExcel(false)}
+      <SheetsConnectModal
+        open={showSheets}
+        onClose={() => setShowSheets(false)}
+        onConnected={fetchSheetsStatus}
       />
     </div>
   );

@@ -1,11 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { TrendingUp, Target, Users, UserPlus, RefreshCw, Loader2, Link as LinkIcon, Plus, X, Trash2, Search, Pencil, FileSpreadsheet } from "lucide-react";
-import { useSession } from "next-auth/react";
+import { TrendingUp, Target, Users, UserPlus, RefreshCw, Loader2, Link as LinkIcon, Plus, X, Trash2, Search, Pencil } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { DashboardSkeleton } from "@/components/dashboard/skeleton";
-import { ExcelImportModal } from "@/components/dashboard/excel-import-modal";
 import { cn, formatCurrency } from "@/lib/utils";
 import { useToast } from "@/components/toast";
 import { addActivityLog } from "@/components/dashboard/activity-log";
@@ -47,9 +45,6 @@ function timeAgo(iso: string) {
 
 export default function SalesPage() {
   const { toast } = useToast();
-  const { data: session } = useSession();
-  const canImport = session?.user?.role !== "VIEWER";
-  const [showExcel, setShowExcel] = useState(false);
   const [hs, setHs] = useState<HubSpotData | null>(null);
   const [hsLoading, setHsLoading] = useState(true);
   const [selectedStage, setSelectedStage] = useState<string>("all");
@@ -186,16 +181,6 @@ export default function SalesPage() {
           )}
         </div>
         <div className="flex items-center gap-2">
-          {canImport && (
-            <button
-              onClick={() => setShowExcel(true)}
-              title="Importar desde Excel"
-              className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-            >
-              <FileSpreadsheet className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Excel</span>
-            </button>
-          )}
           {hubspotConnected && (
             <button
               onClick={loadHubSpot}
@@ -529,13 +514,6 @@ export default function SalesPage() {
         destructive
         onConfirm={handleBulkDelete}
         onCancel={() => setBulkDeleteCount(0)}
-      />
-
-      <ExcelImportModal
-        open={showExcel}
-        onClose={() => setShowExcel(false)}
-        onImported={() => loadManual()}
-        defaultCategory="SALES"
       />
     </div>
   );
