@@ -32,8 +32,8 @@ export const metadata: Metadata = {
   },
   formatDetection: { telephone: false },
   icons: [
-    { rel: "icon", url: "/brand-logo.png", type: "image/png" },
-    { rel: "apple-touch-icon", url: "/brand-logo.png" },
+    { rel: "icon", url: "/brand-icon.png", type: "image/png" },
+    { rel: "apple-touch-icon", url: "/brand-icon.png" },
   ],
   openGraph: {
     title: "StratiuMetrics — Dashboard Empresarial con IA",

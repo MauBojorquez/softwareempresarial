@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
+import { Logo } from "@/components/logo";
 import { useEffect, useState, useRef } from "react";
 import {
   LayoutDashboard, DollarSign, TrendingUp, Settings2, Users,
@@ -99,14 +100,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
                 className="h-8 w-8 rounded-lg object-contain border border-border bg-white p-0.5"
               />
             ) : (
-              <div
-                style={brandColor ? { backgroundColor: brandColor } : undefined}
-                className={cn("h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0", !brandColor && "gradient-bg")}
-              >
-                <span className="text-xs font-bold text-white">
-                  {orgData?.name?.[0]?.toUpperCase() || "S"}
-                </span>
-              </div>
+              <Logo className="h-8 w-8 flex-shrink-0" />
             )}
             <div className="min-w-0">
               <p className="text-[11px] font-medium text-muted-foreground leading-none">StratiuMetrics</p>
