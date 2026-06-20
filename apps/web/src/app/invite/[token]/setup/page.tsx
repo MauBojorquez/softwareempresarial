@@ -18,26 +18,19 @@ export default function InviteSetupPage() {
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
 
-  // Pre-load invite details so we can show the email and org name
+  // Pre-load invite details — GET only, no side effects
   useEffect(() => {
-    fetch("/api/invitations/accept", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token }),
-    })
+    fetch(`/api/invitations/preview?token=${token}`)
       .then((r) => r.json())
       .then((d) => {
-        if (d.requiresAuth) {
-          setInvite({ email: d.email, orgName: d.orgName });
-        } else if (d.success) {
-          // Already logged in — go straight to dashboard
-          router.replace("/dashboard/overview");
+        if (d.error) {
+          setInviteError(d.error);
         } else {
-          setInviteError(d.error ?? "Invitación inválida");
+          setInvite({ email: d.email, orgName: d.orgName });
         }
       })
       .catch(() => setInviteError("Error de conexión"));
-  }, [token, router]);
+  }, [token]);
 
   const passwordsMatch = form.password.length > 0 && form.password === form.confirm;
   const passwordOk = form.password.length >= 8;
