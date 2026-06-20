@@ -242,10 +242,11 @@ export function MetricsDashboard({
           {canImport && (
             <button
               onClick={() => setShowExcel(true)}
-              className="flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-xs font-medium text-emerald-600 transition-colors hover:bg-emerald-500/10"
+              title="Importar desde Excel"
+              className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
             >
               <FileSpreadsheet className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Importar Excel</span>
+              <span className="hidden sm:inline">Excel</span>
             </button>
           )}
           <button

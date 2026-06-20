@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle, RefreshCw, AlertCircle, Loader2, MessageSquarePlus, Lock } from "lucide-react";
+import { CheckCircle, RefreshCw, AlertCircle, Loader2, MessageSquarePlus, Lock, FileSpreadsheet, ArrowRight } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useToast } from "@/components/toast";
 import { addActivityLog } from "@/components/dashboard/activity-log";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { ExcelImportModal } from "@/components/dashboard/excel-import-modal";
 import {
   MetaLogo, HubSpotLogo, SATLogo,
 } from "@/components/brand-logos";
@@ -95,6 +96,7 @@ export default function IntegrationsPage() {
   const [requestMsg, setRequestMsg] = useState("");
   const [sendingRequest, setSendingRequest] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
+  const [showExcel, setShowExcel] = useState(false);
 
   const fetchSatStatus = () => {
     fetch("/api/integrations/sat/status")
@@ -247,6 +249,26 @@ export default function IntegrationsPage() {
           <span className="text-sm text-muted-foreground">{integrationConfig.length} disponibles</span>
         </div>
       )}
+
+      {/* Excel — import from any spreadsheet, map to any section */}
+      <button
+        onClick={() => setShowExcel(true)}
+        className="group flex w-full items-center gap-4 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 text-left transition-all hover:border-emerald-500/50 hover:bg-emerald-500/10"
+      >
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15">
+          <FileSpreadsheet className="h-6 w-6 text-emerald-600" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h3 className="font-semibold">Excel</h3>
+            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-600">Recomendado</span>
+          </div>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Sube tu hoja de cálculo y elige a qué sección conectarla — Finanzas, Ventas, Marketing, RRHH u Operaciones. Mapea tus columnas a los datos del software.
+          </p>
+        </div>
+        <ArrowRight className="h-5 w-5 shrink-0 text-emerald-600 transition-transform group-hover:translate-x-0.5" />
+      </button>
 
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
         {integrationConfig.map((integration) => {
@@ -483,6 +505,11 @@ export default function IntegrationsPage() {
           else if (confirmDisconnect) handleDisconnect(confirmDisconnect);
         }}
         onCancel={() => setConfirmDisconnect(null)}
+      />
+
+      <ExcelImportModal
+        open={showExcel}
+        onClose={() => setShowExcel(false)}
       />
     </div>
   );
