@@ -19,10 +19,10 @@ const ICON_MAP: Record<string, typeof DollarSign> = {
 function FinanceChart({ metrics, months }: { metrics: MetricEntry[]; months: number }) {
   const now = new Date();
   const monthSlots = Array.from({ length: months }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - (months - 1 - i), 1);
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (months - 1 - i), 1));
     return {
-      key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
-      label: d.toLocaleDateString("es-MX", { month: "short", year: months > 6 ? "2-digit" : undefined }),
+      key: `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`,
+      label: d.toLocaleDateString("es-MX", { month: "short", year: months > 6 ? "2-digit" : undefined, timeZone: "UTC" }),
     };
   });
   const sum = (name: string, key: string) =>
@@ -37,7 +37,7 @@ function FinanceChart({ metrics, months }: { metrics: MetricEntry[]; months: num
   const hasChart = ingData.some((v) => v > 0) || gasData.some((v) => v > 0);
   if (!hasChart) return null;
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
+    <div className="rounded-2xl border border-border bg-card p-4">
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-semibold text-sm">Tendencia Mensual</h3>
         <div className="flex items-center gap-4 text-xs text-muted-foreground">

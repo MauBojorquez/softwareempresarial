@@ -24,7 +24,7 @@ function Toggle({ enabled, onChange, label }: { enabled: boolean; onChange: (v: 
       onClick={() => onChange(!enabled)}
       className={`relative w-10 h-5 rounded-full transition-colors ${enabled ? "bg-primary" : "bg-muted-foreground/30"}`}
     >
-      <span className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition-transform ${enabled ? "translate-x-5" : "translate-x-0"}`} />
+      <span className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-foreground transition-transform ${enabled ? "translate-x-5" : "translate-x-0"}`} />
     </button>
   );
 }

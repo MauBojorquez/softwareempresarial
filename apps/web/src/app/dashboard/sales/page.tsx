@@ -240,7 +240,7 @@ export default function SalesPage() {
 
       {/* Manual form */}
       {showForm && (
-        <div className="rounded-xl border border-primary/20 bg-card p-4 sm:p-6">
+        <div className="rounded-2xl border border-primary/20 bg-card p-4 sm:p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold">Nuevo Registro</h3>
             <button onClick={() => setShowForm(false)} aria-label="Cerrar" className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
@@ -269,7 +269,7 @@ export default function SalesPage() {
 
       {/* HubSpot connected but never synced */}
       {needsSync && (
-        <div className="rounded-xl border border-primary/20 bg-primary/5 p-6 flex items-start gap-4">
+        <div className="rounded-2xl border border-primary/20 bg-primary/5 p-6 flex items-start gap-4">
           <div className="rounded-lg bg-primary/10 p-3">
             <RefreshCw className="h-5 w-5 text-primary" />
           </div>
@@ -319,7 +319,7 @@ export default function SalesPage() {
           </div>
 
           {/* Contacts by stage */}
-          <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
+          <div className="rounded-2xl border border-border bg-card p-4 sm:p-6">
             <h3 className="font-semibold mb-4">Base de Datos — Contactos por Etapa</h3>
 
             {/* Filter chips */}
@@ -365,7 +365,7 @@ export default function SalesPage() {
           </div>
 
           {/* Pipeline stages */}
-          <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
+          <div className="rounded-2xl border border-border bg-card p-4 sm:p-6">
             <h3 className="font-semibold mb-4">Pipeline de Negocios</h3>
 
             {hs.pipeline!.stages.length === 0 ? (

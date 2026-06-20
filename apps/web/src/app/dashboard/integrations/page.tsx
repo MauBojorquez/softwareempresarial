@@ -271,11 +271,11 @@ export default function IntegrationsPage() {
 
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
         {/* Spreadsheet — always first. Manual CSV import with cell mapping. */}
-        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.03] p-4 sm:p-6 transition-all">
+        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/[0.03] p-4 sm:p-6 transition-all">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-white shadow-sm">
-                <Table2 className="h-6 w-6 text-emerald-600" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-secondary shadow-sm">
+                <Table2 className="h-6 w-6 text-emerald-500" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
@@ -286,7 +286,7 @@ export default function IntegrationsPage() {
               </div>
             </div>
             {sheetsStatus.connected ? (
-              <div className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-600">
+              <div className="flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-medium text-emerald-400">
                 <CheckCircle className="h-3 w-3" /> Conectado
               </div>
             ) : (
@@ -344,11 +344,11 @@ export default function IntegrationsPage() {
           return (
             <div
               key={integration.type}
-              className="rounded-xl border border-border bg-card p-4 sm:p-6 transition-all hover:border-border"
+              className="rounded-2xl border border-border bg-card p-4 sm:p-6 transition-all hover:border-border"
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-white shadow-sm">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-secondary shadow-sm">
                     <integration.Logo className="h-6 w-6" />
                   </div>
                   <div>
@@ -357,7 +357,7 @@ export default function IntegrationsPage() {
                   </div>
                 </div>
                 {connected ? (
-                  <div className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-600">
+                  <div className="flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-medium text-emerald-400">
                     <CheckCircle className="h-3 w-3" />
                     Conectado
                   </div>
