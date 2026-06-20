@@ -1,6 +1,6 @@
 import Link from "next/link";
 import {
-  BarChart3, Brain, Zap, ArrowRight, Shield, Globe, Target, Megaphone,
+  BarChart3, Brain, ArrowRight, Shield, Globe, Target, Megaphone,
   TrendingUp, DollarSign, Sparkles, Trophy, LineChart, Wallet,
 } from "lucide-react";
 import {
@@ -17,7 +17,7 @@ export default function HomePage() {
       <header className="fixed top-0 z-50 w-full border-b border-border/60 bg-card/70 backdrop-blur-md">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <div className="flex items-center gap-2">
-            <Logo className="h-8 w-8 animate-float-logo" />
+            <Logo className="h-8 w-8" />
             <span className="text-lg font-bold text-foreground">StratiuMetrics</span>
           </div>
           <nav className="hidden items-center gap-8 md:flex">
@@ -38,67 +38,54 @@ export default function HomePage() {
 
       <main className="flex-1 pt-16">
         {/* ── Hero ─────────────────────────────────────────────── */}
-        <section className="relative overflow-hidden">
-          {/* Colorful aurora + floating orbs */}
-          <div className="pointer-events-none absolute inset-0 overflow-hidden">
-            <div className="aurora absolute -top-40 left-1/2 h-[520px] w-[900px] -translate-x-1/2 rounded-full opacity-25 blur-3xl" />
-            <div className="absolute top-20 -left-20 h-72 w-72 rounded-full bg-violet-500/30 blur-3xl animate-float" />
-            <div className="absolute top-40 -right-16 h-72 w-72 rounded-full bg-sky-500/25 blur-3xl animate-float-d1" />
-            <div className="absolute bottom-0 left-1/3 h-64 w-64 rounded-full bg-fuchsia-500/20 blur-3xl animate-float-d2" />
+        <section className="relative overflow-hidden border-b border-border">
+          {/* Clean, executive background: subtle grid + soft top tint */}
+          <div className="pointer-events-none absolute inset-0">
+            <div className="absolute inset-0 bg-gradient-to-b from-primary/[0.04] to-transparent" />
+            <div
+              className="absolute inset-0 opacity-[0.035]"
+              style={{
+                backgroundImage:
+                  "linear-gradient(to right, hsl(var(--foreground)) 1px, transparent 1px), linear-gradient(to bottom, hsl(var(--foreground)) 1px, transparent 1px)",
+                backgroundSize: "56px 56px",
+              }}
+            />
           </div>
 
-          {/* Floating colorful metric chips */}
-          <div className="absolute top-28 right-10 hidden xl:block animate-float opacity-0 anim-d4" style={{ animationFillMode: "both" }}>
-            <div className="flex items-center gap-2 rounded-2xl border border-emerald-300/30 bg-card/80 px-4 py-3 shadow-xl backdrop-blur-sm">
-              <div className="rounded-lg bg-emerald-500/15 p-2"><TrendingUp className="h-4 w-4 text-emerald-500" /></div>
-              <div><p className="text-[10px] text-muted-foreground">Ingresos YTD</p><p className="text-sm font-bold text-foreground">$2.4M ↑</p></div>
-            </div>
-          </div>
-          <div className="absolute top-56 right-44 hidden xl:block animate-float-d1 opacity-0 anim-d5" style={{ animationFillMode: "both" }}>
-            <div className="flex items-center gap-2 rounded-2xl border border-fuchsia-300/30 bg-card/70 px-4 py-3 shadow-lg backdrop-blur-sm">
-              <div className="rounded-lg bg-fuchsia-500/15 p-2"><Megaphone className="h-4 w-4 text-fuchsia-500" /></div>
-              <div><p className="text-[10px] text-muted-foreground">ROAS</p><p className="text-sm font-bold text-foreground">4.8x</p></div>
-            </div>
-          </div>
-          <div className="absolute top-80 right-6 hidden xl:block animate-float-d2 opacity-0 anim-d6" style={{ animationFillMode: "both" }}>
-            <div className="flex items-center gap-2 rounded-2xl border border-amber-300/30 bg-card/70 px-4 py-3 shadow-lg backdrop-blur-sm">
-              <div className="rounded-lg bg-amber-500/15 p-2"><Trophy className="h-4 w-4 text-amber-500" /></div>
-              <div><p className="text-[10px] text-muted-foreground">Meta cumplida</p><p className="text-sm font-bold text-foreground">112%</p></div>
-            </div>
-          </div>
+          <div className="container relative mx-auto grid items-center gap-12 px-4 py-20 lg:grid-cols-2 lg:gap-10 lg:py-28">
+            {/* Left: copy, left-aligned */}
+            <div className="max-w-xl">
+              <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl lg:text-6xl">
+                Todos los números de tu empresa,{" "}
+                <span className="gradient-text">en un solo lugar</span>
+              </h1>
 
-          <div className="container relative mx-auto px-4 py-20 text-center sm:py-28">
-            <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-sm text-primary animate-scale-in">
-              <Zap className="h-3.5 w-3.5" /> Potenciado con Inteligencia Artificial
-            </div>
+              <p className="mt-6 text-lg leading-relaxed text-muted-foreground">
+                Conecta tu CRM, tus finanzas y tu publicidad. Visualiza todo en
+                tiempo real y toma mejores decisiones, más rápido.
+              </p>
 
-            <h1 className="mx-auto max-w-4xl text-4xl font-bold tracking-tight text-foreground sm:text-5xl md:text-7xl animate-fade-in-up anim-d1">
-              Todos los números de tu empresa,{" "}
-              <span className="relative inline-block">
-                <span className="aurora bg-clip-text text-transparent" style={{ WebkitBackgroundClip: "text", backgroundClip: "text" }}>en un solo lugar</span>
-              </span>
-            </h1>
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <Link href="/register" className="group flex items-center justify-center gap-2 rounded-lg gradient-bg px-7 py-3 text-base font-medium text-white transition-all hover:opacity-90 hover:shadow-lg hover:shadow-primary/25">
+                  Prueba 14 días gratis
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                </Link>
+                <Link href="#showcase" className="flex items-center justify-center gap-2 rounded-lg border border-border bg-card px-7 py-3 text-base font-medium text-foreground transition-colors hover:bg-secondary">
+                  Ver ejemplos
+                </Link>
+              </div>
 
-            <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground anim-d2">
-              Conecta tu CRM, tus finanzas y tu publicidad. Visualiza todo en tiempo real
-              y recibe reportes con IA. Toma mejores decisiones, más rápido.
-            </p>
-
-            <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row anim-d3">
-              <Link href="/register" className="group flex w-full items-center justify-center gap-2 rounded-xl gradient-bg px-8 py-3.5 text-lg font-medium text-white transition-all hover:opacity-90 hover:shadow-xl hover:shadow-primary/30 hover:-translate-y-0.5 pulse-glow sm:w-auto">
-                Prueba 14 días gratis
-                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1.5" />
-              </Link>
-              <Link href="#showcase" className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-card/70 px-8 py-3.5 text-lg font-medium text-foreground backdrop-blur-sm transition-all hover:bg-secondary hover:border-primary/30 hover:-translate-y-0.5 sm:w-auto">
-                Ver ejemplos
-              </Link>
+              <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
+                <span className="flex items-center gap-1.5"><Shield className="h-4 w-4 text-primary" /> 14 días gratis</span>
+                <span className="flex items-center gap-1.5"><Shield className="h-4 w-4 text-primary" /> Sin tarjeta de crédito</span>
+                <span className="flex items-center gap-1.5"><Shield className="h-4 w-4 text-primary" /> Cancela cuando quieras</span>
+              </div>
             </div>
 
-            {/* Product preview with colorful charts */}
-            <div className="relative mx-auto mt-16 max-w-5xl anim-d4">
-              <div className="absolute -inset-1 rounded-3xl aurora opacity-30 blur-2xl" />
-              <div className="relative rounded-2xl border border-border bg-card p-2 shadow-2xl">
-                <div className="rounded-xl bg-secondary/30 p-4 sm:p-6">
+            {/* Right: product preview */}
+            <div className="relative w-full">
+              <div className="rounded-2xl border border-border bg-card p-2 shadow-2xl">
+                <div className="rounded-xl bg-secondary/30 p-4 sm:p-5">
                   <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
                     {[
                       { label: "Ingresos", value: "$2.4M", trend: "+12%", color: "from-emerald-500 to-teal-500", icon: DollarSign },
@@ -106,7 +93,7 @@ export default function HomePage() {
                       { label: "Ads", value: "$45K", trend: "4.8x", color: "from-fuchsia-500 to-pink-500", icon: Megaphone },
                       { label: "Margen", value: "23.5%", trend: "+2%", color: "from-amber-500 to-orange-500", icon: Wallet },
                     ].map((c) => (
-                      <div key={c.label} className="rounded-lg border border-border bg-card p-3 text-left card-hover">
+                      <div key={c.label} className="rounded-lg border border-border bg-card p-3 text-left">
                         <div className={`mb-2 inline-flex rounded-lg bg-gradient-to-br ${c.color} p-1.5`}>
                           <c.icon className="h-3.5 w-3.5 text-white" />
                         </div>
@@ -117,13 +104,23 @@ export default function HomePage() {
                     ))}
                   </div>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {/* Ingresos vs Gastos — grouped bars with legend, clearly readable */}
                     <div className="rounded-lg border border-border bg-card p-4">
-                      <p className="mb-3 text-xs font-medium text-muted-foreground">Ingresos vs Gastos</p>
-                      <div className="flex h-28 items-end gap-1.5 sm:h-32">
-                        {[40, 65, 50, 80, 60, 75, 90, 55, 70, 85, 95, 78].map((h, i) => (
-                          <div key={i} className="flex h-full flex-1 flex-col justify-end gap-0.5">
-                            <div className="rounded-t bg-gradient-to-t from-indigo-500 to-violet-400 bar-grow" style={{ height: `${h}%` }} />
-                            <div className="rounded-t bg-rose-400/40 bar-grow" style={{ height: `${h * 0.55}%` }} />
+                      <div className="mb-3 flex items-center justify-between">
+                        <p className="text-xs font-medium text-muted-foreground">Ingresos vs Gastos</p>
+                        <div className="flex items-center gap-2.5 text-[9px] text-muted-foreground">
+                          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-emerald-500" />Ingresos</span>
+                          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-rose-400" />Gastos</span>
+                        </div>
+                      </div>
+                      <div className="flex h-28 items-end gap-2 sm:h-32">
+                        {[
+                          { ing: 62, gas: 40 }, { ing: 74, gas: 46 }, { ing: 68, gas: 44 },
+                          { ing: 85, gas: 50 }, { ing: 80, gas: 48 }, { ing: 95, gas: 54 },
+                        ].map((m, i) => (
+                          <div key={i} className="flex h-full flex-1 items-end justify-center gap-1">
+                            <div className="w-1/2 rounded-t bg-emerald-500 bar-grow" style={{ height: `${m.ing}%` }} />
+                            <div className="w-1/2 rounded-t bg-rose-400 bar-grow" style={{ height: `${m.gas}%` }} />
                           </div>
                         ))}
                       </div>
@@ -158,7 +155,7 @@ export default function HomePage() {
             <p className="text-center text-xs font-medium uppercase tracking-widest text-muted-foreground">Se conecta con tus herramientas favoritas</p>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-3 sm:gap-4">
               {[
-                { name: "SAT", node: <SATLogo className="h-5 w-5" /> },
+                { name: "SAT", node: <SATLogo className="h-5 w-auto" /> },
                 { name: "Meta Ads", node: <MetaLogo className="h-5 w-5" /> },
                 { name: "Google", node: <GoogleLogo className="h-5 w-5" /> },
                 { name: "HubSpot", node: <HubSpotLogo className="h-5 w-5" /> },

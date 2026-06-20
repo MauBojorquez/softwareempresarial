@@ -97,20 +97,22 @@ export function GoogleAnalyticsLogo({ className = "h-6 w-6" }: Props) {
 }
 
 export function SATLogo({ className = "h-6 w-6" }: Props) {
+  // Approximates the gob.mx / SAT wordmark: lowercase "sat" in white over the
+  // institutional guinda (#611232) background.
   return (
-    <svg className={className} viewBox="0 0 24 24" aria-hidden>
-      <rect width="24" height="24" rx="5" fill="#611232" />
+    <svg className={className} viewBox="0 0 32 24" aria-hidden>
+      <rect width="32" height="24" rx="4" fill="#611232" />
       <text
-        x="12"
-        y="15.5"
+        x="16"
+        y="17"
         textAnchor="middle"
-        fontSize="8"
+        fontSize="13"
         fontWeight="700"
-        fontFamily="Arial, sans-serif"
+        fontFamily="'Helvetica Neue', Arial, sans-serif"
         fill="#fff"
-        letterSpacing="0.3"
+        letterSpacing="-0.5"
       >
-        SAT
+        sat
       </text>
     </svg>
   );
