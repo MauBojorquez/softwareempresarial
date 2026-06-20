@@ -67,6 +67,29 @@ export default function SalesPage() {
       .catch(() => { setHs({ connected: false }); setHsLoading(false); });
   }, []);
 
+  const syncHubSpot = useCallback(async () => {
+    setHsLoading(true);
+    try {
+      const res = await fetch("/api/integrations/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "HUBSPOT" }),
+      });
+      if (!res.ok) {
+        toast("Error al sincronizar HubSpot", "error");
+        setHsLoading(false);
+        return;
+      }
+      // Re-read the fresh snapshot from DB
+      const snap = await fetch("/api/metrics/sales/hubspot").then((r) => r.json());
+      setHs(snap);
+    } catch {
+      toast("Error de conexión al sincronizar", "error");
+    } finally {
+      setHsLoading(false);
+    }
+  }, [toast]);
+
   const loadManual = useCallback(() => {
     setManualLoading(true);
     setManualError(null);
@@ -168,6 +191,7 @@ export default function SalesPage() {
   if (hsLoading) return <DashboardSkeleton />;
 
   const hubspotConnected = hs?.connected && !hs?.error && hs?.contacts;
+  const needsSync = hs?.connected && (hs as any)?.needsSync;
 
   const stageCount = selectedStage === "all"
     ? (hs?.contacts?.total ?? 0)
@@ -196,10 +220,11 @@ export default function SalesPage() {
         <div className="flex items-center gap-2">
           {hubspotConnected && (
             <button
-              onClick={loadHubSpot}
-              className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium transition-colors hover:bg-secondary"
+              onClick={syncHubSpot}
+              disabled={hsLoading}
+              className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium transition-colors hover:bg-secondary disabled:opacity-50"
             >
-              <RefreshCw className="h-3.5 w-3.5" />
+              <RefreshCw className={`h-3.5 w-3.5 ${hsLoading ? "animate-spin" : ""}`} />
               <span className="hidden sm:inline">Sincronizar</span>
             </button>
           )}
@@ -242,8 +267,30 @@ export default function SalesPage() {
         </div>
       )}
 
+      {/* HubSpot connected but never synced */}
+      {needsSync && (
+        <div className="rounded-xl border border-primary/20 bg-primary/5 p-6 flex items-start gap-4">
+          <div className="rounded-lg bg-primary/10 p-3">
+            <RefreshCw className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h3 className="font-semibold">HubSpot conectado — sincroniza para ver tus datos</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              La primera sincronización importa todos tus contactos y deals. Tardará un momento según el tamaño de tu CRM.
+            </p>
+            <button
+              onClick={syncHubSpot}
+              className="mt-3 inline-flex items-center gap-2 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Sincronizar ahora
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* HubSpot not connected banner */}
-      {!hubspotConnected && (
+      {!hubspotConnected && !needsSync && (
         <div className="rounded-xl border border-border bg-card p-6 flex items-start gap-4">
           <div className="rounded-lg bg-orange-500/10 p-3">
             <LinkIcon className="h-5 w-5 text-orange-500" />
