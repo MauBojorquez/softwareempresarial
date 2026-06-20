@@ -99,7 +99,6 @@ export default function IntegrationsPage() {
   const [requestSent, setRequestSent] = useState(false);
   const [showSheets, setShowSheets] = useState(false);
   const [sheetsStatus, setSheetsStatus] = useState<{ connected: boolean; lastSyncAt: string | null; mappings: unknown[] }>({ connected: false, lastSyncAt: null, mappings: [] });
-  const [sheetsSyncing, setSheetsSyncing] = useState(false);
 
   const fetchSatStatus = () => {
     fetch("/api/integrations/sat/status")
@@ -113,17 +112,6 @@ export default function IntegrationsPage() {
       .then((r) => r.json())
       .then((d) => setSheetsStatus({ connected: !!d.connected, lastSyncAt: d.lastSyncAt ?? null, mappings: d.mappings ?? [] }))
       .catch(() => {});
-  };
-
-  const handleSheetsSync = async () => {
-    setSheetsSyncing(true);
-    try {
-      const res = await fetch("/api/integrations/sheets/sync", { method: "POST" });
-      const data = await res.json();
-      if (res.ok) { toast(`${data.synced} datos actualizados`, "success"); fetchSheetsStatus(); }
-      else toast(data.error || "Error al sincronizar", "error");
-    } catch { toast("Error de conexión", "error"); }
-    setSheetsSyncing(false);
   };
 
   const handleSheetsDisconnect = async () => {
@@ -293,7 +281,7 @@ export default function IntegrationsPage() {
                   <h3 className="font-semibold">Hojas de Cálculo</h3>
                   <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-600">Recomendado</span>
                 </div>
-                <p className="text-xs text-muted-foreground">Excel / Google Sheets · en vivo</p>
+                <p className="text-xs text-muted-foreground">Excel / Google Sheets · CSV</p>
               </div>
             </div>
             {sheetsStatus.connected ? (
@@ -308,17 +296,23 @@ export default function IntegrationsPage() {
           </div>
 
           <p className="mt-3 text-sm text-muted-foreground">
-            Conecta tu hoja y mapea celda por celda (ej. C4 → Ventas). Cuando cambies la hoja, tus números se actualizan solos.
+            Sube el CSV de tu hoja y mapea celda por celda (ej. C4 → Ventas). Importación manual y privada — nada se publica.
           </p>
 
           {sheetsStatus.connected && (
-            <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground">
-              <div className="flex items-center gap-1.5">
-                <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                <span>{sheetsStatus.mappings.length} celdas mapeadas</span>
+            <>
+              <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground">
+                <div className="flex items-center gap-1.5">
+                  <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  <span>{sheetsStatus.mappings.length} celdas mapeadas</span>
+                </div>
+                {sheetsStatus.lastSyncAt && <span className="font-medium">Importado {timeAgo(sheetsStatus.lastSyncAt)}</span>}
               </div>
-              {sheetsStatus.lastSyncAt && <span className="font-medium">{timeAgo(sheetsStatus.lastSyncAt)}</span>}
-            </div>
+              <div className="mt-2 flex items-start gap-1.5 rounded-lg bg-amber-500/10 px-2.5 py-2 text-[11px] text-amber-700 dark:text-amber-400">
+                <AlertCircle className="h-3.5 w-3.5 flex-shrink-0 mt-px" />
+                <span>Estos datos no se actualizan solos. Cuando cambien tus números, vuelve a importar tu CSV para tener datos al día.</span>
+              </div>
+            </>
           )}
 
           <div className="mt-4 flex items-center gap-2">
@@ -326,26 +320,16 @@ export default function IntegrationsPage() {
               onClick={() => setShowSheets(true)}
               className="flex-1 rounded-lg gradient-bg px-3 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
             >
-              {sheetsStatus.connected ? "Editar mapeo" : "Conectar"}
+              {sheetsStatus.connected ? "Volver a importar" : "Importar CSV"}
             </button>
             {sheetsStatus.connected && (
-              <>
-                <button
-                  onClick={handleSheetsSync}
-                  disabled={sheetsSyncing}
-                  title="Sincronizar ahora"
-                  className="flex items-center justify-center rounded-lg border border-border px-3 py-2 text-sm font-medium transition-colors hover:bg-secondary disabled:opacity-50"
-                >
-                  <RefreshCw className={cn("h-4 w-4", sheetsSyncing && "animate-spin")} />
-                </button>
-                <button
-                  onClick={() => setConfirmDisconnect("SHEETS")}
-                  title="Desconectar"
-                  className="flex items-center justify-center rounded-lg border border-border px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-red-500"
-                >
-                  <AlertCircle className="h-4 w-4" />
-                </button>
-              </>
+              <button
+                onClick={() => setConfirmDisconnect("SHEETS")}
+                title="Desconectar"
+                className="flex items-center justify-center rounded-lg border border-border px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-red-500"
+              >
+                <AlertCircle className="h-4 w-4" />
+              </button>
             )}
           </div>
         </div>
@@ -576,7 +560,7 @@ export default function IntegrationsPage() {
           confirmDisconnect === "SAT"
             ? "¿Desconectar SAT? Se dejará de sincronizar tus CFDIs automáticamente."
             : confirmDisconnect === "SHEETS"
-              ? "¿Desconectar tu hoja de cálculo? Se dejarán de actualizar los datos mapeados (los ya importados se conservan)."
+              ? "¿Desconectar tu hoja de cálculo? Se olvidará el mapeo de celdas (los datos ya importados se conservan)."
               : `¿Desconectar ${confirmDisconnect}? Se dejarán de sincronizar sus métricas.`
         }
         confirmLabel="Desconectar"

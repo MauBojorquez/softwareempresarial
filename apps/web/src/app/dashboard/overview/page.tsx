@@ -79,8 +79,6 @@ export default function OverviewPage() {
 
   const load = async () => {
     try {
-      // Pull the latest values from any connected spreadsheet first (best-effort).
-      await fetch("/api/integrations/sheets/sync", { method: "POST" }).catch(() => {});
       const res = await fetch("/api/metrics/dashboard");
       if (res.ok) setData(await res.json());
       else toast("Error al cargar el dashboard", "error");

@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { X, Loader2, ArrowRight, ArrowLeft, Check, Link2, Trash2, Table2, RefreshCw } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { X, Loader2, ArrowRight, ArrowLeft, Check, Upload, Trash2, Table2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/toast";
-import { colLetter, parseCellNumber } from "@/lib/google-sheets";
+import { colLetter, parseCellNumber, parseCsv } from "@/lib/google-sheets";
 import {
   CATEGORY_TEMPLATES, CATEGORY_LABELS, ALL_CATEGORIES, type MetricCategoryKey,
 } from "@/lib/metric-templates";
@@ -21,52 +21,50 @@ export function SheetsConnectModal({
   onConnected?: () => void;
 }) {
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [step, setStep] = useState(1);
-  const [url, setUrl] = useState("");
+  const [fileName, setFileName] = useState("");
   const [grid, setGrid] = useState<string[][]>([]);
   const [loading, setLoading] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [mappings, setMappings] = useState<Mapping[]>([]);
+  const [savedMappings, setSavedMappings] = useState<Mapping[]>([]);
   const [sel, setSel] = useState<{ row: number; col: number } | null>(null);
   const [selCategory, setSelCategory] = useState<MetricCategoryKey>("FINANCE");
   const [selMetric, setSelMetric] = useState<string>(CATEGORY_TEMPLATES.FINANCE[0].name);
 
-  // Load existing connection when opened
+  // Load existing mappings when opened, so re-importing keeps the same cells.
   useEffect(() => {
     if (!open) return;
     fetch("/api/integrations/sheets")
       .then((r) => r.json())
       .then((d) => {
-        if (d.connected) {
-          setUrl(d.url ?? "");
-          setMappings(Array.isArray(d.mappings) ? d.mappings : []);
-        }
+        if (d.connected && Array.isArray(d.mappings)) setSavedMappings(d.mappings);
       })
       .catch(() => {});
   }, [open]);
 
   const reset = () => {
-    setStep(1); setUrl(""); setGrid([]); setMappings([]); setSel(null);
+    setStep(1); setFileName(""); setGrid([]); setMappings([]); setSavedMappings([]); setSel(null);
     setLoading(false); setConnecting(false);
   };
   const handleClose = () => { reset(); onClose(); };
 
-  const loadPreview = async () => {
-    if (!url.trim()) return;
+  const handleFile = async (file: File | undefined) => {
+    if (!file) return;
     setLoading(true);
     try {
-      const res = await fetch("/api/integrations/sheets/preview", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
-      });
-      const data = await res.json();
-      if (!res.ok) { toast(data.error || "No se pudo leer la hoja", "error"); setLoading(false); return; }
-      setGrid(data.grid ?? []);
+      const text = await file.text();
+      const parsed = parseCsv(text);
+      if (parsed.length === 0) { toast("El archivo CSV está vacío", "error"); setLoading(false); return; }
+      setGrid(parsed);
+      setFileName(file.name);
+      // Re-apply saved mappings whose cells still exist in the new file.
+      setMappings(savedMappings.filter((m) => parsed[m.row]?.[m.col] !== undefined));
       setStep(2);
     } catch {
-      toast("Error de conexión", "error");
+      toast("No se pudo leer el archivo. Asegúrate de que sea un CSV.", "error");
     }
     setLoading(false);
   };
@@ -94,16 +92,26 @@ export function SheetsConnectModal({
 
   const handleConnect = async () => {
     if (mappings.length === 0) { toast("Agrega al menos un mapeo", "error"); return; }
+    // Attach the current value read from the uploaded CSV to each mapping.
+    const withValues = mappings.map((m) => ({
+      ...m,
+      value: parseCellNumber(grid[m.row]?.[m.col]),
+    }));
+    const valid = withValues.filter((m) => m.value !== null);
+    if (valid.length === 0) {
+      toast("Ninguna celda mapeada tiene un número válido", "error");
+      return;
+    }
     setConnecting(true);
     try {
       const res = await fetch("/api/integrations/sheets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, mappings }),
+        body: JSON.stringify({ mappings: valid }),
       });
       const data = await res.json();
-      if (!res.ok) { toast(data.error || "Error al conectar", "error"); setConnecting(false); return; }
-      toast(`Conectado — ${data.synced} datos sincronizados`, "success");
+      if (!res.ok) { toast(data.error || "Error al importar", "error"); setConnecting(false); return; }
+      toast(`Importado — ${data.synced} datos actualizados`, "success");
       onConnected?.();
       handleClose();
     } catch {
@@ -128,38 +136,42 @@ export function SheetsConnectModal({
               <Table2 className="h-5 w-5 text-emerald-600" />
             </div>
             <div>
-              <h2 className="text-base font-semibold">Conectar hoja de cálculo</h2>
-              <p className="text-xs text-muted-foreground">Paso {step} de 2 · se actualiza en vivo</p>
+              <h2 className="text-base font-semibold">Importar hoja de cálculo</h2>
+              <p className="text-xs text-muted-foreground">Paso {step} de 2 · importación manual</p>
             </div>
           </div>
           <button onClick={handleClose} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-5">
-          {/* Step 1 — URL */}
+          {/* Step 1 — CSV file upload */}
           {step === 1 && (
             <div className="space-y-4">
               <div className="rounded-lg border border-primary/15 bg-primary/5 p-3 text-xs text-muted-foreground space-y-1.5">
-                <p className="font-medium text-foreground">Conecta tu Excel a través de Google Sheets</p>
-                <p>1. Sube tu Excel a Google Drive (se convierte en Sheets) o abre tu hoja en Google Sheets.</p>
-                <p>2. Ve a <b>Archivo → Compartir → Publicar en la web</b>.</p>
-                <p>3. Elige la hoja, formato <b>CSV</b>, y da clic en <b>Publicar</b>.</p>
-                <p>4. Copia ese enlace (termina en <b>/pub</b>) y pégalo aquí. Cuando cambies la hoja, el software se actualiza solo.</p>
-                <p className="text-[11px] opacity-80">Tip: &quot;Publicar en la web&quot; funciona aunque tu cuenta sea de Workspace (somosstratium.com). Solo publica los valores, nadie puede editar.</p>
+                <p className="font-medium text-foreground">Sube el CSV de tu hoja de cálculo</p>
+                <p>1. En <b>Excel</b>: Archivo → Guardar como → <b>CSV (delimitado por comas)</b>.</p>
+                <p>2. En <b>Google Sheets</b>: Archivo → Descargar → <b>Valores separados por comas (.csv)</b>.</p>
+                <p>3. Sube ese archivo aquí y mapea la celda exacta que quieres (ej. C4).</p>
+                <p className="text-[11px] opacity-80">Tu archivo se procesa en tu navegador. No se publica ni se comparte nada — es 100% privado.</p>
               </div>
-              <div>
-                <label className="text-sm font-medium">Enlace de Google Sheets</label>
-                <div className="relative mt-1">
-                  <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <input
-                    type="url"
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                    placeholder="https://docs.google.com/spreadsheets/d/..."
-                    className="w-full rounded-lg border border-border bg-background pl-9 pr-3 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
-                  />
-                </div>
-              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,text/csv"
+                className="hidden"
+                onChange={(e) => handleFile(e.target.files?.[0])}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="flex w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-background py-10 text-sm font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:bg-secondary/40"
+              >
+                {loading ? (
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                ) : (
+                  <Upload className="h-6 w-6 text-primary" />
+                )}
+                {loading ? "Leyendo archivo..." : fileName || "Haz clic para subir tu archivo CSV"}
+              </button>
             </div>
           )}
 
@@ -281,16 +293,10 @@ export function SheetsConnectModal({
           >
             <ArrowLeft className="h-3.5 w-3.5" /> {step > 1 ? "Atrás" : "Cancelar"}
           </button>
-          {step === 1 && (
-            <button onClick={loadPreview} disabled={loading || !url.trim()} className="flex items-center gap-1.5 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50">
-              {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-              {loading ? "Leyendo..." : "Leer hoja"}
-            </button>
-          )}
           {step === 2 && (
             <button onClick={handleConnect} disabled={connecting || mappings.length === 0} className="flex items-center gap-1.5 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50">
               {connecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-              {connecting ? "Conectando..." : `Conectar (${mappings.length})`}
+              {connecting ? "Importando..." : `Importar (${mappings.length})`}
             </button>
           )}
         </div>

@@ -73,15 +73,10 @@ export function MetricsDashboard({
   const load = (signal?: AbortSignal) => {
     setLoading(true);
     setError(null);
-    // Refresh values from any connected spreadsheet first (best-effort), then load.
-    fetch("/api/integrations/sheets/sync", { method: "POST" })
-      .catch(() => {})
-      .finally(() => {
-        fetch(`/api/metrics/manual?category=${category}&months=${months}`, { signal })
-          .then((r) => { if (!r.ok) throw new Error("Error al cargar datos"); return r.json(); })
-          .then((d) => { setMetrics(d.metrics || []); setLoading(false); })
-          .catch((e) => { if (e.name !== "AbortError") { setError(e.message); setLoading(false); } });
-      });
+    fetch(`/api/metrics/manual?category=${category}&months=${months}`, { signal })
+      .then((r) => { if (!r.ok) throw new Error("Error al cargar datos"); return r.json(); })
+      .then((d) => { setMetrics(d.metrics || []); setLoading(false); })
+      .catch((e) => { if (e.name !== "AbortError") { setError(e.message); setLoading(false); } });
   };
 
   // Abort the previous request when `months` changes so a stale response
