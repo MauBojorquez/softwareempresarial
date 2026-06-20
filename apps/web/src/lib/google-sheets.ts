@@ -1,12 +1,34 @@
 // Helpers to read a public Google Sheet as a grid of cells (live, no OAuth).
 // The sheet must be shared as "Anyone with the link can view".
 
-/** Converts a Google Sheets share URL to its CSV export URL. */
+/** Converts a Google Sheets URL to a CSV URL that a server can read.
+ *
+ * Handles two cases:
+ *  1. "Publicar en la web" links (.../d/e/2PACX-.../pub...) — these are truly
+ *     public (bypass Workspace sharing restrictions) and are returned as a CSV
+ *     pub URL. This is the recommended path.
+ *  2. Regular share links (.../d/{id}/edit) — converted to the export?format=csv
+ *     endpoint as a fallback (only works if the file is public to anyone).
+ */
 export function toCsvUrl(url: string): string | null {
-  const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+  const trimmed = url.trim();
+
+  // Case 1 — "Publish to web" link: .../spreadsheets/d/e/{pubId}/pub...
+  const pubMatch = trimmed.match(/\/spreadsheets\/d\/e\/([a-zA-Z0-9_-]+)\/pub/);
+  if (pubMatch) {
+    const pubId = pubMatch[1];
+    const gidMatch = trimmed.match(/[?&#]gid=(\d+)/);
+    const gid = gidMatch ? gidMatch[1] : null;
+    let out = `https://docs.google.com/spreadsheets/d/e/${pubId}/pub?output=csv`;
+    if (gid) out += `&single=true&gid=${gid}`;
+    return out;
+  }
+
+  // Case 2 — regular share link: .../spreadsheets/d/{id}/edit
+  const match = trimmed.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
   if (!match) return null;
   const id = match[1];
-  const gidMatch = url.match(/[?&#]gid=(\d+)/);
+  const gidMatch = trimmed.match(/[?&#]gid=(\d+)/);
   const gid = gidMatch ? gidMatch[1] : "0";
   return `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${gid}`;
 }
@@ -42,15 +64,27 @@ export async function fetchSheetGrid(url: string): Promise<{ ok: true; grid: str
   const csvUrl = toCsvUrl(url);
   if (!csvUrl) return { ok: false, error: "URL de Google Sheets inválida. Pega el enlace completo de la hoja." };
 
+  const PUBLISH_HINT =
+    "No se pudo leer la hoja. En Google Sheets ve a Archivo → Compartir → Publicar en la web → CSV, y pega ese enlace (el que termina en /pub).";
+
   try {
-    const res = await fetch(csvUrl, { headers: { Accept: "text/csv" }, redirect: "follow" });
+    const res = await fetch(csvUrl, {
+      headers: {
+        // A real browser User-Agent avoids Google rejecting server-side requests.
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+        Accept: "text/csv,text/plain,*/*",
+      },
+      redirect: "follow",
+      cache: "no-store",
+    });
     if (!res.ok) {
-      return { ok: false, error: "No se pudo leer la hoja. Compártela como 'Cualquier persona con el enlace puede ver'." };
+      return { ok: false, error: PUBLISH_HINT };
     }
     const text = await res.text();
-    // Google returns an HTML login page (not CSV) when the sheet isn't public.
+    // Google returns an HTML login/error page (not CSV) when the sheet isn't public.
     if (text.trimStart().startsWith("<")) {
-      return { ok: false, error: "La hoja no es pública. Compártela como 'Cualquier persona con el enlace puede ver'." };
+      return { ok: false, error: PUBLISH_HINT };
     }
     return { ok: true, grid: parseCsv(text) };
   } catch {

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { X, Loader2, ArrowRight, ArrowLeft, Check, Link2, Trash2, Table2, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/toast";
-import { colLetter, parseCellNumber, toCsvUrl, parseCsv } from "@/lib/google-sheets";
+import { colLetter, parseCellNumber } from "@/lib/google-sheets";
 import {
   CATEGORY_TEMPLATES, CATEGORY_LABELS, ALL_CATEGORIES, type MetricCategoryKey,
 } from "@/lib/metric-templates";
@@ -56,28 +56,17 @@ export function SheetsConnectModal({
     if (!url.trim()) return;
     setLoading(true);
     try {
-      const csvUrl = toCsvUrl(url.trim());
-      if (!csvUrl) {
-        toast("URL de Google Sheets inválida. Pega el enlace completo de la hoja.", "error");
-        setLoading(false);
-        return;
-      }
-      const res = await fetch(csvUrl);
-      if (!res.ok) {
-        toast("No se pudo leer la hoja. Compártela como 'Cualquier persona con el enlace puede ver'.", "error");
-        setLoading(false);
-        return;
-      }
-      const text = await res.text();
-      if (text.trimStart().startsWith("<")) {
-        toast("La hoja no es pública. En Google Sheets → Compartir → 'Cualquier persona con el enlace → Lector'.", "error");
-        setLoading(false);
-        return;
-      }
-      setGrid(parseCsv(text));
+      const res = await fetch("/api/integrations/sheets/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast(data.error || "No se pudo leer la hoja", "error"); setLoading(false); return; }
+      setGrid(data.grid ?? []);
       setStep(2);
     } catch {
-      toast("Error de conexión con Google Sheets", "error");
+      toast("Error de conexión", "error");
     }
     setLoading(false);
   };
@@ -153,8 +142,10 @@ export function SheetsConnectModal({
               <div className="rounded-lg border border-primary/15 bg-primary/5 p-3 text-xs text-muted-foreground space-y-1.5">
                 <p className="font-medium text-foreground">Conecta tu Excel a través de Google Sheets</p>
                 <p>1. Sube tu Excel a Google Drive (se convierte en Sheets) o abre tu hoja en Google Sheets.</p>
-                <p>2. En <b>Compartir</b>, elige <b>&quot;Cualquier persona con el enlace&quot;</b> como Lector.</p>
-                <p>3. Copia el enlace y pégalo aquí. Cuando cambies la hoja, el software se actualiza solo.</p>
+                <p>2. Ve a <b>Archivo → Compartir → Publicar en la web</b>.</p>
+                <p>3. Elige la hoja, formato <b>CSV</b>, y da clic en <b>Publicar</b>.</p>
+                <p>4. Copia ese enlace (termina en <b>/pub</b>) y pégalo aquí. Cuando cambies la hoja, el software se actualiza solo.</p>
+                <p className="text-[11px] opacity-80">Tip: &quot;Publicar en la web&quot; funciona aunque tu cuenta sea de Workspace (somosstratium.com). Solo publica los valores, nadie puede editar.</p>
               </div>
               <div>
                 <label className="text-sm font-medium">Enlace de Google Sheets</label>
