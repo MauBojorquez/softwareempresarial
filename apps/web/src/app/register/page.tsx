@@ -201,6 +201,13 @@ export default function RegisterPage() {
             {loading && <Loader2 className="h-4 w-4 animate-spin" />}
             {loading ? "Creando..." : "Crear Cuenta"}
           </button>
+
+          <p className="text-center text-xs text-muted-foreground">
+            Al crear una cuenta aceptas nuestros{" "}
+            <Link href="/terminos" className="font-medium text-primary hover:underline">Términos de Servicio</Link>{" "}
+            y el{" "}
+            <Link href="/privacidad" className="font-medium text-primary hover:underline">Aviso de Privacidad</Link>.
+          </p>
         </form>
 
         <p className="text-center text-sm text-muted-foreground">

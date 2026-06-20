@@ -1057,6 +1057,14 @@ export default function SettingsPage() {
           </button>
         </div>
       </div>
+
+      {/* ── Legal ── */}
+      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 pt-2 text-center text-xs text-muted-foreground">
+        <a href="/privacidad" target="_blank" rel="noopener noreferrer" className="hover:text-foreground hover:underline">Aviso de Privacidad</a>
+        <span aria-hidden>·</span>
+        <a href="/terminos" target="_blank" rel="noopener noreferrer" className="hover:text-foreground hover:underline">Términos de Servicio</a>
+      </div>
+
       <ConfirmDialog
         open={confirmDeleteKeyId !== null}
         title="Eliminar API Key"

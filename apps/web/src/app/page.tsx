@@ -467,8 +467,8 @@ export default function HomePage() {
         <div className="container mx-auto flex flex-col items-center gap-4 px-4 text-center text-sm text-muted-foreground sm:flex-row sm:justify-between">
           <p>&copy; {new Date().getFullYear()} StratiuMetrics. Todos los derechos reservados.</p>
           <div className="flex gap-6">
-            <Link href="#" className="transition-colors hover:text-foreground">Privacidad</Link>
-            <Link href="#" className="transition-colors hover:text-foreground">Términos</Link>
+            <Link href="/privacidad" className="transition-colors hover:text-foreground">Privacidad</Link>
+            <Link href="/terminos" className="transition-colors hover:text-foreground">Términos</Link>
           </div>
         </div>
       </footer>
