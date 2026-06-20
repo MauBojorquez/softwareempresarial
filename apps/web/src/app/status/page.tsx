@@ -48,7 +48,7 @@ export default function StatusPage() {
 
         {loading && !data ? (
           <div style={{ display: "flex", justifyContent: "center", padding: 64 }}>
-            <Loader2 className="animate-spin" style={{ color: "#a1a1aa" }} />
+            <Loader2 className="animate-spin" style={{ color: "#6b7280" }} />
           </div>
         ) : data ? (
           <>
@@ -58,11 +58,11 @@ export default function StatusPage() {
               </div>
               <div style={{ flex: 1 }}>
                 <p style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "#18181b" }}>{OVERALL_TEXT[data.status]}</p>
-                <p style={{ margin: "2px 0 0", fontSize: 13, color: "#a1a1aa" }}>
+                <p style={{ margin: "2px 0 0", fontSize: 13, color: "#6b7280" }}>
                   Actualizado {new Date(data.timestamp).toLocaleTimeString("es-MX")}
                 </p>
               </div>
-              <button onClick={load} aria-label="Actualizar" style={{ background: "none", border: "none", cursor: "pointer", color: "#a1a1aa" }}>
+              <button onClick={load} aria-label="Actualizar" style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280" }}>
                 <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
               </button>
             </div>
@@ -74,7 +74,7 @@ export default function StatusPage() {
                   <div key={c.name} style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px", borderTop: i === 0 ? "none" : "1px solid #f4f4f5" }}>
                     <m.Icon size={18} style={{ color: m.color, flexShrink: 0 }} />
                     <span style={{ flex: 1, fontSize: 14, color: "#18181b" }}>{c.name}</span>
-                    {c.latencyMs != null && <span style={{ fontSize: 12, color: "#a1a1aa" }}>{c.latencyMs} ms</span>}
+                    {c.latencyMs != null && <span style={{ fontSize: 12, color: "#6b7280" }}>{c.latencyMs} ms</span>}
                     <span style={{ fontSize: 12, fontWeight: 600, color: m.color }}>{c.note ?? m.label}</span>
                   </div>
                 );
@@ -82,10 +82,10 @@ export default function StatusPage() {
             </div>
           </>
         ) : (
-          <p style={{ textAlign: "center", color: "#a1a1aa" }}>No se pudo cargar el estado.</p>
+          <p style={{ textAlign: "center", color: "#6b7280" }}>No se pudo cargar el estado.</p>
         )}
 
-        <p style={{ textAlign: "center", fontSize: 12, color: "#a1a1aa", marginTop: 28 }}>
+        <p style={{ textAlign: "center", fontSize: 12, color: "#6b7280", marginTop: 28 }}>
           © 2026 StratiuMetrics · Esta página se actualiza automáticamente cada minuto
         </p>
       </div>

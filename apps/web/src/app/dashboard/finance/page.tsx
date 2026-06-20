@@ -49,6 +49,8 @@ function FinanceChart({ metrics, months }: { metrics: MetricEntry[]; months: num
         <svg
           viewBox={`0 0 ${Math.max(totalW, 300)} ${BAR_H + 24}`}
           className="w-full"
+          role="img"
+          aria-label="Gráfica de barras de ingresos contra gastos por mes."
           style={{ minWidth: `${Math.max(totalW, 300)}px`, maxWidth: "100%", height: `${BAR_H + 30}px` }}
         >
           {monthSlots.map((slot, i) => {

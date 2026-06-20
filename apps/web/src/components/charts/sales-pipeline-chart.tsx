@@ -23,21 +23,25 @@ export function SalesPipelineChart() {
     <div className="rounded-xl border border-border bg-card p-6">
       <h3 className="text-lg font-semibold text-foreground">Pipeline de Ventas</h3>
       <p className="text-sm text-muted-foreground">Deals por etapa</p>
-      <div className="mt-4 h-[300px]">
+      <div
+        className="mt-4 h-[300px]"
+        role="img"
+        aria-label="Gráfica de barras del valor del pipeline de ventas por etapa."
+      >
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={demoData} layout="vertical">
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
             <XAxis
               type="number"
               tickFormatter={(v) => `$${(v / 1000000).toFixed(1)}M`}
-              stroke="rgba(0,0,0,0.3)"
+              stroke="hsl(var(--muted-foreground))"
               fontSize={12}
             />
             <YAxis
               type="category"
               dataKey="stage"
               width={90}
-              stroke="rgba(0,0,0,0.3)"
+              stroke="hsl(var(--muted-foreground))"
               fontSize={12}
             />
             <Tooltip

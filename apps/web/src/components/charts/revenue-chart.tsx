@@ -24,7 +24,11 @@ export function RevenueChart() {
     <div className="rounded-xl border border-border bg-card p-6">
       <h3 className="text-lg font-semibold text-foreground">Ingresos vs Gastos</h3>
       <p className="text-sm text-muted-foreground">Últimos 6 meses</p>
-      <div className="mt-4 h-[300px]">
+      <div
+        className="mt-4 h-[300px]"
+        role="img"
+        aria-label="Gráfica de área de ingresos contra gastos en los últimos 6 meses."
+      >
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={demoData}>
             <defs>
@@ -38,8 +42,8 @@ export function RevenueChart() {
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
-            <XAxis dataKey="month" stroke="rgba(0,0,0,0.3)" fontSize={12} />
-            <YAxis stroke="rgba(0,0,0,0.3)" fontSize={12} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
+            <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+            <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
             <Tooltip
               contentStyle={{
                 backgroundColor: "#fff",
