@@ -27,8 +27,9 @@ export const metadata: Metadata = {
   applicationName: "StratiuMetrics",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
+    statusBarStyle: "black-translucent",
     title: "StratiuMetrics",
+    startupImage: [{ url: "/brand-icon.png" }],
   },
   formatDetection: { telephone: false },
   icons: [
@@ -51,9 +52,14 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#f5f6f8" },
-    { media: "(prefers-color-scheme: dark)", color: "#171a1f" },
+    { media: "(prefers-color-scheme: dark)", color: "#08090F" },
   ],
 };
 

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
+import { BottomNav } from "@/components/layout/bottom-nav";
 import { Header } from "@/components/layout/header";
 import { Breadcrumb } from "@/components/dashboard/breadcrumb";
 import { ShortcutsHelp } from "@/components/dashboard/shortcuts-help";
@@ -83,11 +84,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         <div className="relative z-10 flex flex-1 flex-col overflow-hidden">
           <Header onMenuClick={() => setSidebarOpen(true)} />
-          <main id="main-content" className="flex-1 overflow-auto p-4 sm:p-6">
+          <main id="main-content" className="flex-1 overflow-auto p-4 pb-24 sm:p-6 sm:pb-6 lg:pb-6">
             <Breadcrumb />
             {children}
           </main>
         </div>
+        <BottomNav onMenuClick={() => setSidebarOpen(true)} />
       </div>
       </ToastProvider>
       </BrandProvider>

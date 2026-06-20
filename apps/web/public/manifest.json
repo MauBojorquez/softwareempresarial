@@ -3,12 +3,15 @@
   "short_name": "StratiuMetrics",
   "description": "Dashboard empresarial con métricas en tiempo real e IA",
   "start_url": "/dashboard/overview",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#f5f6f8",
-  "theme_color": "#1e4d8c",
+  "display_override": ["standalone", "minimal-ui"],
+  "background_color": "#08090F",
+  "theme_color": "#08090F",
   "orientation": "portrait-primary",
   "categories": ["business", "productivity", "finance"],
   "lang": "es-MX",
+  "dir": "ltr",
   "icons": [
     {
       "src": "/brand-icon.png",
@@ -24,8 +27,11 @@
     }
   ],
   "shortcuts": [
-    { "name": "Overview", "url": "/dashboard/overview" },
-    { "name": "Reportes IA", "url": "/dashboard/reports" },
-    { "name": "Equipo", "url": "/dashboard/team" }
-  ]
+    { "name": "Resumen", "short_name": "Inicio", "url": "/dashboard/overview", "description": "Ver dashboard principal" },
+    { "name": "Metas", "url": "/dashboard/goals", "description": "Mis objetivos" },
+    { "name": "Finanzas", "url": "/dashboard/finance", "description": "Ingresos y gastos" },
+    { "name": "Ventas", "url": "/dashboard/sales", "description": "Pipeline y CRM" }
+  ],
+  "screenshots": [],
+  "prefer_related_applications": false
 }

@@ -411,6 +411,14 @@ button {
   animation-fill-mode: forwards;
 }
 
+/* Safe-area support (iOS notch + home indicator, Android edge-to-edge) */
+:root {
+  --sat: env(safe-area-inset-top);
+  --sar: env(safe-area-inset-right);
+  --sab: env(safe-area-inset-bottom);
+  --sal: env(safe-area-inset-left);
+}
+
 /* Trading chart glow filters */
 .chart-glow-green { filter: drop-shadow(0 0 6px rgba(0,232,123,0.6)); }
 .chart-glow-blue  { filter: drop-shadow(0 0 6px rgba(61,127,255,0.5)); }

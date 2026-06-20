@@ -74,7 +74,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
     <header className="relative z-30 flex h-14 items-center justify-between border-b border-border bg-card/70 backdrop-blur-md px-4 sm:h-16 sm:px-6">
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
       <div className="flex items-center gap-3">
-        <button aria-label="Menú" onClick={onMenuClick} className="rounded-lg p-1.5 text-muted-foreground hover:text-foreground lg:hidden">
+        <button aria-label="Menú" onClick={onMenuClick} className="hidden md:flex rounded-lg p-1.5 text-muted-foreground hover:text-foreground lg:hidden">
           <Menu className="h-5 w-5" />
         </button>
         <div ref={ref} className="relative hidden sm:block">
