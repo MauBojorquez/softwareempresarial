@@ -481,7 +481,7 @@ model CashFlowCategory {
   id             String   @id @default(cuid())
   code           String
   name           String
-  type           String
+  type           String   @default("both")
   order          Int      @default(0)
   isActive       Boolean  @default(true)
   createdAt      DateTime @default(now())

@@ -1,43 +1,29 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { db } from "@/server/db";
+import { db } from "@/lib/db";
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+async function getOrgId() {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const membership = await db.membership.findFirst({ where: { userId: session.user.id } });
-  if (!membership) return NextResponse.json({ error: "No organization" }, { status: 404 });
-
-  const cat = await db.cashFlowCategory.findFirst({
-    where: { id: params.id, organizationId: membership.organizationId },
-  });
-  if (!cat) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-  const body = await req.json();
-  const updated = await db.cashFlowCategory.update({
-    where: { id: params.id },
-    data: {
-      ...(body.name !== undefined && { name: body.name }),
-      ...(body.code !== undefined && { code: body.code }),
-    },
-  });
-
-  return NextResponse.json({ category: updated });
+  if (!session?.user?.email) return null;
+  const user = await db.user.findUnique({ where: { email: session.user.email }, select: { activeOrgId: true } });
+  return user?.activeOrgId ?? null;
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const membership = await db.membership.findFirst({ where: { userId: session.user.id } });
-  if (!membership) return NextResponse.json({ error: "No organization" }, { status: 404 });
-
-  const cat = await db.cashFlowCategory.findFirst({
-    where: { id: params.id, organizationId: membership.organizationId },
+export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+  const orgId = await getOrgId();
+  if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const body = await req.json();
+  await db.cashFlowCategory.updateMany({
+    where: { id: params.id, organizationId: orgId },
+    data: { name: body.name, type: body.type },
   });
-  if (!cat) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  return NextResponse.json({ ok: true });
+}
 
-  await db.cashFlowCategory.update({ where: { id: params.id }, data: { isActive: false } });
-
-  return NextResponse.json({ success: true });
+export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+  const orgId = await getOrgId();
+  if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  await db.cashFlowCategory.updateMany({ where: { id: params.id, organizationId: orgId }, data: { isActive: false } });
+  return NextResponse.json({ ok: true });
 }

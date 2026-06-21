@@ -1,81 +1,69 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { db } from "@/server/db";
+import { db } from "@/lib/db";
 
-export async function GET(req: NextRequest) {
+async function getOrgId() {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const membership = await db.membership.findFirst({ where: { userId: session.user.id } });
-  if (!membership) return NextResponse.json({ error: "No organization" }, { status: 404 });
+  if (!session?.user?.email) return null;
+  const user = await db.user.findUnique({ where: { email: session.user.email }, select: { activeOrgId: true } });
+  return user?.activeOrgId ?? null;
+}
 
-  const accounts = await db.cashFlowAccount.findMany({
-    where: { organizationId: membership.organizationId, isActive: true },
-    orderBy: { order: "asc" },
-    include: { transactions: { orderBy: [{ date: "asc" }, { order: "asc" }] } },
-  });
+export async function GET() {
+  const orgId = await getOrgId();
+  if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const categories = await db.cashFlowCategory.findMany({
-    where: { organizationId: membership.organizationId, isActive: true },
-    orderBy: [{ type: "asc" }, { order: "asc" }],
-  });
+  const [accounts, categories] = await Promise.all([
+    db.cashFlowAccount.findMany({
+      where: { organizationId: orgId, isActive: true },
+      orderBy: { order: "asc" },
+      include: { transactions: true },
+    }),
+    db.cashFlowCategory.findMany({
+      where: { organizationId: orgId, isActive: true },
+      orderBy: { order: "asc" },
+    }),
+  ]);
 
-  const summary = accounts.map((account) => {
-    let balance = account.openingBalance;
-    let totalDeposits = 0;
-    let totalWithdrawals = 0;
-
-    for (const tx of account.transactions) {
-      totalDeposits += tx.deposit ?? 0;
-      totalWithdrawals += tx.withdrawal ?? 0;
-    }
-
-    balance = account.openingBalance + totalDeposits - totalWithdrawals;
-
-    const categoryTotals: Record<string, number> = {};
-    for (const tx of account.transactions) {
-      const incomeCats = (tx.incomeCategories as Record<string, number> | null) ?? {};
-      const expenseCats = (tx.expenseCategories as Record<string, number> | null) ?? {};
-      for (const [code, amount] of Object.entries(incomeCats)) {
-        categoryTotals[code] = (categoryTotals[code] ?? 0) + (amount as number);
-      }
-      for (const [code, amount] of Object.entries(expenseCats)) {
-        categoryTotals[code] = (categoryTotals[code] ?? 0) + (amount as number);
-      }
-    }
-
+  const accountSummaries = accounts.map(acc => {
+    const totalDeposits = acc.transactions.reduce((s, t) => s + (t.deposit ?? 0), 0);
+    const totalWithdrawals = acc.transactions.reduce((s, t) => s + (t.withdrawal ?? 0), 0);
     return {
-      id: account.id,
-      name: account.name,
-      bankName: account.bankName,
-      openingBalance: account.openingBalance,
+      id: acc.id,
+      name: acc.name,
+      openingBalance: acc.openingBalance,
       totalDeposits,
       totalWithdrawals,
-      currentBalance: balance,
-      categoryTotals,
-      transactionCount: account.transactions.length,
+      currentBalance: acc.openingBalance + totalDeposits - totalWithdrawals,
     };
   });
 
-  const globalCategoryTotals: Record<string, number> = {};
-  for (const acc of summary) {
-    for (const [code, amount] of Object.entries(acc.categoryTotals)) {
-      globalCategoryTotals[code] = (globalCategoryTotals[code] ?? 0) + amount;
+  // Aggregate category totals across all transactions
+  const allTx = accounts.flatMap(a => a.transactions);
+  const catTotals: Record<string, { income: number; expense: number }> = {};
+  for (const tx of allTx) {
+    const inc = (tx.incomeCategories ?? {}) as Record<string, number>;
+    const exp = (tx.expenseCategories ?? {}) as Record<string, number>;
+    for (const [code, amt] of Object.entries(inc)) {
+      catTotals[code] = catTotals[code] ?? { income: 0, expense: 0 };
+      catTotals[code].income += amt;
+    }
+    for (const [code, amt] of Object.entries(exp)) {
+      catTotals[code] = catTotals[code] ?? { income: 0, expense: 0 };
+      catTotals[code].expense += amt;
     }
   }
 
-  const totalDeposits = summary.reduce((s, a) => s + a.totalDeposits, 0);
-  const totalWithdrawals = summary.reduce((s, a) => s + a.totalWithdrawals, 0);
-  const totalBalance = summary.reduce((s, a) => s + a.currentBalance, 0);
+  const categorySummaries = categories.map(c => ({
+    id: c.id, code: c.code, name: c.name, type: c.type,
+    totalIncome: catTotals[c.code]?.income ?? 0,
+    totalExpense: catTotals[c.code]?.expense ?? 0,
+  }));
 
-  return NextResponse.json({
-    accounts: summary,
-    categories,
-    totals: {
-      totalDeposits,
-      totalWithdrawals,
-      totalBalance,
-      categoryTotals: globalCategoryTotals,
-    },
-  });
+  const grandTotalDeposits = accountSummaries.reduce((s, a) => s + a.totalDeposits, 0);
+  const grandTotalWithdrawals = accountSummaries.reduce((s, a) => s + a.totalWithdrawals, 0);
+  const grandBalance = accountSummaries.reduce((s, a) => s + a.currentBalance, 0);
+
+  return NextResponse.json({ accounts: accountSummaries, categories: categorySummaries, grandTotalDeposits, grandTotalWithdrawals, grandBalance });
 }

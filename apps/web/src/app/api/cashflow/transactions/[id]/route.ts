@@ -1,67 +1,41 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { db } from "@/server/db";
+import { db } from "@/lib/db";
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+async function getOrgId() {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const membership = await db.membership.findFirst({ where: { userId: session.user.id } });
-  if (!membership) return NextResponse.json({ error: "No organization" }, { status: 404 });
-
-  const tx = await db.cashFlowTransaction.findFirst({
-    where: { id: params.id },
-    include: { account: true },
-  });
-  if (!tx || tx.account.organizationId !== membership.organizationId) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
-  const body = await req.json();
-  const {
-    date, bankReference, movementType, deposit, withdrawal,
-    concept, provider, reference, invoiceUuid, taxRate, salesType,
-    incomeCategories, expenseCategories, notes,
-  } = body;
-
-  const updated = await db.cashFlowTransaction.update({
-    where: { id: params.id },
-    data: {
-      ...(date !== undefined && { date: new Date(date) }),
-      ...(bankReference !== undefined && { bankReference }),
-      ...(movementType !== undefined && { movementType }),
-      ...(deposit !== undefined && { deposit: deposit !== null && deposit !== "" ? parseFloat(deposit) : null }),
-      ...(withdrawal !== undefined && { withdrawal: withdrawal !== null && withdrawal !== "" ? parseFloat(withdrawal) : null }),
-      ...(concept !== undefined && { concept }),
-      ...(provider !== undefined && { provider }),
-      ...(reference !== undefined && { reference }),
-      ...(invoiceUuid !== undefined && { invoiceUuid }),
-      ...(taxRate !== undefined && { taxRate: taxRate !== null && taxRate !== "" ? parseFloat(taxRate) : null }),
-      ...(salesType !== undefined && { salesType }),
-      ...(incomeCategories !== undefined && { incomeCategories }),
-      ...(expenseCategories !== undefined && { expenseCategories }),
-      ...(notes !== undefined && { notes }),
-    },
-  });
-
-  return NextResponse.json({ transaction: updated });
+  if (!session?.user?.email) return null;
+  const user = await db.user.findUnique({ where: { email: session.user.email }, select: { activeOrgId: true } });
+  return user?.activeOrgId ?? null;
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const membership = await db.membership.findFirst({ where: { userId: session.user.id } });
-  if (!membership) return NextResponse.json({ error: "No organization" }, { status: 404 });
+export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+  const orgId = await getOrgId();
+  if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const body = await req.json();
+  const data: Record<string, unknown> = {};
+  if (body.date !== undefined) data.date = new Date(body.date);
+  if (body.bankReference !== undefined) data.bankReference = body.bankReference;
+  if (body.movementType !== undefined) data.movementType = body.movementType;
+  if (body.deposit !== undefined) data.deposit = body.deposit === "" ? null : Number(body.deposit);
+  if (body.withdrawal !== undefined) data.withdrawal = body.withdrawal === "" ? null : Number(body.withdrawal);
+  if (body.concept !== undefined) data.concept = body.concept;
+  if (body.provider !== undefined) data.provider = body.provider;
+  if (body.reference !== undefined) data.reference = body.reference;
+  if (body.invoiceUuid !== undefined) data.invoiceUuid = body.invoiceUuid;
+  if (body.taxRate !== undefined) data.taxRate = body.taxRate === "" ? null : Number(body.taxRate);
+  if (body.salesType !== undefined) data.salesType = body.salesType;
+  if (body.incomeCategories !== undefined) data.incomeCategories = body.incomeCategories;
+  if (body.expenseCategories !== undefined) data.expenseCategories = body.expenseCategories;
+  if (body.notes !== undefined) data.notes = body.notes;
+  const tx = await db.cashFlowTransaction.update({ where: { id: params.id }, data });
+  return NextResponse.json({ transaction: tx });
+}
 
-  const tx = await db.cashFlowTransaction.findFirst({
-    where: { id: params.id },
-    include: { account: true },
-  });
-  if (!tx || tx.account.organizationId !== membership.organizationId) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
+export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+  const orgId = await getOrgId();
+  if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   await db.cashFlowTransaction.delete({ where: { id: params.id } });
-
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ ok: true });
 }
