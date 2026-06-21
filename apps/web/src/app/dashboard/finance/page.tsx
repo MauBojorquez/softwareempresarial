@@ -1,6 +1,6 @@
 "use client";
 
-import { DollarSign, TrendingDown, Wallet, PiggyBank } from "lucide-react";
+import { DollarSign, TrendingDown, Wallet, PiggyBank, ChevronRight } from "lucide-react";
 import { MetricsDashboard } from "@/components/dashboard/metrics-page";
 import { CATEGORY_TEMPLATES } from "@/lib/metric-templates";
 
@@ -73,6 +73,17 @@ function FinanceChart({ metrics, months }: { metrics: MetricEntry[]; months: num
 
 export default function FinancePage() {
   return (
+    <div className="space-y-4">
+      <a href="/dashboard/finance/cashflow" className="group relative rounded-2xl border border-border bg-card p-4 hover:border-primary/40 transition-colors overflow-hidden block">
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Flujo de Efectivo</p>
+            <p className="mt-1 text-sm font-semibold">Gestionar movimientos bancarios</p>
+          </div>
+          <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
+        </div>
+      </a>
     <MetricsDashboard
       title="Finanzas"
       subtitle="Métricas financieras"
@@ -86,5 +97,6 @@ export default function FinancePage() {
       emptySubtitle="Conecta el SAT para importar automáticamente o agrega manualmente tus ingresos, gastos y flujo de caja."
       extraContent={(metrics, months) => <FinanceChart metrics={metrics} months={months} />}
     />
+    </div>
   );
 }
