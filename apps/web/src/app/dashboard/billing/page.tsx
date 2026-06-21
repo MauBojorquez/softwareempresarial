@@ -178,7 +178,7 @@ export default function BillingPage() {
       </div>
 
       {currentPlan && (
-        <div className="rounded-xl border border-primary/15 bg-card p-4 sm:p-6 glow-sm">
+        <div className="rounded-2xl border border-primary/15 bg-card p-4 sm:p-6 glow-sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="flex items-center gap-2">
@@ -248,7 +248,7 @@ export default function BillingPage() {
               <div
                 key={plan.key}
                 className={cn(
-                  "rounded-xl border p-4 sm:p-6 transition-all",
+                  "rounded-2xl border p-4 sm:p-6 transition-all",
                   isCurrent ? "border-primary/30 bg-primary/5" : "border-border bg-card hover:border-border"
                 )}
               >
@@ -307,7 +307,7 @@ export default function BillingPage() {
           })}
         </div>
 
-        <div className="hidden lg:block rounded-xl border border-border bg-card overflow-hidden">
+        <div className="hidden lg:block rounded-2xl border border-border bg-card overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-secondary/30">
@@ -342,7 +342,7 @@ export default function BillingPage() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
+      <div className="rounded-2xl border border-border bg-card p-4 sm:p-6">
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-amber-600" />
           <h3 className="font-semibold">Gestionar método de pago y facturas</h3>
