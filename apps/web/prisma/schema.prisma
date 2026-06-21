@@ -467,7 +467,7 @@ model CashFlowTransaction {
   incomeCategories  Json?
   expenseCategories Json?
   notes           String?  @db.Text
-  rowOrder        Int      @default(0)
+  order           Int      @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -481,7 +481,7 @@ model CashFlowCategory {
   id             String   @id @default(cuid())
   code           String
   name           String
-  type           String   @default("both")
+  type           String
   order          Int      @default(0)
   isActive       Boolean  @default(true)
   createdAt      DateTime @default(now())
