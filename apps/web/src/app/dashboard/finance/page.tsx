@@ -1,8 +1,9 @@
 "use client";
 
-import { DollarSign, TrendingDown, Wallet, PiggyBank, ChevronRight } from "lucide-react";
+import { DollarSign, TrendingDown, Wallet, PiggyBank, ArrowRight } from "lucide-react";
 import { MetricsDashboard } from "@/components/dashboard/metrics-page";
 import { CATEGORY_TEMPLATES } from "@/lib/metric-templates";
+import Link from "next/link";
 
 type MetricEntry = { id: string; name: string; value: number; unit: string | null; period: string };
 
@@ -73,17 +74,6 @@ function FinanceChart({ metrics, months }: { metrics: MetricEntry[]; months: num
 
 export default function FinancePage() {
   return (
-    <div className="space-y-4">
-      <a href="/dashboard/finance/cashflow" className="group relative rounded-2xl border border-border bg-card p-4 hover:border-primary/40 transition-colors overflow-hidden block">
-        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Flujo de Efectivo</p>
-            <p className="mt-1 text-sm font-semibold">Gestionar movimientos bancarios</p>
-          </div>
-          <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
-        </div>
-      </a>
     <MetricsDashboard
       title="Finanzas"
       subtitle="Métricas financieras"
@@ -95,8 +85,26 @@ export default function FinancePage() {
       activityLabel="Finanzas"
       emptyTitle="Sin datos financieros"
       emptySubtitle="Conecta el SAT para importar automáticamente o agrega manualmente tus ingresos, gastos y flujo de caja."
-      extraContent={(metrics, months) => <FinanceChart metrics={metrics} months={months} />}
+      extraContent={(metrics, months) => (
+        <>
+          <FinanceChart metrics={metrics} months={months} />
+          <Link
+            href="/dashboard/finance/cashflow"
+            className="flex items-center justify-between rounded-2xl border border-border bg-card p-4 hover:bg-white/[0.02] transition-colors group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#3D7FFF]/10 flex items-center justify-center">
+                <Wallet size={20} className="text-[#3D7FFF]" />
+              </div>
+              <div>
+                <p className="font-semibold text-sm">Flujo de Efectivo</p>
+                <p className="text-xs text-muted-foreground">Gestiona cuentas bancarias y movimientos con ledger interactivo</p>
+              </div>
+            </div>
+            <ArrowRight size={16} className="text-muted-foreground group-hover:text-foreground transition-colors" />
+          </Link>
+        </>
+      )}
     />
-    </div>
   );
 }
