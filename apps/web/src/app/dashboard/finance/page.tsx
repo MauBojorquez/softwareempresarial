@@ -1,6 +1,7 @@
 "use client";
 
-import { DollarSign, TrendingDown, Wallet, PiggyBank, ArrowRight } from "lucide-react";
+import { useState, useEffect } from "react";
+import { DollarSign, TrendingDown, Wallet, PiggyBank, ArrowRight, TrendingUp, Landmark } from "lucide-react";
 import { MetricsDashboard } from "@/components/dashboard/metrics-page";
 import { CATEGORY_TEMPLATES } from "@/lib/metric-templates";
 import Link from "next/link";
@@ -16,6 +17,97 @@ const ICON_MAP: Record<string, typeof DollarSign> = {
   "Cuentas por Cobrar": PiggyBank,
   "Cuentas por Pagar": PiggyBank,
 };
+
+const fmt = (n: number) =>
+  new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n);
+
+type CashFlowSummary = {
+  grandBalance: number;
+  grandTotalDeposits: number;
+  grandTotalWithdrawals: number;
+  accounts: { name: string; currentBalance: number }[];
+};
+
+function CashFlowBanner() {
+  const [data, setData] = useState<CashFlowSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/cashflow/report")
+      .then(r => r.json())
+      .then(d => { setData(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  if (loading) return (
+    <div className="rounded-2xl border border-border bg-card p-4 animate-pulse">
+      <div className="h-3 w-32 rounded bg-secondary mb-3" />
+      <div className="grid grid-cols-3 gap-3">
+        {[0,1,2].map(i => <div key={i} className="h-10 rounded-xl bg-secondary" />)}
+      </div>
+    </div>
+  );
+
+  if (!data || data.accounts.length === 0) return null;
+
+  // Compute current-month totals
+  const now = new Date();
+  const monthKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+  // We have grand totals (all time) from the report; show those
+  const balance = data.grandBalance;
+  const deposits = data.grandTotalDeposits;
+  const withdrawals = data.grandTotalWithdrawals;
+
+  return (
+    <div className="rounded-2xl border border-border bg-card overflow-hidden">
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
+      <div className="flex items-center justify-between px-4 pt-4 pb-2">
+        <div className="flex items-center gap-2">
+          <Landmark className="h-4 w-4 text-primary" />
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Flujo de Efectivo — Saldo en Bancos</p>
+        </div>
+        <Link href="/dashboard/finance/cashflow" className="flex items-center gap-1 text-[10px] text-primary hover:opacity-80">
+          Ver detalle <ArrowRight className="h-3 w-3" />
+        </Link>
+      </div>
+      <div className="grid grid-cols-3 gap-3 px-4 pb-4">
+        <div className="relative overflow-hidden rounded-xl border border-border bg-secondary/30 p-3">
+          <p className="text-[9px] uppercase tracking-widest text-muted-foreground">Saldo Disponible</p>
+          <p className="mt-1 text-lg font-extrabold tabular-nums" style={{ color: balance >= 0 ? "#00E87B" : "#FF4444" }}>{fmt(balance)}</p>
+          <p className="text-[9px] text-muted-foreground mt-0.5">{data.accounts.length} cuenta{data.accounts.length !== 1 ? "s" : ""}</p>
+        </div>
+        <div className="relative overflow-hidden rounded-xl border border-border bg-secondary/30 p-3">
+          <p className="text-[9px] uppercase tracking-widest text-muted-foreground">Total Depósitos</p>
+          <p className="mt-1 text-lg font-extrabold tabular-nums text-emerald-400">{fmt(deposits)}</p>
+          <div className="flex items-center gap-1 mt-0.5">
+            <TrendingUp className="h-3 w-3 text-emerald-400" />
+            <p className="text-[9px] text-emerald-400/70">Acumulado</p>
+          </div>
+        </div>
+        <div className="relative overflow-hidden rounded-xl border border-border bg-secondary/30 p-3">
+          <p className="text-[9px] uppercase tracking-widest text-muted-foreground">Total Retiros</p>
+          <p className="mt-1 text-lg font-extrabold tabular-nums text-red-400">{fmt(withdrawals)}</p>
+          <div className="flex items-center gap-1 mt-0.5">
+            <TrendingDown className="h-3 w-3 text-red-400" />
+            <p className="text-[9px] text-red-400/70">Acumulado</p>
+          </div>
+        </div>
+      </div>
+      {data.accounts.length > 0 && (
+        <div className="border-t border-border/50 px-4 py-2 flex gap-4 overflow-x-auto">
+          {data.accounts.map(a => (
+            <div key={a.name} className="flex items-center gap-2 shrink-0">
+              <span className="text-[10px] text-muted-foreground">{a.name}</span>
+              <span className="text-[10px] font-bold tabular-nums" style={{ color: a.currentBalance >= 0 ? "#00E87B" : "#FF4444" }}>
+                {fmt(a.currentBalance)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function FinanceChart({ metrics, months }: { metrics: MetricEntry[]; months: number }) {
   const now = new Date();
@@ -87,6 +179,7 @@ export default function FinancePage() {
       emptySubtitle="Conecta el SAT para importar automáticamente o agrega manualmente tus ingresos, gastos y flujo de caja."
       extraContent={(metrics, months) => (
         <>
+          <CashFlowBanner />
           <FinanceChart metrics={metrics} months={months} />
           <Link
             href="/dashboard/finance/cashflow"
