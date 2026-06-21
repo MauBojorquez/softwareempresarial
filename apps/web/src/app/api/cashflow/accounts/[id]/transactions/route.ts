@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { db } from "@/lib/db";
+import { db } from "@/server/db";
 
 async function getOrgId() {
   const session = await getServerSession(authOptions);
@@ -17,7 +17,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   if (!account) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const transactions = await db.cashFlowTransaction.findMany({
     where: { accountId: params.id },
-    orderBy: [{ date: "asc" }, { rowOrder: "asc" }, { createdAt: "asc" }],
+    orderBy: [{ date: "asc" }, { order: "asc" }, { createdAt: "asc" }],
   });
   // Compute running balance
   let balance = account.openingBalance;
@@ -52,7 +52,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       incomeCategories: body.incomeCategories,
       expenseCategories: body.expenseCategories,
       notes: body.notes,
-      rowOrder: count,
+      order: count,
     },
   });
   return NextResponse.json({ transaction: tx });
