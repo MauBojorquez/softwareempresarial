@@ -103,6 +103,8 @@ model Organization {
   satDownloadRequests SatDownloadRequest[]
   activityLogs   ActivityLog[]
   alertRules     AlertRule[]
+  cashFlowAccounts    CashFlowAccount[]
+  cashFlowCategories  CashFlowCategory[]
 }
 
 model Membership {
@@ -427,4 +429,66 @@ model SatDownloadRequest {
   updatedAt      DateTime @updatedAt
 
   @@index([organizationId, status])
+}
+
+// ─── Cash Flow ──────────────────────────────────────────────────────
+
+model CashFlowAccount {
+  id             String   @id @default(cuid())
+  name           String
+  bankName       String?
+  accountNumber  String?
+  openingBalance Float    @default(0)
+  order          Int      @default(0)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  transactions   CashFlowTransaction[]
+
+  @@index([organizationId, order])
+}
+
+model CashFlowTransaction {
+  id              String   @id @default(cuid())
+  date            DateTime
+  bankReference   String?  @db.Text
+  movementType    String?
+  deposit         Float?
+  withdrawal      Float?
+  concept         String?
+  provider        String?
+  reference       String?
+  invoiceUuid     String?
+  taxRate         Float?
+  salesType       String?
+  incomeCategories  Json?
+  expenseCategories Json?
+  notes           String?  @db.Text
+  rowOrder        Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  accountId String
+  account   CashFlowAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, date])
+}
+
+model CashFlowCategory {
+  id             String   @id @default(cuid())
+  code           String
+  name           String
+  type           String
+  order          Int      @default(0)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, code])
+  @@index([organizationId, order])
 }
