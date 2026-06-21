@@ -52,14 +52,12 @@ function CashFlowBanner() {
 
   // Compute current-month totals
   const now = new Date();
-  const monthKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
-  // We have grand totals (all time) from the report; show those
   const balance = data.grandBalance;
   const deposits = data.grandTotalDeposits;
   const withdrawals = data.grandTotalWithdrawals;
 
   return (
-    <div className="rounded-2xl border border-border bg-card overflow-hidden">
+    <div className="relative rounded-2xl border border-border bg-card overflow-hidden">
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
       <div className="flex items-center justify-between px-4 pt-4 pb-2">
         <div className="flex items-center gap-2">
