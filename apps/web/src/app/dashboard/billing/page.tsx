@@ -361,7 +361,7 @@ export default function BillingPage() {
 
       {/* Invoice History */}
       {(invoices.length > 0 || invoicesLoading) && (
-        <div className="rounded-xl border border-border bg-card">
+        <div className="rounded-2xl border border-border bg-card">
           <div className="flex items-center gap-2 border-b border-border p-4">
             <FileText className="h-4 w-4 text-muted-foreground" />
             <h3 className="font-semibold text-sm">Historial de Facturas</h3>
@@ -384,7 +384,7 @@ export default function BillingPage() {
                     <span className="text-sm font-semibold">
                       {new Intl.NumberFormat("es-MX", { style: "currency", currency: inv.currency || "MXN", maximumFractionDigits: 0 }).format(inv.amount)}
                     </span>
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${inv.status === "paid" ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600"}`}>
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${inv.status === "paid" ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"}`}>
                       {inv.status === "paid" ? "Pagada" : inv.status || "—"}
                     </span>
                     {inv.pdf && (
