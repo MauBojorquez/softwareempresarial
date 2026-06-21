@@ -35,7 +35,7 @@ export default function OperationsPage() {
   return (
     <div className="space-y-5">
       {/* Tab switcher */}
-      <div className="flex gap-1 rounded-xl border border-border bg-card p-1 w-fit">
+      <div className="flex gap-1 rounded-2xl border border-border bg-card p-1 w-fit">
         <button
           onClick={() => setTab("cartera")}
           className={cn(

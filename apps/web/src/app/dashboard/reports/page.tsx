@@ -173,7 +173,7 @@ export default function ReportsPage() {
       </div>
 
       {generating && (
-        <div className="rounded-xl border border-primary/15 bg-primary/5 p-4 sm:p-6">
+        <div className="rounded-2xl border border-primary/15 bg-primary/5 p-4 sm:p-6">
           <div className="flex items-center gap-3">
             <div className="h-8 w-8 rounded-lg gradient-bg flex items-center justify-center sm:h-10 sm:w-10 sm:rounded-xl">
               <Sparkles className="h-4 w-4 text-white animate-pulse sm:h-5 sm:w-5" />
@@ -190,7 +190,7 @@ export default function ReportsPage() {
       )}
 
       {reports.length === 0 && !generating ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card py-16 sm:py-20 px-4">
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-border bg-card py-16 sm:py-20 px-4">
           <BarChart3 className="h-8 w-8 text-muted-foreground mb-3 sm:h-10 sm:w-10 sm:mb-4" />
           <h3 className="text-base font-semibold sm:text-lg">Sin reportes generados</h3>
           <p className="mt-1 text-sm text-muted-foreground text-center max-w-md">
@@ -203,7 +203,7 @@ export default function ReportsPage() {
         </div>
       ) : latestReport ? (
         <>
-          <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
+          <div className="rounded-2xl border border-border bg-card p-4 sm:p-6">
             <div className="flex items-start justify-between">
               <div>
                 <div className="flex items-center gap-2 text-base font-semibold sm:text-lg">
@@ -240,7 +240,7 @@ export default function ReportsPage() {
           </div>
 
           {reports.length > 1 && (
-            <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
+            <div className="rounded-2xl border border-border bg-card p-4 sm:p-6">
               <h3 className="flex items-center gap-2 text-base font-semibold sm:text-lg">
                 <Calendar className="h-4 w-4 text-muted-foreground sm:h-5 sm:w-5" />
                 Reportes Anteriores

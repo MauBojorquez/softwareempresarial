@@ -94,7 +94,7 @@ export default function TeamPage() {
   }
   if (error || !data) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card py-16 text-center">
+      <div className="flex flex-col items-center justify-center rounded-2xl border border-border bg-card py-16 text-center">
         <Activity className="h-8 w-8 text-muted-foreground mb-3" />
         <h3 className="text-base font-semibold">No se pudo cargar el equipo</h3>
         <p className="mt-1 text-sm text-muted-foreground max-w-sm">{error || "Sin datos disponibles"}</p>
@@ -124,7 +124,7 @@ export default function TeamPage() {
           { label: "Activos (30 días)", value: data.stats.activeMembers, icon: Circle },
           { label: "Acciones (30 días)", value: data.stats.events30d, icon: Activity },
         ].map((s) => (
-          <div key={s.label} className="rounded-xl border border-border bg-card p-5">
+          <div key={s.label} className="rounded-2xl border border-border bg-card p-5">
             <div className="flex items-center gap-2 text-muted-foreground"><s.icon className="h-4 w-4" /><span className="text-xs font-medium">{s.label}</span></div>
             <p className="mt-2 text-3xl font-bold text-foreground">{s.value}</p>
           </div>
@@ -133,7 +133,7 @@ export default function TeamPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* Members */}
-        <div className="lg:col-span-3 rounded-xl border border-border bg-card overflow-hidden">
+        <div className="lg:col-span-3 rounded-2xl border border-border bg-card overflow-hidden">
           <div className="px-5 py-4 border-b border-border"><h2 className="font-semibold text-foreground">Miembros</h2></div>
           <div className="divide-y divide-border">
             {data.members.map((m) => (
@@ -159,7 +159,7 @@ export default function TeamPage() {
         </div>
 
         {/* Activity feed */}
-        <div className="lg:col-span-2 rounded-xl border border-border bg-card overflow-hidden">
+        <div className="lg:col-span-2 rounded-2xl border border-border bg-card overflow-hidden">
           <div className="px-5 py-4 border-b border-border"><h2 className="font-semibold text-foreground">Actividad reciente</h2></div>
           <div className="divide-y divide-border max-h-[520px] overflow-y-auto">
             {data.activity.length === 0 && <p className="px-5 py-8 text-center text-sm text-muted-foreground">Aún no hay actividad registrada.</p>}

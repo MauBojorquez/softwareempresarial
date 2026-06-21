@@ -37,7 +37,7 @@ export default function MarketingPage() {
   }
 
   if (error) return (
-    <div className="flex flex-col items-center justify-center rounded-xl border border-destructive/30 bg-card py-16">
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-destructive/30 bg-card py-16">
       <div className="rounded-full bg-destructive/10 p-3 mb-4"><X className="h-6 w-6 text-destructive" /></div>
       <h3 className="text-lg font-semibold">Error al cargar datos</h3>
       <p className="mt-1 text-sm text-muted-foreground">{error}</p>
@@ -55,7 +55,7 @@ export default function MarketingPage() {
           <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Marketing</h1>
           <p className="text-sm text-muted-foreground">Rendimiento de campañas y adquisición</p>
         </div>
-        <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card py-16 sm:py-20">
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-border bg-card py-16 sm:py-20">
           <LinkIcon className="h-8 w-8 text-muted-foreground mb-3 sm:h-10 sm:w-10 sm:mb-4" />
           <h3 className="text-base font-semibold sm:text-lg">Conecta Meta Ads</h3>
           <p className="mt-1 text-sm text-muted-foreground text-center max-w-md px-4">
@@ -83,13 +83,13 @@ export default function MarketingPage() {
   const totalResults = n(current.results);
 
   const statusLabel = (s: string) => {
-    if (s === "ACTIVE") return { text: "Activa", cls: "text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10" };
-    if (s === "PAUSED") return { text: "Pausada", cls: "text-amber-600 bg-amber-50 dark:bg-amber-500/10" };
-    if (s === "DELETED" || s === "ARCHIVED") return { text: "Archivada", cls: "text-red-600 bg-red-50 dark:bg-red-500/10" };
-    if (s === "WITH_ISSUES") return { text: "Con problemas", cls: "text-red-600 bg-red-50 dark:bg-red-500/10" };
+    if (s === "ACTIVE") return { text: "Activa", cls: "text-emerald-400 bg-emerald-500/15" };
+    if (s === "PAUSED") return { text: "Pausada", cls: "text-amber-400 bg-amber-500/15" };
+    if (s === "DELETED" || s === "ARCHIVED") return { text: "Archivada", cls: "text-red-400 bg-red-500/15" };
+    if (s === "WITH_ISSUES") return { text: "Con problemas", cls: "text-red-400 bg-red-500/15" };
     if (s === "INACTIVE") return { text: "Inactiva", cls: "text-muted-foreground bg-secondary/50" };
-    if (s === "COMPLETED") return { text: "Completada", cls: "text-blue-600 bg-blue-50 dark:bg-blue-500/10" };
-    if (s === "IN_PROCESS") return { text: "En proceso", cls: "text-purple-600 bg-purple-50 dark:bg-purple-500/10" };
+    if (s === "COMPLETED") return { text: "Completada", cls: "text-blue-400 bg-blue-500/15" };
+    if (s === "IN_PROCESS") return { text: "En proceso", cls: "text-purple-400 bg-purple-500/15" };
     return { text: "—", cls: "text-muted-foreground bg-secondary/50" };
   };
 
@@ -161,7 +161,7 @@ export default function MarketingPage() {
       )}
 
       {fetchError && !tokenExpired && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400">
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/15 p-3 text-sm text-amber-400">
           {fetchError}
         </div>
       )}
@@ -187,7 +187,7 @@ export default function MarketingPage() {
 
       {tab === "overview" && (
         <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
-          <div className="rounded-xl border border-border bg-card p-5">
+          <div className="rounded-2xl border border-border bg-card p-5">
             <h3 className="text-sm font-semibold sm:text-base">Métricas de Alcance</h3>
             <div className="mt-3 space-y-3 sm:mt-4">
               {[
@@ -207,7 +207,7 @@ export default function MarketingPage() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-border bg-card p-5">
+          <div className="rounded-2xl border border-border bg-card p-5">
             <h3 className="text-sm font-semibold sm:text-base">Costos</h3>
             <div className="mt-3 space-y-3 sm:mt-4">
               {[
@@ -229,7 +229,7 @@ export default function MarketingPage() {
       )}
 
       {tab === "campaigns" && (
-        <div className="rounded-xl border border-border bg-card">
+        <div className="rounded-2xl border border-border bg-card">
           <div className="border-b border-border p-3 sm:p-4">
             <h3 className="text-sm font-semibold sm:text-base">Campañas ({campaignList.length})</h3>
           </div>
@@ -310,7 +310,7 @@ export default function MarketingPage() {
 
       {tab === "history" && (
         <div className="space-y-4 sm:space-y-6">
-          <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
+          <div className="rounded-2xl border border-border bg-card p-4 sm:p-6">
             <div className="flex items-center gap-2 mb-4 sm:mb-6">
               <Calendar className="h-4 w-4 text-muted-foreground" />
               <h3 className="text-sm font-semibold sm:text-base">Gasto Mensual (6 meses)</h3>
@@ -338,7 +338,7 @@ export default function MarketingPage() {
             )}
           </div>
 
-          <div className="rounded-xl border border-border bg-card">
+          <div className="rounded-2xl border border-border bg-card">
             <div className="border-b border-border p-3 sm:p-4">
               <div className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-muted-foreground" />

@@ -236,7 +236,7 @@ export default function OverviewPage() {
           <MetricCard title="Pipeline" value={0} icon={DollarSign} format="currency" />
           <MetricCard title="Leads" value={0} icon={Users} format="number" />
         </div>
-        <div className="rounded-xl border border-border bg-card p-6 sm:p-8 overflow-hidden">
+        <div className="rounded-2xl border border-border bg-card p-6 sm:p-8 overflow-hidden">
           <div className="w-full h-1 gradient-bg rounded-t-xl -mt-[25px] sm:-mt-[33px] mb-6" />
           <div className="flex flex-col items-center justify-center text-center">
             <LinkIcon className="h-8 w-8 text-muted-foreground mb-3 sm:h-10 sm:w-10 sm:mb-4" />
@@ -338,7 +338,7 @@ export default function OverviewPage() {
         </div>
       </div>
     ) : (
-      <Link href="/dashboard/goals" className="flex items-center justify-between rounded-xl border border-dashed border-border bg-card p-4 transition-colors hover:border-primary/30 card-hover">
+      <Link href="/dashboard/goals" className="flex items-center justify-between rounded-2xl border border-dashed border-border bg-card p-4 transition-colors hover:border-primary/30 card-hover">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
             <Target className="h-5 w-5 text-primary" />
@@ -352,7 +352,7 @@ export default function OverviewPage() {
       </Link>
     ),
     calculated: (
-      <div className="rounded-xl border border-border bg-card p-5 card-hover">
+      <div className="rounded-2xl border border-border bg-card p-5 card-hover">
         <div className="flex items-center gap-2 mb-3">
           <Calculator className="h-4 w-4 text-blue-600" />
           <h3 className="text-sm font-semibold">KPIs Calculados</h3>
@@ -374,7 +374,7 @@ export default function OverviewPage() {
       </div>
     ),
     history: (
-      <div className="rounded-xl border border-border bg-card p-5 card-hover">
+      <div className="rounded-2xl border border-border bg-card p-5 card-hover">
         <div className="flex items-center gap-2 mb-3">
           <BarChart3 className="h-4 w-4 text-emerald-600" />
           <h3 className="text-sm font-semibold">Historial (6 meses)</h3>
@@ -404,7 +404,7 @@ export default function OverviewPage() {
       </div>
     ),
     marketing: metaConnected && metaSummary ? (
-      <a href="/dashboard/marketing" className="block rounded-xl border border-border bg-card p-5 transition-colors hover:border-primary/20 card-hover">
+      <a href="/dashboard/marketing" className="block rounded-2xl border border-border bg-card p-5 transition-colors hover:border-primary/20 card-hover">
         <div className="flex items-center gap-2 mb-3">
           <Megaphone className="h-4 w-4 text-purple-600" />
           <h3 className="text-sm font-semibold">Meta Ads</h3>
@@ -424,7 +424,7 @@ export default function OverviewPage() {
         </div>
       </a>
     ) : (
-      <a href="/dashboard/integrations" className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card p-5 text-center transition-colors hover:border-primary/30 card-hover">
+      <a href="/dashboard/integrations" className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card p-5 text-center transition-colors hover:border-primary/30 card-hover">
         <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10">
           <Megaphone className="h-5 w-5 text-primary" />
         </div>
@@ -434,7 +434,7 @@ export default function OverviewPage() {
       </a>
     ),
     hr: (
-      <div className="rounded-xl border border-border bg-card p-5 card-hover">
+      <div className="rounded-2xl border border-border bg-card p-5 card-hover">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Users className="h-4 w-4 text-amber-600" />
@@ -464,7 +464,7 @@ export default function OverviewPage() {
           { href: "/dashboard/sales", icon: TrendingUp, label: "Ventas", value: fmtMoney(data.pipeline), sub: "Pipeline activo", color: "text-emerald-600" },
           { href: "/dashboard/hr", icon: Users, label: "Equipo", value: `${data.employees} personas`, sub: data.nomina > 0 ? `Nómina: ${fmtMoney(data.nomina)}` : "Ver detalle", color: "text-amber-600" },
         ].map((item) => (
-          <a key={item.href} href={item.href} className="rounded-xl border border-border bg-card p-5 transition-all hover:border-primary/20 card-hover">
+          <a key={item.href} href={item.href} className="rounded-2xl border border-border bg-card p-5 transition-all hover:border-primary/20 card-hover">
             <div className="flex items-center gap-2 mb-1">
               <item.icon className={cn("h-4 w-4", item.color)} />
               <h3 className="text-sm font-semibold">{item.label}</h3>
@@ -512,11 +512,11 @@ export default function OverviewPage() {
             <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", showOrgDropdown && "rotate-180")} />
           </button>
           {showOrgDropdown && (
-            <div className="absolute left-0 top-full mt-1 z-50 w-56 rounded-xl border border-border bg-card shadow-lg">
+            <div className="absolute left-0 top-full mt-1 z-50 w-56 rounded-2xl border border-border bg-card shadow-lg">
               {orgs.map((org) => (
                 <button key={org.id} onClick={() => switchOrg(org.id)} className="w-full flex items-center gap-2 px-3 py-2.5 text-sm hover:bg-secondary transition-colors first:rounded-t-xl last:rounded-b-xl">
                   {org.logo ? (
-                    <img src={org.logo} alt="" className="h-5 w-5 rounded object-contain border border-border bg-white" />
+                    <img src={org.logo} alt="" className="h-5 w-5 rounded object-contain border border-border bg-secondary" />
                   ) : (
                     <div className="h-5 w-5 rounded gradient-bg flex items-center justify-center flex-shrink-0">
                       <span className="text-[10px] font-bold text-white">{org.name[0]?.toUpperCase()}</span>
@@ -569,7 +569,7 @@ export default function OverviewPage() {
 
       {/* Customize panel — toggle + drag to reorder */}
       {customizing && (
-        <div className="rounded-xl border border-primary/20 bg-card p-4 sm:p-5 animate-slide-up">
+        <div className="rounded-2xl border border-primary/20 bg-card p-4 sm:p-5 animate-slide-up">
           <div className="mb-3 flex items-center gap-2">
             <SlidersHorizontal className="h-4 w-4 text-primary" />
             <h3 className="text-sm font-semibold">Personaliza tu dashboard</h3>
