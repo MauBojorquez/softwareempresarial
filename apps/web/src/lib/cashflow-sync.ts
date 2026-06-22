@@ -49,7 +49,15 @@ export async function syncCashflowMetrics(orgId: string): Promise<void> {
   if (byMonth.size === 0) return;
 
   // Insert fresh monthly totals
-  const rows: Parameters<typeof db.metric.createMany>[0]["data"] = [];
+  const rows: {
+    organizationId: string;
+    category: "FINANCE";
+    name: string;
+    value: number;
+    unit: string;
+    period: Date;
+    metadata: { cashflow: true };
+  }[] = [];
   for (const { deposits, withdrawals, period } of byMonth.values()) {
     if (deposits > 0) {
       rows.push({
