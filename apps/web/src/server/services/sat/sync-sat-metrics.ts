@@ -377,42 +377,61 @@ export async function refreshAllSatCredentials(): Promise<
     select: { organizationId: true, lastSyncAt: true },
   });
 
-  const STALE_MS = 20 * 60 * 60 * 1000; // 20h
   const results: Array<{ organizationId: string; action: string; syncStatus?: string; error?: string }> = [];
-
   for (const { organizationId, lastSyncAt } of credentials) {
-    try {
-      // 1) Advance anything already in flight.
-      await pollSatDownloads(organizationId);
+    results.push(await refreshSatCredential(organizationId, lastSyncAt));
+  }
+  return results;
+}
 
-      // 2) Decide whether to kick off a fresh rolling-window download.
-      const inProgress = await db.satDownloadRequest.count({
-        where: {
-          organizationId,
-          status: { in: ["pending", "accepted", "finished"] },
-        },
-      });
+const STALE_MS = 20 * 60 * 60 * 1000; // 20h
 
-      const isStale =
-        !lastSyncAt || Date.now() - new Date(lastSyncAt).getTime() > STALE_MS;
-
-      let action = "polled";
-      if (inProgress === 0 && isStale) {
-        await startSatDownload(organizationId);
-        await pollSatDownloads(organizationId);
-        action = "refreshed";
-      }
-
+/**
+ * Single-org version of {@link refreshAllSatCredentials}. Polls in-flight
+ * requests and, when the org is idle and its data is stale, kicks off a fresh
+ * rolling-window download. Safe to call fire-and-forget (never throws).
+ */
+export async function refreshSatCredential(
+  organizationId: string,
+  lastSyncAt?: Date | null,
+): Promise<{ organizationId: string; action: string; syncStatus?: string; error?: string }> {
+  try {
+    if (lastSyncAt === undefined) {
       const cred = await db.satCredential.findUnique({
         where: { organizationId },
-        select: { syncStatus: true },
+        select: { lastSyncAt: true },
       });
-      results.push({ organizationId, action, syncStatus: cred?.syncStatus });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "unknown error";
-      results.push({ organizationId, action: "error", error: message });
+      lastSyncAt = cred?.lastSyncAt ?? null;
     }
-  }
 
-  return results;
+    // 1) Advance anything already in flight.
+    await pollSatDownloads(organizationId);
+
+    // 2) Decide whether to kick off a fresh rolling-window download.
+    const inProgress = await db.satDownloadRequest.count({
+      where: {
+        organizationId,
+        status: { in: ["pending", "accepted", "finished"] },
+      },
+    });
+
+    const isStale =
+      !lastSyncAt || Date.now() - new Date(lastSyncAt).getTime() > STALE_MS;
+
+    let action = "polled";
+    if (inProgress === 0 && isStale) {
+      await startSatDownload(organizationId);
+      await pollSatDownloads(organizationId);
+      action = "refreshed";
+    }
+
+    const cred = await db.satCredential.findUnique({
+      where: { organizationId },
+      select: { syncStatus: true },
+    });
+    return { organizationId, action, syncStatus: cred?.syncStatus };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "unknown error";
+    return { organizationId, action: "error", error: message };
+  }
 }

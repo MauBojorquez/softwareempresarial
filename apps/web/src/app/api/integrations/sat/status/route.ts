@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/server/db";
 import { ensureMembership } from "@/server/services/membership";
+import { refreshSatCredential } from "@/server/services/sat/sync-sat-metrics";
 
 export const runtime = "nodejs";
 
@@ -33,6 +34,12 @@ export async function GET() {
     },
   });
 
+  // Self-heal: in addition to the daily cron, nudge the sync forward when
+  // someone is looking at the SAT status — but throttled so we never hammer
+  // the SAT web service. We only act if nothing has been checked recently
+  // (in-flight requests) or the data is plainly stale (idle org).
+  void maybeBackgroundRefresh(orgId, credential.lastSyncAt, pendingRequests);
+
   return NextResponse.json({
     connected: true,
     rfc: credential.rfc,
@@ -41,4 +48,38 @@ export async function GET() {
     lastError: credential.lastError ?? null,
     pendingRequests,
   });
+}
+
+// Throttle window for the on-view self-heal so repeated status polls don't
+// trigger repeated SAT calls.
+const POLL_THROTTLE_MS = 15 * 60 * 1000; // 15 min
+const STALE_MS = 20 * 60 * 60 * 1000; // 20h
+
+async function maybeBackgroundRefresh(
+  orgId: string,
+  lastSyncAt: Date | null,
+  pendingRequests: number,
+) {
+  try {
+    if (pendingRequests > 0) {
+      // Only poll if no in-flight request was checked in the last 15 minutes.
+      const recent = await db.satDownloadRequest.findFirst({
+        where: {
+          organizationId: orgId,
+          status: { in: ["pending", "accepted", "finished"] },
+          lastCheckedAt: { gte: new Date(Date.now() - POLL_THROTTLE_MS) },
+        },
+        select: { id: true },
+      });
+      if (recent) return; // checked recently — let the throttle hold
+    } else {
+      // Idle org: only refresh when the data is actually stale.
+      if (lastSyncAt && Date.now() - new Date(lastSyncAt).getTime() < STALE_MS) {
+        return;
+      }
+    }
+    await refreshSatCredential(orgId, lastSyncAt);
+  } catch {
+    // Background best-effort; failures are recorded on the credential.
+  }
 }
