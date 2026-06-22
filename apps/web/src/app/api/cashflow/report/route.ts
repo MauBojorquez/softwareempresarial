@@ -26,44 +26,57 @@ export async function GET() {
     }),
   ]);
 
-  const accountSummaries = accounts.map(acc => {
+  // Per-account summaries (including per-account category totals + tx count)
+  const accountSummaries = accounts.map((acc) => {
     const totalDeposits = acc.transactions.reduce((s, t) => s + (t.deposit ?? 0), 0);
     const totalWithdrawals = acc.transactions.reduce((s, t) => s + (t.withdrawal ?? 0), 0);
+    const categoryTotals: Record<string, number> = {};
+    for (const tx of acc.transactions) {
+      const inc = (tx.incomeCategories ?? {}) as Record<string, number>;
+      const exp = (tx.expenseCategories ?? {}) as Record<string, number>;
+      for (const [code, amt] of Object.entries(inc)) categoryTotals[code] = (categoryTotals[code] ?? 0) + (amt ?? 0);
+      for (const [code, amt] of Object.entries(exp)) categoryTotals[code] = (categoryTotals[code] ?? 0) + (amt ?? 0);
+    }
     return {
       id: acc.id,
       name: acc.name,
+      bankName: acc.bankName ?? undefined,
       openingBalance: acc.openingBalance,
       totalDeposits,
       totalWithdrawals,
       currentBalance: acc.openingBalance + totalDeposits - totalWithdrawals,
+      categoryTotals,
+      transactionCount: acc.transactions.length,
     };
   });
 
-  // Aggregate category totals across all transactions
-  const allTx = accounts.flatMap(a => a.transactions);
-  const catTotals: Record<string, { income: number; expense: number }> = {};
-  for (const tx of allTx) {
-    const inc = (tx.incomeCategories ?? {}) as Record<string, number>;
-    const exp = (tx.expenseCategories ?? {}) as Record<string, number>;
-    for (const [code, amt] of Object.entries(inc)) {
-      catTotals[code] = catTotals[code] ?? { income: 0, expense: 0 };
-      catTotals[code].income += amt;
-    }
-    for (const [code, amt] of Object.entries(exp)) {
-      catTotals[code] = catTotals[code] ?? { income: 0, expense: 0 };
-      catTotals[code].expense += amt;
+  // Global category totals (sum of income + expense activity per code)
+  const categoryTotals: Record<string, number> = {};
+  for (const acc of accountSummaries) {
+    for (const [code, amt] of Object.entries(acc.categoryTotals)) {
+      categoryTotals[code] = (categoryTotals[code] ?? 0) + amt;
     }
   }
 
-  const categorySummaries = categories.map(c => ({
-    id: c.id, code: c.code, name: c.name, type: c.type,
-    totalIncome: catTotals[c.code]?.income ?? 0,
-    totalExpense: catTotals[c.code]?.expense ?? 0,
+  const totalDeposits = accountSummaries.reduce((s, a) => s + a.totalDeposits, 0);
+  const totalWithdrawals = accountSummaries.reduce((s, a) => s + a.totalWithdrawals, 0);
+  const totalBalance = accountSummaries.reduce((s, a) => s + a.currentBalance, 0);
+
+  const categorySummaries = categories.map((c) => ({
+    id: c.id,
+    code: c.code,
+    name: c.name,
+    type: c.type,
+    order: c.order,
   }));
 
-  const grandTotalDeposits = accountSummaries.reduce((s, a) => s + a.totalDeposits, 0);
-  const grandTotalWithdrawals = accountSummaries.reduce((s, a) => s + a.totalWithdrawals, 0);
-  const grandBalance = accountSummaries.reduce((s, a) => s + a.currentBalance, 0);
-
-  return NextResponse.json({ accounts: accountSummaries, categories: categorySummaries, grandTotalDeposits, grandTotalWithdrawals, grandBalance });
+  return NextResponse.json({
+    accounts: accountSummaries,
+    categories: categorySummaries,
+    totals: { totalDeposits, totalWithdrawals, totalBalance, categoryTotals },
+    // Aliases consumed by the finance dashboard banner
+    grandTotalDeposits: totalDeposits,
+    grandTotalWithdrawals: totalWithdrawals,
+    grandBalance: totalBalance,
+  });
 }

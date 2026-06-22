@@ -9,7 +9,7 @@ interface CashFlowCategory {
   id: string;
   code: string;
   name: string;
-  type: "income" | "expense";
+  type: "income" | "expense" | "both";
   order: number;
 }
 
@@ -132,8 +132,8 @@ interface TxRowProps {
 }
 
 function TxRow({ index, tx, categories, onUpdate, onDelete }: TxRowProps) {
-  const incCats = categories.filter((c) => c.type === "income");
-  const expCats = categories.filter((c) => c.type === "expense");
+  const incCats = categories.filter((c) => c.type === "income" || c.type === "both");
+  const expCats = categories.filter((c) => c.type === "expense" || c.type === "both");
 
   const updateCatValue = (catCode: string, catType: "income" | "expense", val: string) => {
     const key = catType === "income" ? "incomeCategories" : "expenseCategories";
@@ -291,14 +291,26 @@ function AccountLedger({ account, categories }: AccountLedgerProps) {
 
   const handleUpdate = useCallback(
     (id: string, field: string, value: unknown) => {
+      // Normalize numeric fields: strip thousands separators / currency chars
+      let normalized: unknown = value;
+      if (field === "deposit" || field === "withdrawal" || field === "taxRate") {
+        if (value === "" || value === null || value === undefined) {
+          normalized = null;
+        } else {
+          const cleaned = String(value).replace(/[^0-9.\-]/g, "");
+          const num = parseFloat(cleaned);
+          normalized = isNaN(num) ? null : num;
+        }
+      }
+
       setTransactions((prev) => {
         const idx = prev.findIndex((t) => t.id === id);
         if (idx === -1) return prev;
         const updated = [...prev];
-        updated[idx] = { ...updated[idx], [field]: value };
+        updated[idx] = { ...updated[idx], [field]: normalized };
         let bal = account.openingBalance;
         return updated.map((t) => {
-          bal += (t.deposit ?? 0) - (t.withdrawal ?? 0);
+          bal += (Number(t.deposit) || 0) - (Number(t.withdrawal) || 0);
           return { ...t, balance: bal };
         });
       });
@@ -310,7 +322,7 @@ function AccountLedger({ account, categories }: AccountLedgerProps) {
           await fetch(`/api/cashflow/transactions/${id}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ [field]: value }),
+            body: JSON.stringify({ [field]: normalized }),
           });
         } finally {
           setSaving(false);
@@ -325,15 +337,15 @@ function AccountLedger({ account, categories }: AccountLedgerProps) {
       const filtered = prev.filter((t) => t.id !== id);
       let bal = account.openingBalance;
       return filtered.map((t) => {
-        bal += (t.deposit ?? 0) - (t.withdrawal ?? 0);
+        bal += (Number(t.deposit) || 0) - (Number(t.withdrawal) || 0);
         return { ...t, balance: bal };
       });
     });
     await fetch(`/api/cashflow/transactions/${id}`, { method: "DELETE" });
   };
 
-  const incCats = categories.filter((c) => c.type === "income");
-  const expCats = categories.filter((c) => c.type === "expense");
+  const incCats = categories.filter((c) => c.type === "income" || c.type === "both");
+  const expCats = categories.filter((c) => c.type === "expense" || c.type === "both");
 
   const currentBalance = transactions[transactions.length - 1]?.balance ?? account.openingBalance;
 
@@ -493,8 +505,8 @@ function CategoryPanel({ categories, onClose, onRefresh }: CategoryPanelProps) {
     onRefresh();
   };
 
-  const incCats = categories.filter((c) => c.type === "income");
-  const expCats = categories.filter((c) => c.type === "expense");
+  const incCats = categories.filter((c) => c.type === "income" || c.type === "both");
+  const expCats = categories.filter((c) => c.type === "expense" || c.type === "both");
 
   return (
     <div className="fixed inset-y-0 right-0 w-80 bg-card border-l border-border shadow-2xl z-50 flex flex-col">
@@ -610,10 +622,11 @@ function ReportTab({ onCategoriesUpdated }: { onCategoriesUpdated: () => void })
     );
   }
 
-  if (!data) return null;
+  if (!data || !data.totals || !Array.isArray(data.accounts)) return null;
 
-  const incCats = data.categories.filter((c) => c.type === "income");
-  const expCats = data.categories.filter((c) => c.type === "expense");
+  const categoryTotals = data.totals.categoryTotals ?? {};
+  const incCats = (data.categories ?? []).filter((c) => c.type === "income" || c.type === "both");
+  const expCats = (data.categories ?? []).filter((c) => c.type === "expense" || c.type === "both");
 
   return (
     <div className="p-4 space-y-6">
@@ -696,7 +709,7 @@ function ReportTab({ onCategoriesUpdated }: { onCategoriesUpdated: () => void })
               <table className="w-full text-sm">
                 <tbody>
                   {incCats.map((cat) => {
-                    const amount = data.totals.categoryTotals[cat.code] ?? 0;
+                    const amount = categoryTotals[cat.code] ?? 0;
                     return (
                       <tr key={cat.id} className="border-b border-border/20">
                         <td className="px-4 py-2">
@@ -719,7 +732,7 @@ function ReportTab({ onCategoriesUpdated }: { onCategoriesUpdated: () => void })
               <table className="w-full text-sm">
                 <tbody>
                   {expCats.map((cat) => {
-                    const amount = data.totals.categoryTotals[cat.code] ?? 0;
+                    const amount = categoryTotals[cat.code] ?? 0;
                     return (
                       <tr key={cat.id} className="border-b border-border/20">
                         <td className="px-4 py-2">
