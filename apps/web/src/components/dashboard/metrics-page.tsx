@@ -35,6 +35,14 @@ export interface MetricsDashboardProps {
   extraContent?: (metrics: MetricEntry[], months: number) => React.ReactNode;
   /** Hide the built-in title/subtitle header (use when parent renders its own) */
   hideTitle?: boolean;
+  /**
+   * When true, hides all manual data-entry affordances (add/edit/delete/import/
+   * template) and renders records read-only. Used for FINANCE, which is fed
+   * exclusively by SAT + the Cash Flow module.
+   */
+  disableManualEntry?: boolean;
+  /** Message shown under the read-only data source note when manual entry is off. */
+  readOnlyNote?: string;
 }
 
 export function MetricsDashboard({
@@ -50,6 +58,8 @@ export function MetricsDashboard({
   emptySubtitle,
   extraContent,
   hideTitle,
+  disableManualEntry,
+  readOnlyNote,
 }: MetricsDashboardProps) {
   const { toast } = useToast();
   const [metrics, setMetrics] = useState<MetricEntry[]>([]);
@@ -336,27 +346,37 @@ export function MetricsDashboard({
         {hideTitle && <div />}
         <div className="flex items-center gap-2">
           <ExportButton category={category} label="Exportar" />
-          <a
-            href={`/api/metrics/template?category=${category}`}
-            className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium transition-colors hover:bg-secondary"
-          >
-            <Download className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Plantilla</span>
-          </a>
-          <label className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium transition-colors hover:bg-secondary cursor-pointer">
-            <Upload className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">{importing ? "Importando..." : "CSV"}</span>
-            <input type="file" accept=".csv" onChange={handleImport} className="hidden" />
-          </label>
-          <button
-            onClick={() => setShowForm(true)}
-            className="flex items-center gap-2 rounded-lg gradient-bg px-3 py-2 sm:px-4 text-sm font-medium text-white transition-opacity hover:opacity-90"
-          >
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">Agregar Dato</span>
-          </button>
+          {!disableManualEntry && (
+            <>
+              <a
+                href={`/api/metrics/template?category=${category}`}
+                className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium transition-colors hover:bg-secondary"
+              >
+                <Download className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Plantilla</span>
+              </a>
+              <label className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium transition-colors hover:bg-secondary cursor-pointer">
+                <Upload className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">{importing ? "Importando..." : "CSV"}</span>
+                <input type="file" accept=".csv" onChange={handleImport} className="hidden" />
+              </label>
+              <button
+                onClick={() => setShowForm(true)}
+                className="flex items-center gap-2 rounded-lg gradient-bg px-3 py-2 sm:px-4 text-sm font-medium text-white transition-opacity hover:opacity-90"
+              >
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">Agregar Dato</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
+
+      {disableManualEntry && readOnlyNote && (
+        <div className="rounded-xl border border-border bg-secondary/30 px-4 py-3 text-xs text-muted-foreground">
+          {readOnlyNote}
+        </div>
+      )}
 
       {showForm && (
         <div className="rounded-xl border border-primary/20 bg-card p-4 sm:p-6">
@@ -414,9 +434,11 @@ export function MetricsDashboard({
           <LinkIcon className="h-10 w-10 text-muted-foreground mb-4" />
           <h3 className="text-lg font-semibold">{emptyTitle}</h3>
           <p className="mt-1 text-sm text-muted-foreground text-center max-w-md">{emptySubtitle}</p>
-          <button onClick={() => setShowForm(true)} className="mt-4 rounded-lg gradient-bg px-3 py-2 sm:px-4 text-sm font-medium text-white hover:opacity-90">
-            Entrada Manual
-          </button>
+          {!disableManualEntry && (
+            <button onClick={() => setShowForm(true)} className="mt-4 rounded-lg gradient-bg px-3 py-2 sm:px-4 text-sm font-medium text-white hover:opacity-90">
+              Entrada Manual
+            </button>
+          )}
         </div>
       ) : (
         <>
@@ -594,7 +616,7 @@ export function MetricsDashboard({
                 />
               </div>
             </div>
-            {selected.size > 0 && (
+            {!disableManualEntry && selected.size > 0 && (
               <div className="flex items-center justify-between border-b border-border bg-primary/5 px-4 py-2">
                 <span className="text-xs font-medium">{selected.size} seleccionado{selected.size > 1 ? "s" : ""}</span>
                 <button
@@ -619,14 +641,16 @@ export function MetricsDashboard({
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-semibold">{fmtValue(m.value, m.unit)}</span>
-                    <div className="flex items-center gap-1">
-                      <button aria-label={`Editar ${m.name}`} onClick={() => openEdit(m)} className="text-muted-foreground hover:text-primary p-1">
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                      <button aria-label={`Eliminar ${m.name}`} onClick={() => setDeleteId(m.id)} className="text-muted-foreground hover:text-red-500 p-1">
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
+                    {!disableManualEntry && (
+                      <div className="flex items-center gap-1">
+                        <button aria-label={`Editar ${m.name}`} onClick={() => openEdit(m)} className="text-muted-foreground hover:text-primary p-1">
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button aria-label={`Eliminar ${m.name}`} onClick={() => setDeleteId(m.id)} className="text-muted-foreground hover:text-red-500 p-1">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -637,22 +661,24 @@ export function MetricsDashboard({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                    <th scope="col" className="p-3 w-8">
-                      <input
-                        type="checkbox"
-                        aria-label="Seleccionar todos los registros"
-                        checked={selected.size === filtered.length && filtered.length > 0}
-                        onChange={(e) => {
-                          if (e.target.checked) setSelected(new Set(filtered.map((m) => m.id)));
-                          else setSelected(new Set());
-                        }}
-                        className="rounded border-border"
-                      />
-                    </th>
+                    {!disableManualEntry && (
+                      <th scope="col" className="p-3 w-8">
+                        <input
+                          type="checkbox"
+                          aria-label="Seleccionar todos los registros"
+                          checked={selected.size === filtered.length && filtered.length > 0}
+                          onChange={(e) => {
+                            if (e.target.checked) setSelected(new Set(filtered.map((m) => m.id)));
+                            else setSelected(new Set());
+                          }}
+                          className="rounded border-border"
+                        />
+                      </th>
+                    )}
                     <th scope="col" className="p-3 font-medium">Métrica</th>
                     <th scope="col" className="p-3 font-medium text-right">Valor</th>
                     <th scope="col" className="p-3 font-medium">Fecha</th>
-                    <th scope="col" className="p-3 font-medium w-20"></th>
+                    {!disableManualEntry && <th scope="col" className="p-3 font-medium w-20"></th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -661,41 +687,45 @@ export function MetricsDashboard({
                   )}
                   {filtered.map((m) => (
                     <tr key={m.id} className="border-b border-border last:border-0 hover:bg-secondary/30">
-                      <td className="p-3">
-                        <input
-                          type="checkbox"
-                          aria-label={`Seleccionar ${m.name}`}
-                          checked={selected.has(m.id)}
-                          onChange={(e) => {
-                            const next = new Set(selected);
-                            if (e.target.checked) next.add(m.id);
-                            else next.delete(m.id);
-                            setSelected(next);
-                          }}
-                          className="rounded border-border"
-                        />
-                      </td>
+                      {!disableManualEntry && (
+                        <td className="p-3">
+                          <input
+                            type="checkbox"
+                            aria-label={`Seleccionar ${m.name}`}
+                            checked={selected.has(m.id)}
+                            onChange={(e) => {
+                              const next = new Set(selected);
+                              if (e.target.checked) next.add(m.id);
+                              else next.delete(m.id);
+                              setSelected(next);
+                            }}
+                            className="rounded border-border"
+                          />
+                        </td>
+                      )}
                       <td className="p-3 font-medium">{m.name}</td>
                       <td className="p-3 text-right font-semibold">{fmtValue(m.value, m.unit)}</td>
                       <td className="p-3 text-muted-foreground">{new Date(m.period).toLocaleDateString("es-MX")}</td>
-                      <td className="p-3">
-                        <div className="flex items-center gap-1">
-                          <button
-                            aria-label={`Editar ${m.name}`}
-                            onClick={() => openEdit(m)}
-                            className="text-muted-foreground hover:text-primary"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            aria-label={`Eliminar ${m.name}`}
-                            onClick={() => setDeleteId(m.id)}
-                            className="text-muted-foreground hover:text-red-500"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </td>
+                      {!disableManualEntry && (
+                        <td className="p-3">
+                          <div className="flex items-center gap-1">
+                            <button
+                              aria-label={`Editar ${m.name}`}
+                              onClick={() => openEdit(m)}
+                              className="text-muted-foreground hover:text-primary"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              aria-label={`Eliminar ${m.name}`}
+                              onClick={() => setDeleteId(m.id)}
+                              className="text-muted-foreground hover:text-red-500"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>

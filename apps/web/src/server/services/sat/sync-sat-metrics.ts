@@ -79,6 +79,17 @@ export async function startSatDownload(organizationId: string): Promise<void> {
     throw new Error("No SAT credential found for this organization");
   }
 
+  // Avoid stacking duplicate requests: if a download for a given type is still
+  // in progress (pending/accepted/finished), don't create another one for it.
+  const inProgress = await db.satDownloadRequest.findMany({
+    where: {
+      organizationId,
+      status: { in: ["pending", "accepted", "finished"] },
+    },
+    select: { downloadType: true },
+  });
+  const inProgressTypes = new Set(inProgress.map((r) => r.downloadType));
+
   await db.satCredential.update({
     where: { organizationId },
     data: { syncStatus: "syncing", lastError: null },
@@ -89,9 +100,12 @@ export async function startSatDownload(organizationId: string): Promise<void> {
     const periodFrom = new Date();
     periodFrom.setMonth(periodFrom.getMonth() - 3);
 
+    const allTypes: Array<"issued" | "received"> = ["issued", "received"];
+    const types = allTypes.filter((t) => !inProgressTypes.has(t));
+    if (types.length === 0) return; // both types already syncing
+
     const { service } = await serviceForCredential(credential);
 
-    const types: Array<"issued" | "received"> = ["issued", "received"];
     for (const downloadType of types) {
       const satRequestId = await createQuery(
         service,
@@ -149,11 +163,19 @@ async function recomputeMetrics(
 
     await Promise.all([
       upsertMetric("Ingresos", month.ingresos),
-      upsertMetric("Egresos", month.egresos),
+      // "Gastos" (not "Egresos") to match the FINANCE dashboard card name so
+      // SAT egresos and cashflow withdrawals roll into the same KPI.
+      upsertMetric("Gastos", month.egresos),
       upsertMetric("Balance Fiscal", month.balance),
       upsertMetric("IVA Cobrado", month.ivaCobrado),
     ]);
   }
+
+  // Remove any legacy "Egresos" rows so the dashboard doesn't double-count
+  // alongside the new "Gastos" rows.
+  await db.metric.deleteMany({
+    where: { organizationId, source: "SAT", name: "Egresos" },
+  });
 }
 
 /**
@@ -281,10 +303,20 @@ export async function pollSatDownloads(organizationId?: string): Promise<void> {
       }
     }
 
-    // Pull in any previously-downloaded requests' packages so the recompute
-    // reflects ALL data, not just what finished this poll.
+    // Pull in recently-downloaded requests' packages so the recompute reflects
+    // ALL data, not just what finished this poll (e.g. issued finished today,
+    // received yesterday). We only re-download requests from the last 3 days:
+    // SAT packages expire after a few days, and re-downloading an expired
+    // package would otherwise throw and recompute a month from PARTIAL data,
+    // regressing the stored metric. Fresh rolling-window downloads keep the
+    // numbers current and correct.
+    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
     const priorDownloaded = await db.satDownloadRequest.findMany({
-      where: { organizationId: orgId, status: "downloaded" },
+      where: {
+        organizationId: orgId,
+        status: "downloaded",
+        createdAt: { gte: threeDaysAgo },
+      },
     });
     const processedIds = new Set(orgRequests.map((r) => r.id));
     for (const req of priorDownloaded) {
@@ -323,4 +355,64 @@ export async function pollSatDownloads(organizationId?: string): Promise<void> {
       });
     }
   }
+}
+
+/**
+ * Keeps every connected SAT credential up to date. For each org:
+ *   1. Polls any in-progress download requests (verify/download/parse).
+ *   2. If the org is idle (no in-progress requests) and its data is stale
+ *      (last successful sync > ~20h ago, or never), starts a fresh rolling
+ *      3-month download so newly-issued/received CFDIs flow in, then polls.
+ *
+ * This is the function the daily cron should call so finanzas stays "al día"
+ * without manual intervention. It processes ALL connected orgs, not only the
+ * ones that happen to have a pending request.
+ *
+ * Returns a per-org summary for observability.
+ */
+export async function refreshAllSatCredentials(): Promise<
+  Array<{ organizationId: string; action: string; syncStatus?: string; error?: string }>
+> {
+  const credentials = await db.satCredential.findMany({
+    select: { organizationId: true, lastSyncAt: true },
+  });
+
+  const STALE_MS = 20 * 60 * 60 * 1000; // 20h
+  const results: Array<{ organizationId: string; action: string; syncStatus?: string; error?: string }> = [];
+
+  for (const { organizationId, lastSyncAt } of credentials) {
+    try {
+      // 1) Advance anything already in flight.
+      await pollSatDownloads(organizationId);
+
+      // 2) Decide whether to kick off a fresh rolling-window download.
+      const inProgress = await db.satDownloadRequest.count({
+        where: {
+          organizationId,
+          status: { in: ["pending", "accepted", "finished"] },
+        },
+      });
+
+      const isStale =
+        !lastSyncAt || Date.now() - new Date(lastSyncAt).getTime() > STALE_MS;
+
+      let action = "polled";
+      if (inProgress === 0 && isStale) {
+        await startSatDownload(organizationId);
+        await pollSatDownloads(organizationId);
+        action = "refreshed";
+      }
+
+      const cred = await db.satCredential.findUnique({
+        where: { organizationId },
+        select: { syncStatus: true },
+      });
+      results.push({ organizationId, action, syncStatus: cred?.syncStatus });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "unknown error";
+      results.push({ organizationId, action: "error", error: message });
+    }
+  }
+
+  return results;
 }

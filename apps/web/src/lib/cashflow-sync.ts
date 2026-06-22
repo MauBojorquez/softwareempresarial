@@ -5,12 +5,13 @@ import { db } from "@/server/db";
  * dashboard reflects real bank movements. Each call re-computes all months
  * from scratch for the org and replaces previous cashflow-sourced metrics.
  *
- * Metrics written:
- *   name: "Ingreso"  category: FINANCE  metadata.cashflow: true  — total deposits per month
- *   name: "Egreso"   category: FINANCE  metadata.cashflow: true  — total withdrawals per month
+ * Metrics written (canonical FINANCE card names so the dashboard cards pick
+ * them up directly — see CATEGORY_TEMPLATES.FINANCE):
+ *   name: "Ingresos"  category: FINANCE  metadata.cashflow: true  — total deposits per month
+ *   name: "Gastos"    category: FINANCE  metadata.cashflow: true  — total withdrawals per month
  *
- * The dashboard sums FINANCE metrics matching "ingreso"/"egreso" keywords
- * (when SAT is not connected), so these automatically populate the cards.
+ * "Flujo de Caja" is a computed card (Ingresos - Gastos) so it updates
+ * automatically once these two move.
  */
 export async function syncCashflowMetrics(orgId: string): Promise<void> {
   // Fetch all active accounts + their transactions for this org
@@ -63,7 +64,7 @@ export async function syncCashflowMetrics(orgId: string): Promise<void> {
       rows.push({
         organizationId: orgId,
         category: "FINANCE",
-        name: "Ingreso",
+        name: "Ingresos",
         value: deposits,
         unit: "MXN",
         period,
@@ -74,7 +75,7 @@ export async function syncCashflowMetrics(orgId: string): Promise<void> {
       rows.push({
         organizationId: orgId,
         category: "FINANCE",
-        name: "Egreso",
+        name: "Gastos",
         value: withdrawals,
         unit: "MXN",
         period,

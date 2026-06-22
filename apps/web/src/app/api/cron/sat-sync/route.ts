@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/server/db";
-import { pollSatDownloads } from "@/server/services/sat/sync-sat-metrics";
+import { refreshAllSatCredentials } from "@/server/services/sat/sync-sat-metrics";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// SAT verify/download/parse can be slow; give the cron room to finish.
+export const maxDuration = 300;
 
 function isAuthorized(req: NextRequest): boolean {
   const secret = process.env.CRON_SECRET;
+  // Vercel cron invocations carry the Authorization: Bearer <CRON_SECRET>
+  // header automatically when CRON_SECRET is configured in the project env.
   if (!secret) return false;
   const auth = req.headers.get("authorization");
   return auth === `Bearer ${secret}`;
@@ -17,25 +20,11 @@ async function handle(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Distinct orgs that still have non-terminal download requests.
-  const orgs = await db.satDownloadRequest.findMany({
-    where: { status: { in: ["pending", "accepted", "finished"] } },
-    select: { organizationId: true },
-    distinct: ["organizationId"],
-  });
+  // Polls in-flight requests AND kicks off fresh rolling-window downloads for
+  // any connected org whose data is stale, so finanzas stays up to date.
+  const results = await refreshAllSatCredentials();
 
-  let processed = 0;
-  for (const { organizationId } of orgs) {
-    try {
-      await pollSatDownloads(organizationId);
-      processed++;
-    } catch {
-      // Continue with remaining orgs; per-org errors are recorded in their
-      // credential status by pollSatDownloads.
-    }
-  }
-
-  return NextResponse.json({ processed });
+  return NextResponse.json({ processed: results.length, results });
 }
 
 export async function GET(req: NextRequest) {

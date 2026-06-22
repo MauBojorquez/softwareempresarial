@@ -56,6 +56,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Valid category, name, and value are required" }, { status: 400 });
   }
 
+  // Finanzas se alimenta solo del SAT y del módulo de Flujo de Efectivo.
+  // No se permiten registros manuales en esta categoría.
+  if (category === "FINANCE") {
+    return NextResponse.json(
+      { error: "Finanzas se alimenta automáticamente del SAT y del Flujo de Efectivo. No se permiten registros manuales." },
+      { status: 400 },
+    );
+  }
+
   if (typeof name !== "string" || name.length > 100) {
     return NextResponse.json({ error: "Invalid name" }, { status: 400 });
   }

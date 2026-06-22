@@ -79,12 +79,11 @@ export async function GET(req: NextRequest) {
     const ingresoKw = ["ingreso", "venta", "facturado", "facturacion", "cobrado"];
     const egresoKw = ["egreso", "gasto", "compra", "costo", "pago"];
 
-    const satIngresos = satConnected
-      ? flow("FINANCE", ["ingreso"], [], "SAT")
-      : flow("FINANCE", ingresoKw, []);
-    const satEgresos = satConnected
-      ? flow("FINANCE", ["egreso"], [], "SAT")
-      : flow("FINANCE", egresoKw, []);
+    // Finanzas = SAT + Flujo de Efectivo (no manual entries). Both sources
+    // write FINANCE metrics named "Ingresos"/"Gastos", so we sum across all
+    // sources without filtering by SAT — that naturally combines the two.
+    const satIngresos = flow("FINANCE", ingresoKw, []);
+    const satEgresos = flow("FINANCE", egresoKw, []);
     const satBalance = satIngresos.value - satEgresos.value;
     const satIva = satConnected
       ? sumMonth("FINANCE", ["iva"], currentYear, currentMonth, [], "SAT")
@@ -126,8 +125,8 @@ export async function GET(req: NextRequest) {
         })
         .reduce((s, m) => s + m.value, 0);
 
-    const ytdRevenue = satConnected ? sumYear("FINANCE", ["ingreso"], [], "SAT") : sumYear("FINANCE", ingresoKw);
-    const ytdGastos = satConnected ? sumYear("FINANCE", ["egreso"], [], "SAT") : sumYear("FINANCE", egresoKw);
+    const ytdRevenue = sumYear("FINANCE", ingresoKw);
+    const ytdGastos = sumYear("FINANCE", egresoKw);
 
     const annualProjection = currentMonth >= 0 ? (ytdRevenue / (currentMonth + 1)) * 12 : ytdRevenue;
     const revenuePerEmployee = headcount > 0 ? satIngresos.value / headcount : 0;
@@ -139,12 +138,8 @@ export async function GET(req: NextRequest) {
     for (let i = 5; i >= 0; i--) {
       const m = new Date(Date.UTC(currentYear, currentMonth - i, 1));
       const monthName = m.toLocaleDateString("es-MX", { month: "short", timeZone: "UTC" });
-      const ing = satConnected
-        ? sumMonth("FINANCE", ["ingreso"], m.getUTCFullYear(), m.getUTCMonth(), [], "SAT")
-        : sumMonth("FINANCE", ingresoKw, m.getUTCFullYear(), m.getUTCMonth());
-      const gas = satConnected
-        ? sumMonth("FINANCE", ["egreso"], m.getUTCFullYear(), m.getUTCMonth(), [], "SAT")
-        : sumMonth("FINANCE", egresoKw, m.getUTCFullYear(), m.getUTCMonth());
+      const ing = sumMonth("FINANCE", ingresoKw, m.getUTCFullYear(), m.getUTCMonth());
+      const gas = sumMonth("FINANCE", egresoKw, m.getUTCFullYear(), m.getUTCMonth());
       monthlyHistory.push({ month: monthName, ingresos: ing, gastos: gas });
     }
 

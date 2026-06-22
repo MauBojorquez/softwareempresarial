@@ -162,8 +162,10 @@ export default function FinancePage() {
       iconMap={ICON_MAP}
       defaultIcon={DollarSign}
       activityLabel="Finanzas"
+      disableManualEntry
+      readOnlyNote="Finanzas se alimenta automáticamente del SAT y del módulo de Flujo de Efectivo. No se capturan datos manuales aquí: registra los movimientos en Flujo de Efectivo y se reflejarán en estas métricas."
       emptyTitle="Sin datos financieros"
-      emptySubtitle="Conecta el SAT para importar automáticamente o agrega manualmente tus ingresos, gastos y flujo de caja."
+      emptySubtitle="Conecta el SAT o registra movimientos en el módulo de Flujo de Efectivo para ver tus ingresos, gastos y flujo de caja."
       extraContent={(metrics, months) => (
         <>
           <CashFlowBanner />
