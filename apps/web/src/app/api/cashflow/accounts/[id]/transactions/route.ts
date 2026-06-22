@@ -23,7 +23,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   let balance = account.openingBalance;
   const rows = transactions.map(t => {
     balance += (t.deposit ?? 0) - (t.withdrawal ?? 0);
-    return { ...t, runningBalance: balance };
+    return { ...t, balance };
   });
   return NextResponse.json({ account, transactions: rows });
 }

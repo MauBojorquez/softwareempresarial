@@ -34,24 +34,13 @@ function CashFlowBanner() {
 
   useEffect(() => {
     fetch("/api/cashflow/report")
-      .then(r => r.json())
-      .then(d => { setData(d); setLoading(false); })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d && Array.isArray(d.accounts)) setData(d); setLoading(false); })
       .catch(() => setLoading(false));
   }, []);
 
-  if (loading) return (
-    <div className="rounded-2xl border border-border bg-card p-4 animate-pulse">
-      <div className="h-3 w-32 rounded bg-secondary mb-3" />
-      <div className="grid grid-cols-3 gap-3">
-        {[0,1,2].map(i => <div key={i} className="h-10 rounded-xl bg-secondary" />)}
-      </div>
-    </div>
-  );
+  if (loading || !data || !data.accounts?.length) return null;
 
-  if (!data || data.accounts.length === 0) return null;
-
-  // Compute current-month totals
-  const now = new Date();
   const balance = data.grandBalance;
   const deposits = data.grandTotalDeposits;
   const withdrawals = data.grandTotalWithdrawals;
