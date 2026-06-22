@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { getOrganizationId } from "@/lib/get-org";
+import { syncCashflowMetrics } from "@/lib/cashflow-sync";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   const updated = await db.cashFlowTransaction.update({ where: { id: params.id }, data });
+  syncCashflowMetrics(orgId).catch(console.error);
   return NextResponse.json({ transaction: updated });
 }
 
@@ -48,5 +50,6 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   await db.cashFlowTransaction.delete({ where: { id: params.id } });
+  syncCashflowMetrics(orgId).catch(console.error);
   return NextResponse.json({ ok: true });
 }

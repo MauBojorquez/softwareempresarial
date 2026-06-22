@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { getOrganizationId } from "@/lib/get-org";
+import { syncCashflowMetrics } from "@/lib/cashflow-sync";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +56,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         order: count,
       },
     });
+    // Fire-and-forget sync — don't block the response
+    syncCashflowMetrics(orgId).catch(console.error);
     return NextResponse.json({ transaction: tx });
   } catch (err) {
     console.error("cashflow transactions POST error:", err);
