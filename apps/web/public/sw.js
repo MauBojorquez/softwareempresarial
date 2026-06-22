@@ -1,5 +1,5 @@
 // StratiuMetrics service worker — offline support + asset caching + web push.
-const CACHE = "metrixpro-v2";
+const CACHE = "metrixpro-v3";
 const OFFLINE_URL = "/offline.html";
 const PRECACHE = [OFFLINE_URL, "/manifest.json", "/favicon.svg"];
 
@@ -34,8 +34,26 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Static assets (Next chunks, images, fonts): cache-first.
-  if (/\.(?:js|css|woff2?|png|jpg|jpeg|svg|gif|webp|ico)$/.test(url.pathname) || url.pathname.startsWith("/_next/")) {
+  // Next.js build assets (/_next/) change hash on every deploy. Serving a
+  // stale cached chunk after a new deploy causes ChunkLoadError → the page
+  // reloads itself repeatedly (the "loop"). Use NETWORK-FIRST for these so
+  // the user always gets chunks matching the freshly-served HTML; fall back
+  // to cache only when offline.
+  if (url.pathname.startsWith("/_next/")) {
+    event.respondWith(
+      fetch(request)
+        .then((res) => {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(request, copy)).catch(() => {});
+          return res;
+        })
+        .catch(() => caches.match(request))
+    );
+    return;
+  }
+
+  // Other static assets (images, fonts, root-level css/js): cache-first.
+  if (/\.(?:js|css|woff2?|png|jpg|jpeg|svg|gif|webp|ico)$/.test(url.pathname)) {
     event.respondWith(
       caches.match(request).then((cached) => {
         if (cached) return cached;
