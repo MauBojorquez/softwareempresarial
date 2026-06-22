@@ -9,13 +9,24 @@ import { useEffect, useState, useRef } from "react";
 import {
   LayoutDashboard, DollarSign, TrendingUp, Settings2, Users,
   Megaphone, FileText, Plug, CreditCard, LogOut, X, Settings, Target,
-  Building2, ChevronDown, Plus, Check, UsersRound,
+  Building2, ChevronDown, Plus, Check, UsersRound, Wallet, BarChart3,
 } from "lucide-react";
 
-const navigation = [
+type NavChild = { name: string; href: string; icon: typeof LayoutDashboard };
+type NavItem = { name: string; href: string; icon: typeof LayoutDashboard; children?: NavChild[] };
+
+const navigation: NavItem[] = [
   { name: "Resumen", href: "/dashboard/overview", icon: LayoutDashboard },
   { name: "Metas", href: "/dashboard/goals", icon: Target },
-  { name: "Finanzas", href: "/dashboard/finance", icon: DollarSign },
+  {
+    name: "Finanzas",
+    href: "/dashboard/finance",
+    icon: DollarSign,
+    children: [
+      { name: "Dashboard", href: "/dashboard/finance", icon: BarChart3 },
+      { name: "Flujo de Efectivo", href: "/dashboard/finance/cashflow", icon: Wallet },
+    ],
+  },
   { name: "Ventas", href: "/dashboard/sales", icon: TrendingUp },
   { name: "Operaciones", href: "/dashboard/operations", icon: Settings2 },
   { name: "RRHH", href: "/dashboard/hr", icon: Users },
@@ -39,7 +50,19 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
   const [avatar, setAvatar] = useState<string | null>(null);
   const [showOrgMenu, setShowOrgMenu] = useState(false);
   const [allowedSections, setAllowedSections] = useState<string[]>([]);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const orgMenuRef = useRef<HTMLDivElement>(null);
+
+  // Auto-expand a parent whose sub-route is active so the submenu is visible.
+  useEffect(() => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      for (const item of navigation) {
+        if (item.children && pathname.startsWith(item.href)) next.add(item.href);
+      }
+      return next;
+    });
+  }, [pathname]);
 
   useEffect(() => {
     fetch("/api/user")
@@ -183,6 +206,70 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
             const section = sectionMap[item.href];
             return !section || allowedSections.includes(section);
           }).map((item) => {
+            // Items with children render as an expandable group.
+            if (item.children) {
+              const isOpen = expanded.has(item.href);
+              const isActive = pathname.startsWith(item.href);
+              return (
+                <div key={item.href}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setExpanded((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(item.href)) next.delete(item.href);
+                        else next.add(item.href);
+                        return next;
+                      })
+                    }
+                    aria-expanded={isOpen}
+                    className={cn(
+                      "nav-item group relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium",
+                      isActive
+                        ? "bg-gradient-to-r from-primary/15 to-primary/5 text-primary font-semibold"
+                        : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                    )}
+                  >
+                    {isActive && (
+                      <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full gradient-bg" />
+                    )}
+                    <item.icon className={cn("h-4 w-4 transition-transform", isActive ? "scale-110" : "group-hover:scale-110")} />
+                    <span className="flex-1 text-left">{item.name}</span>
+                    <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", isOpen && "rotate-180")} />
+                  </button>
+                  {isOpen && (
+                    <div className="mt-0.5 space-y-0.5 pl-4">
+                      {item.children.map((child) => {
+                        // Exact match for the parent's index route, prefix match otherwise,
+                        // so "Dashboard" isn't highlighted while on the cashflow sub-route.
+                        const childActive =
+                          child.href === item.href
+                            ? pathname === child.href
+                            : pathname.startsWith(child.href);
+                        return (
+                          <Link
+                            key={child.href}
+                            href={child.href}
+                            onClick={onClose}
+                            aria-current={childActive ? "page" : undefined}
+                            className={cn(
+                              "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium",
+                              childActive
+                                ? "text-primary font-semibold"
+                                : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                            )}
+                          >
+                            <child.icon className="h-3.5 w-3.5" />
+                            {child.name}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             const isActive = pathname.startsWith(item.href);
             return (
               <Link
