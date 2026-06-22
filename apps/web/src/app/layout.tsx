@@ -75,6 +75,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             __html: `(function(){try{var t=localStorage.getItem('metrixpro-theme');var d=t==='dark'||((!t||t==='system')&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);}catch(e){}})();`,
           }}
         />
+        {/* Self-heal from stale-Service-Worker ChunkLoadError reload-loops.
+            When a new deploy changes chunk hashes, an old cache-first SW can
+            serve stale chunks → ChunkLoadError → the app reloads itself over
+            and over. On the first chunk failure we nuke every SW + cache and
+            reload exactly once (guarded by sessionStorage) to recover. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){function heal(){try{if(sessionStorage.getItem('sw-healed'))return;sessionStorage.setItem('sw-healed','1');if(window.caches&&caches.keys){caches.keys().then(function(ks){ks.forEach(function(k){caches.delete(k)})})}if(navigator.serviceWorker&&navigator.serviceWorker.getRegistrations){navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister()})}).finally(function(){location.reload()})}else{location.reload()}}catch(e){try{location.reload()}catch(_){}}}function isChunkErr(m){return m&&(/ChunkLoadError/i.test(m)||/Loading chunk [\\d]+ failed/i.test(m)||/Loading CSS chunk/i.test(m)||/error loading dynamically imported module/i.test(m))}window.addEventListener('error',function(e){if(isChunkErr(e&&e.message)||(e&&e.error&&isChunkErr(e.error.message)))heal()});window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;if(r&&isChunkErr(typeof r==='string'?r:r.message))heal()});})();`,
+          }}
+        />
       </head>
       <body className={inter.className}>
         <AuthProvider>{children}</AuthProvider>
