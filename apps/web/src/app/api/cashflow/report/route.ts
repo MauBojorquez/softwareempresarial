@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { getOrganizationId } from "@/lib/get-org";
+import { syncCashflowMetrics } from "@/lib/cashflow-sync";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,11 @@ export async function GET(req: NextRequest) {
   try {
     const orgId = await getOrganizationId(req);
     if (!orgId) return NextResponse.json(EMPTY);
+
+    // Reconcile cashflow → finance metrics in the background so existing
+    // transactions (entered before the sync existed) show up in Finanzas
+    // without needing a manual edit. Fire-and-forget; never blocks the report.
+    void syncCashflowMetrics(orgId).catch(() => {});
 
     const [accounts, categories] = await Promise.all([
       db.cashFlowAccount.findMany({
