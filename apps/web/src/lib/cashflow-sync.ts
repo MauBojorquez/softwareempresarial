@@ -12,6 +12,10 @@ import { db } from "@/server/db";
  *
  * "Flujo de Caja" is a computed card (Ingresos - Gastos) so it updates
  * automatically once these two move.
+ *
+ * The delete + insert run inside a single transaction so concurrent reads
+ * (the dashboard reconciles on every load) never observe a moment where the
+ * cashflow rows are missing.
  */
 export async function syncCashflowMetrics(orgId: string): Promise<void> {
   // Fetch all active accounts + their transactions for this org
@@ -38,18 +42,7 @@ export async function syncCashflowMetrics(orgId: string): Promise<void> {
     }
   }
 
-  // Delete all previously synced cashflow metrics for this org
-  await db.metric.deleteMany({
-    where: {
-      organizationId: orgId,
-      category: "FINANCE",
-      metadata: { path: ["cashflow"], equals: true },
-    },
-  });
-
-  if (byMonth.size === 0) return;
-
-  // Insert fresh monthly totals
+  // Build fresh monthly totals before touching the DB
   const rows: {
     organizationId: string;
     category: "FINANCE";
@@ -84,7 +77,19 @@ export async function syncCashflowMetrics(orgId: string): Promise<void> {
     }
   }
 
+  // Atomic swap: delete previously synced cashflow metrics and insert the
+  // fresh ones in one transaction so readers never see an empty window.
+  const deleteOp = db.metric.deleteMany({
+    where: {
+      organizationId: orgId,
+      category: "FINANCE",
+      metadata: { path: ["cashflow"], equals: true },
+    },
+  });
+
   if (rows.length > 0) {
-    await db.metric.createMany({ data: rows });
+    await db.$transaction([deleteOp, db.metric.createMany({ data: rows })]);
+  } else {
+    await deleteOp;
   }
 }

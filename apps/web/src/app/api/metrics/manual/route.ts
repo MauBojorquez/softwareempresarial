@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/server/db";
 import { logActivity } from "@/lib/activity";
+import { syncCashflowMetrics } from "@/lib/cashflow-sync";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -17,6 +18,15 @@ export async function GET(req: NextRequest) {
   const validCategories = ["FINANCE", "SALES", "OPERATIONS", "HR", "MARKETING"];
   if (!category || !validCategories.includes(category)) {
     return NextResponse.json({ error: "Valid category is required" }, { status: 400 });
+  }
+
+  // The Finanzas page reads FINANCE rows here. Reconcile cashflow first so the
+  // cards (Ingresos / Gastos / computed Flujo de Caja) always match the Flujo
+  // de Efectivo module, even on a direct visit without editing a transaction.
+  if (category === "FINANCE") {
+    await syncCashflowMetrics(membership.organizationId).catch((e) =>
+      console.error("cashflow reconcile (finance):", e),
+    );
   }
 
   // Anchor to the first day of the month `months` months ago so the

@@ -69,7 +69,19 @@ export function MetricsDashboard({
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [search, setSearch] = useState("");
-  const [months, setMonths] = useState(3);
+  // Remember the selected range across reloads (per category) so refreshing the
+  // page returns the user to where they left off instead of snapping back to a
+  // default. Read synchronously so there's no flicker / double-fetch on mount.
+  const monthsKey = `metrixpro-months-${category}`;
+  const [months, setMonthsState] = useState<number>(() => {
+    if (typeof window === "undefined") return 3;
+    const n = parseInt(window.localStorage.getItem(`metrixpro-months-${category}`) || "", 10);
+    return [1, 3, 6, 12].includes(n) ? n : 3;
+  });
+  const setMonths = (m: number) => {
+    setMonthsState(m);
+    try { localStorage.setItem(monthsKey, String(m)); } catch {}
+  };
   const [form, setForm] = useState({ name: templates[0].name, value: "", period: new Date().toISOString().split("T")[0] });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [autoRefresh, setAutoRefresh] = useState(false);

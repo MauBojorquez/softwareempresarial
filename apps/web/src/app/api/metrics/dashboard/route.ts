@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOrganizationId } from "@/lib/get-org";
 import { db } from "@/server/db";
+import { syncCashflowMetrics } from "@/lib/cashflow-sync";
 
 type M = { name: string; value: number; unit: string | null; period: Date; category: string; source: string | null };
 
@@ -9,6 +10,12 @@ export async function GET(req: NextRequest) {
   if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
+    // Reconcile cashflow → FINANCE metrics before reading so the overview
+    // always reflects the latest bank movements, even when the user lands here
+    // directly without opening the Flujo de Efectivo page first. Awaited (not
+    // fire-and-forget) so the very first load already shows fresh numbers.
+    await syncCashflowMetrics(orgId).catch((e) => console.error("cashflow reconcile (dashboard):", e));
+
     const metrics = (await db.metric.findMany({
       where: { organizationId: orgId },
       orderBy: { period: "desc" },
