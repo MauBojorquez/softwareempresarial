@@ -7,6 +7,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { NotificationBell } from "@/components/notifications";
 import { InstallButton } from "@/components/install-button";
+import { CASHFLOW_ONLY } from "@/lib/app-mode";
 
 type SearchResult = {
   type: "metric" | "report";
@@ -77,7 +78,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
         <button aria-label="Menú" onClick={onMenuClick} className="hidden md:flex rounded-lg p-1.5 text-muted-foreground hover:text-foreground lg:hidden">
           <Menu className="h-5 w-5" />
         </button>
-        <div ref={ref} className="relative hidden sm:block">
+        <div ref={ref} className={`relative hidden sm:block ${CASHFLOW_ONLY ? "!hidden" : ""}`}>
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
@@ -124,22 +125,26 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
         >
           {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </button>
-        <button
-          onClick={() => { const e = new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }); document.dispatchEvent(e); }}
-          aria-label="Paleta de comandos"
-          title="Paleta de comandos (⌘K)"
-          className="hidden sm:flex items-center gap-1.5 rounded-lg border border-border bg-card px-2 py-2 text-muted-foreground transition-colors hover:text-foreground hover:bg-secondary"
-        >
-          <Command className="h-4 w-4" />
-          <kbd className="text-[10px] font-mono">⌘K</kbd>
-        </button>
-        <a
-          href="/dashboard/reports"
-          className="flex items-center gap-1.5 rounded-lg gradient-bg px-2.5 py-1.5 text-[11px] font-medium text-white transition-opacity hover:opacity-90 sm:px-3 sm:text-xs"
-        >
-          <Sparkles className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-          <span className="hidden xs:inline sm:inline">Reporte IA</span>
-        </a>
+        {!CASHFLOW_ONLY && (
+          <button
+            onClick={() => { const e = new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }); document.dispatchEvent(e); }}
+            aria-label="Paleta de comandos"
+            title="Paleta de comandos (⌘K)"
+            className="hidden sm:flex items-center gap-1.5 rounded-lg border border-border bg-card px-2 py-2 text-muted-foreground transition-colors hover:text-foreground hover:bg-secondary"
+          >
+            <Command className="h-4 w-4" />
+            <kbd className="text-[10px] font-mono">⌘K</kbd>
+          </button>
+        )}
+        {!CASHFLOW_ONLY && (
+          <a
+            href="/dashboard/reports"
+            className="flex items-center gap-1.5 rounded-lg gradient-bg px-2.5 py-1.5 text-[11px] font-medium text-white transition-opacity hover:opacity-90 sm:px-3 sm:text-xs"
+          >
+            <Sparkles className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+            <span className="hidden xs:inline sm:inline">Reporte IA</span>
+          </a>
+        )}
         <InstallButton />
         <NotificationBell />
         <a href="/dashboard/settings" className="h-7 w-7 rounded-full overflow-hidden flex items-center justify-center sm:h-8 sm:w-8 border border-border" aria-label="Configuración de perfil">

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { CASHFLOW_ONLY, CASHFLOW_HOME } from "@/lib/app-mode";
 import { Sidebar } from "@/components/layout/sidebar";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { Header } from "@/components/layout/header";
@@ -36,9 +37,22 @@ const AUTO_SYNC_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
   useKeyboardShortcuts();
 
+  // Cashflow-only demo mode: redirect any non-cashflow dashboard route to the
+  // cashflow page so only that module is reachable. No-op when the flag is off.
   useEffect(() => {
+    if (CASHFLOW_ONLY && !pathname.startsWith(CASHFLOW_HOME)) {
+      router.replace(CASHFLOW_HOME);
+    }
+  }, [pathname, router]);
+
+  useEffect(() => {
+    if (CASHFLOW_ONLY) {
+      document.title = "Flujo de Efectivo";
+      return;
+    }
     const match = Object.entries(PAGE_TITLES).find(([k]) => pathname.startsWith(k));
     document.title = match ? `${match[1]} | StratiuMetrics` : "StratiuMetrics";
   }, [pathname]);
