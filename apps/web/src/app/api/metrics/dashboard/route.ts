@@ -15,6 +15,19 @@ export async function GET(req: NextRequest) {
     // from its own tables below for the dedicated "Caja" block.
     await syncCashflowMetrics(orgId).catch((e) => console.error("cashflow purge (dashboard):", e));
 
+    // Finanzas is SAT-only. Purge any legacy MANUAL FINANCE rows (source not
+    // "SAT") so old hand-entered numbers stop polluting the dashboard. The
+    // sums below also filter by source "SAT", so this is belt-and-suspenders.
+    await db.metric
+      .deleteMany({
+        where: {
+          organizationId: orgId,
+          category: "FINANCE",
+          OR: [{ source: null }, { source: { not: "SAT" } }],
+        },
+      })
+      .catch((e) => console.error("finance manual purge (dashboard):", e));
+
     const metrics = (await db.metric.findMany({
       where: { organizationId: orgId },
       orderBy: { period: "desc" },
@@ -85,15 +98,13 @@ export async function GET(req: NextRequest) {
     const ingresoKw = ["ingreso", "venta", "facturado", "facturacion", "cobrado"];
     const egresoKw = ["egreso", "gasto", "compra", "costo", "pago"];
 
-    // Finanzas = SAT + Flujo de Efectivo (no manual entries). Both sources
-    // write FINANCE metrics named "Ingresos"/"Gastos", so we sum across all
-    // sources without filtering by SAT — that naturally combines the two.
-    // FINANCE rows are now SAT-only (cashflow mirror is purged), so these sum
-    // exclusively the fiscal numbers — cashflow is reported separately below.
-    const satIngresos = flow("FINANCE", ingresoKw, []);
-    const satEgresos = flow("FINANCE", egresoKw, []);
+    // Finanzas Fiscal = SAT only. We explicitly filter by source "SAT" so any
+    // legacy manually-entered FINANCE rows (source null) never get summed in.
+    // Cashflow is reported separately in the Caja block below.
+    const satIngresos = flow("FINANCE", ingresoKw, [], "SAT");
+    const satEgresos = flow("FINANCE", egresoKw, [], "SAT");
     const satBalance = satIngresos.value - satEgresos.value;
-    const satIva = sumMonth("FINANCE", ["iva"], currentYear, currentMonth);
+    const satIva = sumMonth("FINANCE", ["iva"], currentYear, currentMonth, [], "SAT");
 
     // ── Flujo de Efectivo (Caja) — read straight from the source ──────────
     // Separate block, never summed with SAT. "Saldo en Bancos" = opening +
@@ -154,8 +165,8 @@ export async function GET(req: NextRequest) {
         })
         .reduce((s, m) => s + m.value, 0);
 
-    const ytdRevenue = sumYear("FINANCE", ingresoKw);
-    const ytdGastos = sumYear("FINANCE", egresoKw);
+    const ytdRevenue = sumYear("FINANCE", ingresoKw, [], "SAT");
+    const ytdGastos = sumYear("FINANCE", egresoKw, [], "SAT");
 
     const annualProjection = currentMonth >= 0 ? (ytdRevenue / (currentMonth + 1)) * 12 : ytdRevenue;
     const revenuePerEmployee = headcount > 0 ? satIngresos.value / headcount : 0;
@@ -167,8 +178,8 @@ export async function GET(req: NextRequest) {
     for (let i = 5; i >= 0; i--) {
       const m = new Date(Date.UTC(currentYear, currentMonth - i, 1));
       const monthName = m.toLocaleDateString("es-MX", { month: "short", timeZone: "UTC" });
-      const ing = sumMonth("FINANCE", ingresoKw, m.getUTCFullYear(), m.getUTCMonth());
-      const gas = sumMonth("FINANCE", egresoKw, m.getUTCFullYear(), m.getUTCMonth());
+      const ing = sumMonth("FINANCE", ingresoKw, m.getUTCFullYear(), m.getUTCMonth(), [], "SAT");
+      const gas = sumMonth("FINANCE", egresoKw, m.getUTCFullYear(), m.getUTCMonth(), [], "SAT");
       monthlyHistory.push({ month: monthName, ingresos: ing, gastos: gas });
     }
 

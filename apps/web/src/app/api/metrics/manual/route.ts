@@ -27,6 +27,18 @@ export async function GET(req: NextRequest) {
     await syncCashflowMetrics(membership.organizationId).catch((e) =>
       console.error("cashflow reconcile (finance):", e),
     );
+    // Finanzas is SAT-only. Purge any legacy MANUAL rows (source is null /
+    // anything other than "SAT") so old hand-entered numbers stop polluting
+    // the cards. Self-cleans on the next visit; idempotent once gone.
+    await db.metric
+      .deleteMany({
+        where: {
+          organizationId: membership.organizationId,
+          category: "FINANCE",
+          OR: [{ source: null }, { source: { not: "SAT" } }],
+        },
+      })
+      .catch((e) => console.error("finance manual purge:", e));
   }
 
   // Anchor to the first day of the month `months` months ago so the
