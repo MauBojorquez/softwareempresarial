@@ -17,7 +17,22 @@ interface MonthlyFinancials {
   balance: number;
 }
 
-/** Groups parsed CFDIs by month and computes the four finance metrics. */
+/**
+ * Groups parsed CFDIs by month and computes the four finance metrics.
+ *
+ * Classification is by DIRECTION (issued vs received), not just by
+ * TipoDeComprobante. A purchase invoice from a supplier (your expense) is
+ * still TipoDeComprobante "I" (Ingreso) from the issuer's side, so keying on
+ * the type alone would book your expenses as income. We therefore split on
+ * the download direction:
+ *
+ *   • issued  (emitidas → your income)   : type "I" adds to ingresos (+IVA),
+ *                                           type "E" (your credit notes) nets it down.
+ *   • received(recibidas → your expenses): type "I" adds to gastos,
+ *                                           type "E" (credit notes you got) nets it down.
+ *
+ * CFDIs with no direction are treated by type (legacy/safety fallback).
+ */
 function groupByMonth(cfdis: ParsedCfdi[]): MonthlyFinancials[] {
   const map = new Map<string, MonthlyFinancials>();
 
@@ -38,11 +53,31 @@ function groupByMonth(cfdis: ParsedCfdi[]): MonthlyFinancials[] {
     }
     const entry = map.get(key)!;
 
-    if (c.type === "I") {
-      entry.ingresos += c.total;
-      entry.ivaCobrado += c.tax;
-    } else if (c.type === "E") {
-      entry.egresos += c.total;
+    // Only "I" (ingreso) and "E" (egreso) CFDIs affect the finance totals.
+    // Other types (P pagos, N nómina, T traslado) are ignored here.
+    const isIncomeDoc = c.type === "I";
+    const isCreditNote = c.type === "E";
+    if (!isIncomeDoc && !isCreditNote) continue;
+
+    const direction =
+      c.direction ?? (isIncomeDoc ? "issued" : "received"); // fallback by type
+
+    if (direction === "issued") {
+      // Money you billed. Credit notes you issued reduce it.
+      if (isIncomeDoc) {
+        entry.ingresos += c.total;
+        entry.ivaCobrado += c.tax;
+      } else {
+        entry.ingresos -= c.total;
+        entry.ivaCobrado -= c.tax;
+      }
+    } else {
+      // Money you were billed (expenses). Credit notes received reduce it.
+      if (isIncomeDoc) {
+        entry.egresos += c.total;
+      } else {
+        entry.egresos -= c.total;
+      }
     }
     entry.balance = entry.ingresos - entry.egresos;
   }
@@ -227,13 +262,20 @@ export async function pollSatDownloads(organizationId?: string): Promise<void> {
     const allCfdis: ParsedCfdi[] = [];
     const seenUuids = new Set<string>();
 
-    const pushCfdis = (parsed: ParsedCfdi[]) => {
+    const pushCfdis = (
+      parsed: ParsedCfdi[],
+      direction: "issued" | "received",
+    ) => {
       for (const c of parsed) {
-        if (c.uuid) {
-          if (seenUuids.has(c.uuid)) continue;
-          seenUuids.add(c.uuid);
+        // Dedup within a direction (the same UUID can legitimately appear in
+        // both an issued and a received download — e.g. self-invoicing — and
+        // must be counted on each side).
+        const dedupKey = c.uuid ? `${direction}:${c.uuid}` : null;
+        if (dedupKey) {
+          if (seenUuids.has(dedupKey)) continue;
+          seenUuids.add(dedupKey);
         }
-        allCfdis.push(c);
+        allCfdis.push({ ...c, direction });
       }
     };
 
@@ -281,7 +323,7 @@ export async function pollSatDownloads(organizationId?: string): Promise<void> {
 
         for (const pkgId of verify.packageIds) {
           const zip = await downloadPackage(service, pkgId);
-          pushCfdis(await parsePackage(zip));
+          pushCfdis(await parsePackage(zip), r.downloadType as "issued" | "received");
         }
 
         await db.satDownloadRequest.update({
@@ -324,7 +366,7 @@ export async function pollSatDownloads(organizationId?: string): Promise<void> {
       for (const pkgId of req.packageIds) {
         try {
           const zip = await downloadPackage(service, pkgId);
-          pushCfdis(await parsePackage(zip));
+          pushCfdis(await parsePackage(zip), req.downloadType as "issued" | "received");
         } catch {
           // skip package; do not abort the whole recompute
         }

@@ -20,6 +20,12 @@ export interface ParsedCfdi {
   tax: number;
   type: string;
   uuid?: string;
+  /**
+   * Whether this CFDI came from the "issued" (emitidas, your income) or
+   * "received" (recibidas, your expenses) download. Set by the caller after
+   * parsing, since the XML itself doesn't encode your perspective.
+   */
+  direction?: "issued" | "received";
 }
 
 export interface VerifyResult {
