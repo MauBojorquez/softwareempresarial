@@ -2,9 +2,9 @@
 
 import { useEffect, useState, useRef } from "react";
 import {
-  DollarSign, TrendingUp, Users, ShoppingCart, RefreshCw, LinkIcon, Plus, ArrowRight,
+  DollarSign, TrendingUp, TrendingDown, Users, ShoppingCart, RefreshCw, LinkIcon, Plus, ArrowRight,
   Target, Calculator, Download, Megaphone, BarChart3, Wallet, FileText, PlusCircle,
-  SlidersHorizontal, Check, Sparkles, Receipt, Building2, ChevronDown, GripVertical,
+  SlidersHorizontal, Check, Sparkles, Receipt, Building2, ChevronDown, GripVertical, Landmark,
 } from "lucide-react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
@@ -22,6 +22,9 @@ type DashboardData = {
   satEgresos: number; satEgresosChange: number;
   satBalance: number; satIva: number;
   satConnected: boolean;
+  cajaConnected: boolean; cajaBalance: number;
+  cajaDeposits: number; cajaDepositsChange: number;
+  cajaWithdrawals: number; cajaWithdrawalsChange: number;
   ventas: number; ventasChange: number;
   pipeline: number; pipelineChange: number;
   leads: number; leadsChange: number;
@@ -47,6 +50,7 @@ const fmt = (v: number) => new Intl.NumberFormat("es-MX").format(Math.round(v));
 
 const WIDGET_CATALOG: Array<{ id: string; label: string }> = [
   { id: "fiscal", label: "Finanzas Fiscales (SAT)" },
+  { id: "caja", label: "Flujo de Efectivo (Caja)" },
   { id: "crm", label: "CRM — Ventas y Pipeline" },
   { id: "insights", label: "IA Proactiva (alertas + proyección)" },
   { id: "goals", label: "Metas con progreso" },
@@ -304,6 +308,24 @@ export default function OverviewPage() {
         </div>
       </div>
     ),
+    caja: data.cajaConnected ? (
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Landmark className="h-4 w-4 text-[#3D7FFF]" />
+            <h3 className="text-sm font-semibold text-foreground">Flujo de Efectivo</h3>
+            <span className="rounded-full bg-[#3D7FFF]/10 px-2 py-0.5 text-[10px] font-medium text-[#3D7FFF]">Caja real (bancos)</span>
+          </div>
+          <a href="/dashboard/finance/cashflow" className="text-xs font-medium text-primary hover:underline flex items-center gap-1">Ver detalle <ArrowRight className="h-3 w-3" /></a>
+        </div>
+        <div className="grid gap-3 grid-cols-2 lg:grid-cols-4 stagger-children">
+          <MetricCard title="Saldo en Bancos" value={data.cajaBalance} icon={Landmark} format="currency" />
+          <MetricCard title="Depósitos (mes)" value={data.cajaDeposits} change={data.cajaDepositsChange || undefined} icon={TrendingUp} format="currency" />
+          <MetricCard title="Retiros (mes)" value={data.cajaWithdrawals} change={data.cajaWithdrawalsChange || undefined} icon={TrendingDown} format="currency" />
+          <MetricCard title="Flujo Neto (mes)" value={data.cajaDeposits - data.cajaWithdrawals} icon={Wallet} format="currency" />
+        </div>
+      </div>
+    ) : null,
     crm: (
       <div className="space-y-2">
         <div className="flex items-center justify-between">

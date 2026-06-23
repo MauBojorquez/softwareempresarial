@@ -10,11 +10,10 @@ export async function GET(req: NextRequest) {
   if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    // Reconcile cashflow → FINANCE metrics before reading so the overview
-    // always reflects the latest bank movements, even when the user lands here
-    // directly without opening the Flujo de Efectivo page first. Awaited (not
-    // fire-and-forget) so the very first load already shows fresh numbers.
-    await syncCashflowMetrics(orgId).catch((e) => console.error("cashflow reconcile (dashboard):", e));
+    // Purge any legacy cashflow-mirrored FINANCE rows so SAT and cashflow are
+    // never summed together (no double counting). Cashflow is read directly
+    // from its own tables below for the dedicated "Caja" block.
+    await syncCashflowMetrics(orgId).catch((e) => console.error("cashflow purge (dashboard):", e));
 
     const metrics = (await db.metric.findMany({
       where: { organizationId: orgId },
@@ -89,12 +88,35 @@ export async function GET(req: NextRequest) {
     // Finanzas = SAT + Flujo de Efectivo (no manual entries). Both sources
     // write FINANCE metrics named "Ingresos"/"Gastos", so we sum across all
     // sources without filtering by SAT — that naturally combines the two.
+    // FINANCE rows are now SAT-only (cashflow mirror is purged), so these sum
+    // exclusively the fiscal numbers — cashflow is reported separately below.
     const satIngresos = flow("FINANCE", ingresoKw, []);
     const satEgresos = flow("FINANCE", egresoKw, []);
     const satBalance = satIngresos.value - satEgresos.value;
-    const satIva = satConnected
-      ? sumMonth("FINANCE", ["iva"], currentYear, currentMonth, [], "SAT")
-      : sumMonth("FINANCE", ["iva"], currentYear, currentMonth);
+    const satIva = sumMonth("FINANCE", ["iva"], currentYear, currentMonth);
+
+    // ── Flujo de Efectivo (Caja) — read straight from the source ──────────
+    // Separate block, never summed with SAT. "Saldo en Bancos" = opening +
+    // net movements across all active accounts (the real bank position).
+    const cashAccounts = await db.cashFlowAccount.findMany({
+      where: { organizationId: orgId, isActive: true },
+      include: { transactions: { select: { date: true, deposit: true, withdrawal: true } } },
+    });
+    const cajaConnected = cashAccounts.length > 0;
+    let cajaBalance = 0;
+    let cajaDepMonth = 0, cajaWdMonth = 0, cajaDepPrev = 0, cajaWdPrev = 0;
+    for (const acc of cashAccounts) {
+      cajaBalance += acc.openingBalance ?? 0;
+      for (const tx of acc.transactions) {
+        const dep = tx.deposit ?? 0;
+        const wd = tx.withdrawal ?? 0;
+        cajaBalance += dep - wd;
+        if (inMonth(tx.date, currentYear, currentMonth)) { cajaDepMonth += dep; cajaWdMonth += wd; }
+        else if (inMonth(tx.date, prev.getUTCFullYear(), prev.getUTCMonth())) { cajaDepPrev += dep; cajaWdPrev += wd; }
+      }
+    }
+    const cajaDepositsChange = pctChange(cajaDepMonth, cajaDepPrev);
+    const cajaWithdrawalsChange = pctChange(cajaWdMonth, cajaWdPrev);
 
     // ── CRM / Ventas ──────────────────────────────────────
     const ventas = flow("SALES", ["venta", "vendido", "facturado", "ingreso"], ["pipeline", "lead", "prospecto"]);
@@ -212,6 +234,13 @@ export async function GET(req: NextRequest) {
       satBalance,
       satIva,
       satConnected,
+      // Flujo de Efectivo (Caja) — independent block, never summed with SAT
+      cajaConnected,
+      cajaBalance,
+      cajaDeposits: cajaDepMonth,
+      cajaDepositsChange,
+      cajaWithdrawals: cajaWdMonth,
+      cajaWithdrawalsChange,
       // CRM
       ventas: ventas.value,
       ventasChange: ventas.change,
@@ -225,7 +254,8 @@ export async function GET(req: NextRequest) {
       employees: headcount,
       employeesChange: pctChange(headcount, prevHeadcount),
       nomina,
-      hasData: metrics.length > 0,
+      // Cashflow-only orgs (SAT not connected yet) still have a real dashboard.
+      hasData: metrics.length > 0 || cajaConnected,
       calculated: {
         ytdRevenue,
         ytdGastos,
