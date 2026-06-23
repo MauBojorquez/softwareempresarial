@@ -7,7 +7,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { NotificationBell } from "@/components/notifications";
 import { InstallButton } from "@/components/install-button";
-import { CASHFLOW_ONLY } from "@/lib/app-mode";
+import { useCashflowOnly } from "@/lib/app-mode";
 
 type SearchResult = {
   type: "metric" | "report";
@@ -22,6 +22,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const { data: session } = useSession();
   const router = useRouter();
   const { theme, setTheme } = useTheme();
+  const CASHFLOW_ONLY = useCashflowOnly();
   const initials = session?.user?.name?.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase() || "MP";
   const [userAvatar, setUserAvatar] = useState<string | null>(null);
   const [query, setQuery] = useState("");

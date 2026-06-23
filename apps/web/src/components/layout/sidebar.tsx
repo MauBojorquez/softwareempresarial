@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/logo";
-import { CASHFLOW_ONLY } from "@/lib/app-mode";
+import { useCashflowOnly } from "@/lib/app-mode";
 import { useEffect, useState, useRef } from "react";
 import {
   LayoutDashboard, DollarSign, TrendingUp, Settings2, Users,
@@ -40,14 +40,16 @@ const fullNavigation: NavItem[] = [
 ];
 
 // In cashflow-only demo mode the sidebar shows just the cashflow module.
-const navigation: NavItem[] = CASHFLOW_ONLY
-  ? [{ name: "Flujo de Efectivo", href: "/dashboard/finance/cashflow", icon: Wallet }]
-  : fullNavigation;
+const cashflowNavigation: NavItem[] = [
+  { name: "Flujo de Efectivo", href: "/dashboard/finance/cashflow", icon: Wallet },
+];
 
 type OrgItem = { id: string; name: string; logo?: string | null; brandColor?: string | null; isActive: boolean };
 
 export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => void }) {
   const pathname = usePathname();
+  const CASHFLOW_ONLY = useCashflowOnly();
+  const navigation: NavItem[] = CASHFLOW_ONLY ? cashflowNavigation : fullNavigation;
   const { data: session } = useSession();
   const initials = session?.user?.name?.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase() || "SM";
 
