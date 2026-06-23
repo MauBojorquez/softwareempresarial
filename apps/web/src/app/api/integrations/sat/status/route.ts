@@ -38,15 +38,32 @@ export async function GET() {
   // someone is looking at the SAT status — but throttled so we never hammer
   // the SAT web service. We only act if nothing has been checked recently
   // (in-flight requests) or the data is plainly stale (idle org).
-  void maybeBackgroundRefresh(orgId, credential.lastSyncAt, pendingRequests);
+  //
+  // IMPORTANT: we AWAIT this. On Vercel serverless the function is frozen as
+  // soon as the response is returned, so a fire-and-forget (`void ...`) would
+  // usually be killed before the SAT poll completes — leaving the sync stuck
+  // forever between daily cron runs. The throttle inside guarantees the heavy
+  // work runs at most once per window, so awaiting keeps responses snappy.
+  await maybeBackgroundRefresh(orgId, credential.lastSyncAt, pendingRequests);
+
+  // Re-read so the response reflects any progress the self-heal just made.
+  const fresh = await db.satCredential.findUnique({
+    where: { organizationId: orgId },
+  });
+  const freshPending = await db.satDownloadRequest.count({
+    where: {
+      organizationId: orgId,
+      status: { notIn: ["downloaded", "failed", "expired"] },
+    },
+  });
 
   return NextResponse.json({
     connected: true,
-    rfc: credential.rfc,
-    syncStatus: credential.syncStatus,
-    lastSyncAt: credential.lastSyncAt?.toISOString() ?? null,
-    lastError: credential.lastError ?? null,
-    pendingRequests,
+    rfc: (fresh ?? credential).rfc,
+    syncStatus: (fresh ?? credential).syncStatus,
+    lastSyncAt: (fresh ?? credential).lastSyncAt?.toISOString() ?? null,
+    lastError: (fresh ?? credential).lastError ?? null,
+    pendingRequests: freshPending,
   });
 }
 
