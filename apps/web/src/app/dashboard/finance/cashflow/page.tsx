@@ -438,6 +438,7 @@ function AccountLedger({ account, categories }: AccountLedgerProps) {
       <div className="px-4 py-3 border-t border-border/50">
         <button
           onClick={addRow}
+          data-tour="cashflow-add-row"
           className="flex items-center gap-2 text-xs text-[#3D7FFF] hover:text-[#3D7FFF]/80 transition-colors"
         >
           <Plus size={14} />
@@ -920,16 +921,17 @@ export default function CashFlowPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-1 overflow-x-auto pb-0">
+        <div className="flex items-center gap-1 overflow-x-auto pb-0" data-tour="cashflow-accounts">
           <button
             onClick={() => setActiveTab("report")}
+            data-tour="cashflow-dashboard"
             className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
               activeTab === "report"
                 ? "border-[#3D7FFF] text-[#3D7FFF]"
                 : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
-            Reporte
+            Dashboard
           </button>
           {accounts.map((acc) => (
             <button
@@ -951,6 +953,7 @@ export default function CashFlowPage() {
           )}
           <button
             onClick={() => setShowAddAccount(true)}
+            data-tour="cashflow-add-account"
             className="px-3 py-2.5 text-sm font-medium text-[#3D7FFF] hover:text-[#3D7FFF]/80 flex items-center gap-1 whitespace-nowrap transition-colors"
           >
             <Plus size={14} />

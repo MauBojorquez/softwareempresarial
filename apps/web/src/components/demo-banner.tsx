@@ -15,6 +15,7 @@ export function DemoBanner() {
         href={DEMO_CTA_URL}
         target="_blank"
         rel="noopener noreferrer"
+        data-tour="cashflow-cta"
         className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold transition-colors hover:bg-white/30"
       >
         Crea el tuyo para tu negocio
