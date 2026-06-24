@@ -25,6 +25,9 @@ export const CASHFLOW_ONLY_ENV =
 /** Where every route redirects to in cashflow-only mode. */
 export const CASHFLOW_HOME = "/dashboard/finance/cashflow";
 
+/** Stripe booking link shown in the demo banner and landing CTA. */
+export const DEMO_CTA_URL = "https://book.stripe.com/aFadRb64SdIF0ftd3LdAk0m";
+
 const STORAGE_KEY = "cashflow-only-demo";
 
 /** Synchronous read. Server (and first client paint) sees the env default. */

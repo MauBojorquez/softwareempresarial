@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useCashflowOnly, CASHFLOW_HOME } from "@/lib/app-mode";
+import { DemoBanner } from "@/components/demo-banner";
 import { Sidebar } from "@/components/layout/sidebar";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { Header } from "@/components/layout/header";
@@ -93,6 +94,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <GuidedTour />
       <PWARegister />
       <a href="#main-content" className="skip-link">Ir al contenido principal</a>
+      <DemoBanner />
       <div className="relative flex h-screen bg-background">
         {/* Stripe-style flowing gradient backdrop */}
         <div className="mesh-bg" aria-hidden />

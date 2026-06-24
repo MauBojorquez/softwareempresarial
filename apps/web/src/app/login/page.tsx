@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { Logo } from "@/components/logo";
+import { CASHFLOW_ONLY_ENV } from "@/lib/app-mode";
 
 function GoogleIcon() {
   return (
@@ -51,73 +52,83 @@ export default function LoginPage() {
             <Logo className="h-10 w-10 rounded-xl shadow-lg shadow-purple-500/25 animate-float-logo group-hover:scale-105 transition-transform" />
             <span className="text-xl font-bold text-foreground">StratiuMetrics</span>
           </Link>
-          <h1 className="mt-8 text-2xl font-bold text-foreground anim-d1">Iniciar Sesión</h1>
-          <p className="mt-1 text-sm text-muted-foreground anim-d2">Ingresa a tu dashboard empresarial</p>
+          <h1 className="mt-8 text-2xl font-bold text-foreground anim-d1">
+            {CASHFLOW_ONLY_ENV ? "Acceder a la demo" : "Iniciar Sesión"}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground anim-d2">
+            {CASHFLOW_ONLY_ENV ? "Ingresa con tu cuenta de Google para explorar el dashboard" : "Ingresa a tu dashboard empresarial"}
+          </p>
         </div>
 
-        {error && (
+        {!CASHFLOW_ONLY_ENV && error && (
           <div className="rounded-lg border border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-red-500/10 px-4 py-3 text-sm text-red-600 dark:text-red-400 animate-slide-up">
             {error}
           </div>
         )}
 
-        <form className="space-y-4 anim-d2" onSubmit={handleSubmit}>
-          <div>
-            <label htmlFor="login-email" className="text-sm font-medium text-foreground">Email</label>
-            <input
-              id="login-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25 focus:shadow-lg focus:shadow-purple-500/10 transition-all duration-200"
-              placeholder="tu@empresa.com"
-            />
-          </div>
-          <div>
-            <label htmlFor="login-password" className="text-sm font-medium text-foreground">Contraseña</label>
-            <input
-              id="login-password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25 focus:shadow-lg focus:shadow-purple-500/10 transition-all duration-200"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="flex w-full items-center justify-center gap-2 rounded-lg gradient-bg py-2.5 text-sm font-medium text-white transition-all hover:opacity-90 hover:shadow-lg hover:shadow-purple-500/25 hover:-translate-y-0.5 disabled:opacity-50 disabled:translate-y-0 pulse-glow"
-          >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            {loading ? "Entrando..." : "Iniciar Sesión"}
-          </button>
-        </form>
+        {!CASHFLOW_ONLY_ENV && (
+          <form className="space-y-4 anim-d2" onSubmit={handleSubmit}>
+            <div>
+              <label htmlFor="login-email" className="text-sm font-medium text-foreground">Email</label>
+              <input
+                id="login-email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25 focus:shadow-lg focus:shadow-purple-500/10 transition-all duration-200"
+                placeholder="tu@empresa.com"
+              />
+            </div>
+            <div>
+              <label htmlFor="login-password" className="text-sm font-medium text-foreground">Contraseña</label>
+              <input
+                id="login-password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25 focus:shadow-lg focus:shadow-purple-500/10 transition-all duration-200"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex w-full items-center justify-center gap-2 rounded-lg gradient-bg py-2.5 text-sm font-medium text-white transition-all hover:opacity-90 hover:shadow-lg hover:shadow-purple-500/25 hover:-translate-y-0.5 disabled:opacity-50 disabled:translate-y-0 pulse-glow"
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {loading ? "Entrando..." : "Iniciar Sesión"}
+            </button>
+          </form>
+        )}
 
-        <div className="relative anim-d3">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-border" />
+        {!CASHFLOW_ONLY_ENV && (
+          <div className="relative anim-d3">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-border" />
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="bg-background px-2 text-muted-foreground">O continúa con</span>
+            </div>
           </div>
-          <div className="relative flex justify-center text-xs">
-            <span className="bg-background px-2 text-muted-foreground">O continúa con</span>
-          </div>
-        </div>
+        )}
 
         <button
-          onClick={() => signIn("google", { callbackUrl: "/dashboard/overview" })}
+          onClick={() => signIn("google", { callbackUrl: "/dashboard/finance/cashflow" })}
           className="flex w-full items-center justify-center gap-2.5 rounded-lg border border-border bg-card py-2.5 text-sm font-medium text-foreground transition-all hover:bg-secondary hover:border-primary/30 hover:shadow-md hover:-translate-y-0.5 anim-d4"
         >
           <GoogleIcon />
           Continuar con Google
         </button>
 
-        <p className="text-center text-sm text-muted-foreground anim-d5">
-          ¿No tienes cuenta?{" "}
-          <Link href="/register" className="font-medium text-primary hover:underline transition-colors">
-            Regístrate
-          </Link>
-        </p>
+        {!CASHFLOW_ONLY_ENV && (
+          <p className="text-center text-sm text-muted-foreground anim-d5">
+            ¿No tienes cuenta?{" "}
+            <Link href="/register" className="font-medium text-primary hover:underline transition-colors">
+              Regístrate
+            </Link>
+          </p>
+        )}
       </div>
     </div>
   );
