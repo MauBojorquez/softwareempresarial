@@ -140,7 +140,7 @@ export async function GET(req: NextRequest) {
     const conversion = leads.value > 0 ? parseFloat(((dealsCurr / leads.value) * 100).toFixed(1)) : 0;
     const prevLeads = sumMonth("SALES", ["lead", "prospecto", "contacto"], prev.getUTCFullYear(), prev.getUTCMonth(), ["pipeline"]);
     const prevDeals = sumMonth("SALES", ["deal", "cerrado", "cierre", "ganado"], prev.getUTCFullYear(), prev.getUTCMonth(), ["pipeline"]);
-    const prevConversion = prevLeads > 0 ? (prevDeals / prevLeads) * 100 : 0;
+    const prevConversion = prevLeads > 0 ? parseFloat(((prevDeals / prevLeads) * 100).toFixed(1)) : 0;
     const conversionChange = pctChange(conversion, prevConversion);
 
     // ── RRHH ──────────────────────────────────────────────
