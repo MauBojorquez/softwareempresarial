@@ -3,7 +3,8 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, ArrowLeft, X, Check } from "lucide-react";
-import { readCashflowOnly, CASHFLOW_HOME } from "@/lib/app-mode";
+
+const TOUR_KEY = "stratiumetrics-tour-v2";
 
 type Step = {
   /** CSS selector of the element to highlight. */
@@ -14,7 +15,7 @@ type Step = {
   body: string;
 };
 
-const FULL_STEPS: Step[] = [
+const STEPS: Step[] = [
   {
     selector: '[data-tour="/dashboard/overview"]',
     route: "/dashboard/overview",
@@ -51,39 +52,6 @@ const FULL_STEPS: Step[] = [
     body: "Activa las notificaciones aquí 🔔 para enterarte —en tu celular o navegador— cuando un reporte esté listo o una métrica cambie de forma importante.",
   },
 ];
-
-// In cashflow-only mode the tour teaches just the three things that matter:
-// add a bank, add movements, and acquire your own personalized version.
-const CASHFLOW_STEPS: Step[] = [
-  {
-    selector: '[data-tour="cashflow-dashboard"]',
-    route: CASHFLOW_HOME,
-    title: "Tu Dashboard",
-    body: "Aquí ves el resumen de tu flujo de efectivo: total de depósitos, retiros y saldo de todas tus cuentas.",
-  },
-  {
-    selector: '[data-tour="cashflow-add-account"]',
-    route: CASHFLOW_HOME,
-    title: "1. Agrega tu banco",
-    body: "Haz clic en «Agregar cuenta» para registrar un banco. Pones nombre, banco y saldo inicial.",
-  },
-  {
-    selector: '[data-tour="cashflow-add-account"]',
-    route: CASHFLOW_HOME,
-    title: "2. Agrega tus movimientos",
-    body: "Al entrar a una cuenta, usa «Agregar fila» para registrar cada depósito y retiro. El saldo se calcula solo.",
-  },
-  {
-    selector: '[data-tour="cashflow-cta"]',
-    route: CASHFLOW_HOME,
-    title: "3. Adquiere el tuyo",
-    body: "¿Te gustó? Arriba puedes adquirir tu propio dashboard personalizado para tu negocio, con tu logo y tus datos.",
-  },
-];
-
-const CASHFLOW_ONLY = typeof window !== "undefined" && readCashflowOnly();
-const STEPS = CASHFLOW_ONLY ? CASHFLOW_STEPS : FULL_STEPS;
-const TOUR_KEY = CASHFLOW_ONLY ? "cashflow-tour-v1" : "stratiumetrics-tour-v2";
 
 const PADDING = 8;
 

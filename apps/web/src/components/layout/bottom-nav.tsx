@@ -2,25 +2,18 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Target, DollarSign, TrendingUp, Menu, Wallet } from "lucide-react";
+import { LayoutDashboard, Target, DollarSign, TrendingUp, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useCashflowOnly } from "@/lib/app-mode";
 
-const FULL_TABS = [
+const TABS = [
   { name: "Inicio", href: "/dashboard/overview", icon: LayoutDashboard },
   { name: "Metas", href: "/dashboard/goals", icon: Target },
   { name: "Finanzas", href: "/dashboard/finance", icon: DollarSign },
   { name: "Ventas", href: "/dashboard/sales", icon: TrendingUp },
 ];
 
-const CASHFLOW_TABS = [
-  { name: "Flujo de Efectivo", href: "/dashboard/finance/cashflow", icon: Wallet },
-];
-
 export function BottomNav({ onMenuClick }: { onMenuClick: () => void }) {
   const pathname = usePathname();
-  const cashflowOnly = useCashflowOnly();
-  const TABS = cashflowOnly ? CASHFLOW_TABS : FULL_TABS;
 
   return (
     <nav

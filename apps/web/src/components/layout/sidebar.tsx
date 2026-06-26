@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/logo";
-import { useCashflowOnly } from "@/lib/app-mode";
 import { useEffect, useState, useRef } from "react";
 import {
   LayoutDashboard, DollarSign, TrendingUp, Settings2, Users,
@@ -16,7 +15,7 @@ import {
 type NavChild = { name: string; href: string; icon: typeof LayoutDashboard };
 type NavItem = { name: string; href: string; icon: typeof LayoutDashboard; children?: NavChild[] };
 
-const fullNavigation: NavItem[] = [
+const navigation: NavItem[] = [
   { name: "Resumen", href: "/dashboard/overview", icon: LayoutDashboard },
   { name: "Metas", href: "/dashboard/goals", icon: Target },
   {
@@ -39,17 +38,10 @@ const fullNavigation: NavItem[] = [
   { name: "Configuración", href: "/dashboard/settings", icon: Settings },
 ];
 
-// In cashflow-only demo mode the sidebar shows just the cashflow module.
-const cashflowNavigation: NavItem[] = [
-  { name: "Flujo de Efectivo", href: "/dashboard/finance/cashflow", icon: Wallet },
-];
-
 type OrgItem = { id: string; name: string; logo?: string | null; brandColor?: string | null; isActive: boolean };
 
 export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => void }) {
   const pathname = usePathname();
-  const CASHFLOW_ONLY = useCashflowOnly();
-  const navigation: NavItem[] = CASHFLOW_ONLY ? cashflowNavigation : fullNavigation;
   const { data: session } = useSession();
   const initials = session?.user?.name?.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase() || "SM";
 
@@ -134,11 +126,9 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
               <Logo className="h-8 w-8 flex-shrink-0" />
             )}
             <div className="min-w-0">
-              {!CASHFLOW_ONLY && (
-                <p className="text-[11px] font-medium text-muted-foreground leading-none">StratiuMetrics</p>
-              )}
+              <p className="text-[11px] font-medium text-muted-foreground leading-none">StratiuMetrics</p>
               <p className="text-sm font-bold text-foreground truncate leading-tight mt-0.5">
-                {CASHFLOW_ONLY ? "Flujo de Efectivo" : orgData?.name || "Mi Empresa"}
+                {orgData?.name || "Mi Empresa"}
               </p>
             </div>
           </div>

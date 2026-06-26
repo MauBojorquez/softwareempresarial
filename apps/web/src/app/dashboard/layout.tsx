@@ -1,9 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { usePathname, useRouter } from "next/navigation";
-import { useCashflowOnly, CASHFLOW_HOME } from "@/lib/app-mode";
-import { DemoBanner } from "@/components/demo-banner";
+import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { Header } from "@/components/layout/header";
@@ -38,26 +36,12 @@ const AUTO_SYNC_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
-  const router = useRouter();
-  const CASHFLOW_ONLY = useCashflowOnly();
   useKeyboardShortcuts();
 
-  // Cashflow-only demo mode: redirect any non-cashflow dashboard route to the
-  // cashflow page so only that module is reachable. No-op when the flag is off.
   useEffect(() => {
-    if (CASHFLOW_ONLY && !pathname.startsWith(CASHFLOW_HOME)) {
-      router.replace(CASHFLOW_HOME);
-    }
-  }, [pathname, router, CASHFLOW_ONLY]);
-
-  useEffect(() => {
-    if (CASHFLOW_ONLY) {
-      document.title = "Flujo de Efectivo";
-      return;
-    }
     const match = Object.entries(PAGE_TITLES).find(([k]) => pathname.startsWith(k));
     document.title = match ? `${match[1]} | StratiuMetrics` : "StratiuMetrics";
-  }, [pathname, CASHFLOW_ONLY]);
+  }, [pathname]);
 
   // Let the guided tour reveal the sidebar on mobile while it runs.
   useEffect(() => {
@@ -94,7 +78,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <GuidedTour />
       <PWARegister />
       <a href="#main-content" className="skip-link">Ir al contenido principal</a>
-      <DemoBanner />
       <div className="relative flex h-screen bg-background">
         {/* Stripe-style flowing gradient backdrop */}
         <div className="mesh-bg" aria-hidden />
