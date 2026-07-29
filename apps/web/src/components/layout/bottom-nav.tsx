@@ -2,14 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Target, DollarSign, TrendingUp, Menu } from "lucide-react";
+import { LayoutDashboard, Wallet, Receipt, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const TABS = [
   { name: "Inicio", href: "/dashboard/overview", icon: LayoutDashboard },
-  { name: "Metas", href: "/dashboard/goals", icon: Target },
-  { name: "Finanzas", href: "/dashboard/finance", icon: DollarSign },
-  { name: "Ventas", href: "/dashboard/sales", icon: TrendingUp },
+  { name: "Flujo", href: "/dashboard/finance/cashflow", icon: Wallet },
+  { name: "Cobranza", href: "/dashboard/finance/cobranza", icon: Receipt },
 ];
 
 export function BottomNav({ onMenuClick }: { onMenuClick: () => void }) {

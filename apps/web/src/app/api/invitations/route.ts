@@ -63,18 +63,7 @@ export async function POST(req: NextRequest) {
     if (alreadyIn) return NextResponse.json({ error: "Este usuario ya es miembro" }, { status: 409 });
   }
 
-  // Check plan user limit
-  const { PLAN_LIMITS } = await import("@/server/services/billing/plan-limits");
-  const sub = await db.subscription.findUnique({ where: { organizationId: membership.organizationId } });
-  const plan = sub?.plan ?? "STARTER";
-  const limits = PLAN_LIMITS[plan];
-  const currentMembers = await db.membership.count({ where: { organizationId: membership.organizationId } });
-  const pendingInvites = await db.invitation.count({
-    where: { organizationId: membership.organizationId, acceptedAt: null, expiresAt: { gt: new Date() } },
-  });
-  if (currentMembers + pendingInvites >= limits.users) {
-    return NextResponse.json({ error: `Tu plan ${plan} permite máximo ${limits.users} usuarios` }, { status: 403 });
-  }
+  // Internal tool: no plan limits on how many teammates can be invited.
 
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 

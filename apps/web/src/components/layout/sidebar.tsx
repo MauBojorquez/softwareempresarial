@@ -7,17 +7,18 @@ import { cn } from "@/lib/utils";
 import { Logo } from "@/components/logo";
 import { useEffect, useState, useRef } from "react";
 import {
-  LayoutDashboard, DollarSign, TrendingUp, Settings2, Users,
-  Megaphone, FileText, Plug, CreditCard, LogOut, X, Settings, Target,
-  Building2, ChevronDown, Plus, Check, UsersRound, Wallet, BarChart3,
+  LayoutDashboard, DollarSign, LogOut, X, Settings,
+  Building2, ChevronDown, Plus, Check, UsersRound, Wallet, BarChart3, Receipt,
 } from "lucide-react";
 
 type NavChild = { name: string; href: string; icon: typeof LayoutDashboard };
 type NavItem = { name: string; href: string; icon: typeof LayoutDashboard; children?: NavChild[] };
 
+// Internal Stratium tool: only the financial modules are shown. The rest of
+// the product (Ventas, Marketing, Operaciones, RRHH, Reportes, Metas,
+// Integraciones, Suscripción) still exists but is hidden from navigation.
 const navigation: NavItem[] = [
   { name: "Resumen", href: "/dashboard/overview", icon: LayoutDashboard },
-  { name: "Metas", href: "/dashboard/goals", icon: Target },
   {
     name: "Finanzas",
     href: "/dashboard/finance",
@@ -25,17 +26,15 @@ const navigation: NavItem[] = [
     children: [
       { name: "Dashboard", href: "/dashboard/finance", icon: BarChart3 },
       { name: "Flujo de Efectivo", href: "/dashboard/finance/cashflow", icon: Wallet },
+      { name: "Cobranza", href: "/dashboard/finance/cobranza", icon: Receipt },
     ],
   },
-  { name: "Ventas", href: "/dashboard/sales", icon: TrendingUp },
-  { name: "Operaciones", href: "/dashboard/operations", icon: Settings2 },
-  { name: "RRHH", href: "/dashboard/hr", icon: Users },
-  { name: "Marketing", href: "/dashboard/marketing", icon: Megaphone },
-  { name: "Reportes IA", href: "/dashboard/reports", icon: FileText },
-  { name: "Equipo", href: "/dashboard/team", icon: UsersRound },
-  { name: "Integraciones", href: "/dashboard/integrations", icon: Plug },
-  { name: "Suscripción", href: "/dashboard/billing", icon: CreditCard },
   { name: "Configuración", href: "/dashboard/settings", icon: Settings },
+];
+
+// Admin-only extra: the owner can still reach Equipo to invite teammates.
+const adminNavigation: NavItem[] = [
+  { name: "Equipo", href: "/dashboard/team", icon: UsersRound },
 ];
 
 type OrgItem = { id: string; name: string; logo?: string | null; brandColor?: string | null; isActive: boolean };
@@ -188,12 +187,10 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
         )}
 
         <nav aria-label="Navegación principal" className="flex-1 space-y-0.5 overflow-y-auto p-3">
-          {navigation.filter((item) => {
-            const isAdmin = session?.user?.role === "ADMIN";
-            // Billing and integrations are admin-only
-            if (item.href === "/dashboard/billing" || item.href === "/dashboard/integrations") {
-              return isAdmin;
-            }
+          {[
+            ...navigation,
+            ...(session?.user?.role === "ADMIN" ? adminNavigation : []),
+          ].filter((item) => {
             // Section-based filtering for editors/viewers
             if (allowedSections.length === 0) return true;
             const sectionMap: Record<string, string> = {

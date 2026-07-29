@@ -63,6 +63,8 @@ const WIDGET_CATALOG: Array<{ id: string; label: string }> = [
 ];
 
 const DEFAULT_ORDER = WIDGET_CATALOG.map((w) => w.id);
+// Non-financial widgets hidden by default in the internal financial tool.
+const HIDDEN_BY_DEFAULT = new Set(["crm", "marketing", "hr"]);
 const WIDGETS_KEY = "metrixpro-overview-widgets-v2";
 const ORDER_KEY = "metrixpro-overview-order-v1";
 
@@ -117,8 +119,10 @@ export default function OverviewPage() {
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
   const [customizing, setCustomizing] = useState(false);
+  // Internal financial tool: non-financial widgets start hidden. The user can
+  // still re-enable them from "Personalizar" — nothing is removed.
   const [widgets, setWidgets] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(WIDGET_CATALOG.map((w) => [w.id, true]))
+    Object.fromEntries(WIDGET_CATALOG.map((w) => [w.id, !HIDDEN_BY_DEFAULT.has(w.id)]))
   );
   const [order, setOrder] = useState<string[]>(DEFAULT_ORDER);
   const [dragId, setDragId] = useState<string | null>(null);

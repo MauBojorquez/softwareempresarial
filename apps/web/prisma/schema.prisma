@@ -105,6 +105,7 @@ model Organization {
   alertRules     AlertRule[]
   cashFlowAccounts    CashFlowAccount[]
   cashFlowCategories  CashFlowCategory[]
+  receivables         Receivable[]
 }
 
 model Membership {
@@ -475,6 +476,28 @@ model CashFlowTransaction {
   account   CashFlowAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@index([accountId, date])
+}
+
+// ─── Cobranza (cuentas por cobrar / facturación) ────────────────────
+model Receivable {
+  id            String    @id @default(cuid())
+  client        String
+  invoiceFolio  String?
+  concept       String?
+  amount        Float     @default(0)
+  issueDate     DateTime
+  // ENVIADA | PAGADA. "Vencida" se calcula al vuelo (ENVIADA + >30 días).
+  status        String    @default("ENVIADA")
+  paidDate      DateTime?
+  notes         String?   @db.Text
+  order         Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, issueDate])
 }
 
 model CashFlowCategory {

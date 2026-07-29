@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Search, Sparkles, Menu, FileText, BarChart3, Moon, Sun, Command } from "lucide-react";
+import { Search, Menu, FileText, BarChart3, Moon, Sun, Command } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
@@ -133,13 +133,6 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
           <Command className="h-4 w-4" />
           <kbd className="text-[10px] font-mono">⌘K</kbd>
         </button>
-        <a
-          href="/dashboard/reports"
-          className="flex items-center gap-1.5 rounded-lg gradient-bg px-2.5 py-1.5 text-[11px] font-medium text-white transition-opacity hover:opacity-90 sm:px-3 sm:text-xs"
-        >
-          <Sparkles className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-          <span className="hidden xs:inline sm:inline">Reporte IA</span>
-        </a>
         <InstallButton />
         <NotificationBell />
         <a href="/dashboard/settings" className="h-7 w-7 rounded-full overflow-hidden flex items-center justify-center sm:h-8 sm:w-8 border border-border" aria-label="Configuración de perfil">
