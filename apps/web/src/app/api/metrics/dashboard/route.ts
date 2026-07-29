@@ -129,6 +129,27 @@ export async function GET(req: NextRequest) {
     const cajaDepositsChange = pctChange(cajaDepMonth, cajaDepPrev);
     const cajaWithdrawalsChange = pctChange(cajaWdMonth, cajaWdPrev);
 
+    // ── Cobranza (cuentas por cobrar) — read straight from the source ─────
+    const receivables = await db.receivable.findMany({ where: { organizationId: orgId } });
+    const OVERDUE_MS = 30 * 24 * 60 * 60 * 1000;
+    let cobPorCobrar = 0, cobCobrado = 0, cobVencido = 0;
+    let cobPagadas = 0, cobPendientes = 0;
+    for (const r of receivables) {
+      if (r.status === "PAGADA") { cobCobrado += r.amount; cobPagadas += 1; }
+      else {
+        cobPorCobrar += r.amount; cobPendientes += 1;
+        if (Date.now() - new Date(r.issueDate).getTime() > OVERDUE_MS) cobVencido += r.amount;
+      }
+    }
+    const cobranza = {
+      total: receivables.length,
+      porCobrar: cobPorCobrar,
+      cobrado: cobCobrado,
+      vencido: cobVencido,
+      pagadas: cobPagadas,
+      pendientes: cobPendientes,
+    };
+
     // ── CRM / Ventas ──────────────────────────────────────
     const ventas = flow("SALES", ["venta", "vendido", "facturado", "ingreso"], ["pipeline", "lead", "prospecto"]);
     const leads = flow("SALES", ["lead", "prospecto", "contacto"], ["pipeline"]);
@@ -252,6 +273,8 @@ export async function GET(req: NextRequest) {
       cajaDepositsChange,
       cajaWithdrawals: cajaWdMonth,
       cajaWithdrawalsChange,
+      // Cobranza (cuentas por cobrar)
+      cobranza,
       // CRM
       ventas: ventas.value,
       ventasChange: ventas.change,

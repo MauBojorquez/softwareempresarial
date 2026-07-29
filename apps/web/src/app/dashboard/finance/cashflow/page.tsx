@@ -907,6 +907,14 @@ export default function CashFlowPage() {
 
   const activeAccount = accounts.find((a) => a.id === activeTab);
 
+  const deleteActiveAccount = async () => {
+    if (!activeAccount) return;
+    if (!confirm(`¿Eliminar el banco "${activeAccount.name}"? Se ocultará junto con sus movimientos.`)) return;
+    await fetch(`/api/cashflow/accounts/${activeAccount.id}`, { method: "DELETE" });
+    setAccounts((prev) => prev.filter((a) => a.id !== activeAccount.id));
+    setActiveTab("report");
+  };
+
   return (
     <div className="flex flex-col h-full min-h-[calc(100vh-64px)] bg-background">
       <div className="px-4 pt-4 pb-0 border-b border-border">
@@ -956,6 +964,16 @@ export default function CashFlowPage() {
             <Plus size={14} />
             Agregar cuenta
           </button>
+          {activeAccount && (
+            <button
+              onClick={deleteActiveAccount}
+              title={`Eliminar banco "${activeAccount.name}"`}
+              className="px-3 py-2.5 text-sm font-medium text-red-500 hover:text-red-600 flex items-center gap-1 whitespace-nowrap transition-colors"
+            >
+              <Trash2 size={14} />
+              Eliminar banco
+            </button>
+          )}
         </div>
       </div>
 
