@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
-import { getOrganizationId } from "@/lib/get-org";
+import { requireAccess } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -15,13 +15,9 @@ function effectiveStatus(status: string, issueDate: Date): "ENVIADA" | "PAGADA" 
 }
 
 export async function GET(req: NextRequest) {
-  const orgId = await getOrganizationId(req);
-  if (!orgId) {
-    return NextResponse.json({
-      receivables: [],
-      totals: { porCobrar: 0, cobrado: 0, vencido: 0, pagadas: 0, pendientes: 0, vencidas: 0 },
-    });
-  }
+  const access = await requireAccess(req, "cobranza");
+  if (access instanceof NextResponse) return access;
+  const { orgId } = access;
 
   const rows = await db.receivable.findMany({
     where: { organizationId: orgId },
@@ -55,8 +51,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const orgId = await getOrganizationId(req);
-  if (!orgId) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  const access = await requireAccess(req, "cobranza");
+  if (access instanceof NextResponse) return access;
+  const { orgId } = access;
 
   const body = await req.json().catch(() => ({}));
   const client = (body.client ?? "").toString().trim();

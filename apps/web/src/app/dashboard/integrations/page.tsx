@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { CheckCircle, RefreshCw, AlertCircle, Loader2, MessageSquarePlus, Lock, Table2 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useToast } from "@/components/toast";
@@ -10,7 +9,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { SheetsConnectModal } from "@/components/dashboard/sheets-connect-modal";
 import { cn } from "@/lib/utils";
 import {
-  MetaLogo, HubSpotLogo, SATLogo,
+  MetaLogo, HubSpotLogo,
 } from "@/components/brand-logos";
 
 type IntegrationStatus = {
@@ -21,24 +20,7 @@ type IntegrationStatus = {
   metricsCount: number;
 };
 
-type SatStatus = {
-  connected: boolean;
-  rfc?: string;
-  syncStatus?: string;
-  lastSyncAt?: string | null;
-  lastError?: string | null;
-};
-
 const integrationConfig = [
-  {
-    type: "SAT",
-    name: "SAT",
-    description: "Tus finanzas reales desde tu CFDI: ingresos y gastos facturados automáticamente, sin captura manual.",
-    category: "Finanzas / Fiscal",
-    metrics: ["Ingresos facturados", "Gastos", "IVA", "Nómina", "Egresos", "Flujo de caja"],
-    Logo: SATLogo,
-    connectUrl: "/dashboard/integrations/sat",
-  },
   {
     type: "HUBSPOT",
     name: "HubSpot",
@@ -88,24 +70,15 @@ function timeAgo(dateStr: string) {
 export default function IntegrationsPage() {
   const { data: session } = useSession();
   const { toast } = useToast();
-  const router = useRouter();
 
   const [statuses, setStatuses] = useState<IntegrationStatus[]>([]);
   const [syncing, setSyncing] = useState<Record<string, boolean>>({});
-  const [satStatus, setSatStatus] = useState<SatStatus>({ connected: false });
   const [confirmDisconnect, setConfirmDisconnect] = useState<string | null>(null);
   const [requestMsg, setRequestMsg] = useState("");
   const [sendingRequest, setSendingRequest] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
   const [showSheets, setShowSheets] = useState(false);
   const [sheetsStatus, setSheetsStatus] = useState<{ connected: boolean; lastSyncAt: string | null; mappings: unknown[] }>({ connected: false, lastSyncAt: null, mappings: [] });
-
-  const fetchSatStatus = () => {
-    fetch("/api/integrations/sat/status")
-      .then((r) => r.json())
-      .then((d: SatStatus) => setSatStatus(d))
-      .catch((e) => { console.error(e); });
-  };
 
   const fetchSheetsStatus = () => {
     fetch("/api/integrations/sheets")
@@ -128,7 +101,6 @@ export default function IntegrationsPage() {
       .then((r) => r.json())
       .then((d) => setStatuses(d.integrations ?? []))
       .catch((e) => { console.error(e); });
-    fetchSatStatus();
     fetchSheetsStatus();
   }, []);
 
@@ -151,41 +123,9 @@ export default function IntegrationsPage() {
   }, []);
 
   const isConnected = (type: string) => {
-    if (type === "SAT") return satStatus.connected;
     return statuses.some((s) => s.type === type && s.isActive);
   };
   const getStatus = (type: string) => statuses.find((s) => s.type === type);
-
-  const handleSatSync = async () => {
-    setSyncing((p) => ({ ...p, SAT: true }));
-    try {
-      const res = await fetch("/api/integrations/sat/sync", { method: "POST" });
-      const data = await res.json();
-      fetchSatStatus();
-      if (res.ok) {
-        toast("SAT sincronizado correctamente", "success");
-        addActivityLog("Sincronización", "SAT sincronizado", "sync");
-      } else {
-        toast(data.error ?? "Error sincronizando SAT", "error");
-      }
-    } catch (e) {
-      console.error(e);
-      toast("Error de conexión al sincronizar SAT", "error");
-    }
-    setSyncing((p) => ({ ...p, SAT: false }));
-  };
-
-  const handleSatDisconnect = async () => {
-    try {
-      await fetch("/api/integrations/sat/disconnect", { method: "DELETE" });
-      setSatStatus({ connected: false });
-      setConfirmDisconnect(null);
-      toast("SAT desconectado", "success");
-    } catch (e) {
-      console.error(e);
-      toast("Error al desconectar SAT", "error");
-    }
-  };
 
   const handleSync = async (type: string) => {
     setSyncing((p) => ({ ...p, [type]: true }));
@@ -213,12 +153,8 @@ export default function IntegrationsPage() {
     setSyncing((p) => ({ ...p, [type]: false }));
   };
 
-  const handleConnect = (type: string, url: string) => {
-    if (type === "SAT") {
-      router.push(url);
-    } else {
-      window.location.href = url;
-    }
+  const handleConnect = (url: string) => {
+    window.location.href = url;
   };
 
   const handleDisconnect = async (type: string) => {
@@ -258,11 +194,11 @@ export default function IntegrationsPage() {
         <p className="text-sm text-muted-foreground">Conecta tus herramientas para sincronizar métricas</p>
       </div>
 
-      {(statuses.length > 0 || satStatus.connected) && (
+      {statuses.length > 0 && (
         <div className="flex items-center gap-4 rounded-xl border border-border bg-card p-4">
           <div className="flex items-center gap-2">
             <div className="h-2 w-2 rounded-full bg-emerald-500" />
-            <span className="text-sm font-medium">{statuses.filter((s) => s.isActive).length + (satStatus.connected ? 1 : 0)} conectadas</span>
+            <span className="text-sm font-medium">{statuses.filter((s) => s.isActive).length} conectadas</span>
           </div>
           <div className="h-4 w-px bg-border" />
           <span className="text-sm text-muted-foreground">{integrationConfig.length} disponibles</span>
@@ -379,28 +315,7 @@ export default function IntegrationsPage() {
                 ))}
               </div>
 
-              {connected && integration.type === "SAT" && (() => {
-                const lastSync = satStatus.lastSyncAt;
-                const syncAge = lastSync ? (Date.now() - new Date(lastSync).getTime()) / 3600000 : Infinity;
-                const dotColor = syncAge < 24 ? "bg-emerald-500" : syncAge < 168 ? "bg-yellow-500" : "bg-red-500";
-                return (
-                  <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground">
-                    <div className="flex items-center gap-1.5">
-                      <div className={`h-1.5 w-1.5 rounded-full ${dotColor}`} />
-                      <span>RFC: {satStatus.rfc}</span>
-                    </div>
-                    {lastSync && <span className="font-medium">{timeAgo(lastSync)}</span>}
-                    {satStatus.syncStatus === "syncing" && (
-                      <span className="flex items-center gap-1 text-blue-500">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        Sincronizando...
-                      </span>
-                    )}
-                  </div>
-                );
-              })()}
-
-              {connected && integration.type !== "SAT" && status && (() => {
+              {connected && status && (() => {
                 const syncAge = status.lastSyncAt ? (Date.now() - new Date(status.lastSyncAt).getTime()) / 3600000 : Infinity;
                 const dotColor = syncAge < 24 ? "bg-emerald-500" : syncAge < 168 ? "bg-yellow-500" : "bg-red-500";
                 return (
@@ -418,54 +333,30 @@ export default function IntegrationsPage() {
 
               <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-border pt-4">
                 {connected ? (
-                  integration.type === "SAT" ? (
-                    <>
-                      <span className="text-xs text-muted-foreground">
-                        {satStatus.lastSyncAt ? `Última sync: ${timeAgo(satStatus.lastSyncAt)}` : "Sin sincronizar"}
-                      </span>
-                      <div className="flex gap-2 w-full sm:w-auto">
-                        <button
-                          onClick={handleSatSync}
-                          disabled={isSyncing || satStatus.syncStatus === "syncing"}
-                          className="flex items-center gap-1.5 rounded-lg bg-secondary/50 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-secondary disabled:opacity-50"
-                        >
-                          {isSyncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-                          {isSyncing ? "Sincronizando..." : "Sincronizar"}
-                        </button>
-                        <button
-                          onClick={() => setConfirmDisconnect("SAT")}
-                          className="flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-500 transition-colors hover:bg-red-500/20"
-                        >
-                          Desconectar
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-xs text-muted-foreground">
-                        {status?.lastSyncAt ? `Última sync: ${timeAgo(status.lastSyncAt)}` : "Sin sincronizar"}
-                      </span>
-                      <div className="flex gap-2 w-full sm:w-auto">
-                        <button
-                          onClick={() => handleSync(integration.type)}
-                          disabled={isSyncing}
-                          className="flex items-center gap-1.5 rounded-lg bg-secondary/50 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-secondary disabled:opacity-50"
-                        >
-                          {isSyncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-                          {isSyncing ? "Sincronizando..." : "Sincronizar"}
-                        </button>
-                        <button
-                          onClick={() => setConfirmDisconnect(integration.type)}
-                          className="flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-500 transition-colors hover:bg-red-500/20"
-                        >
-                          Desconectar
-                        </button>
-                      </div>
-                    </>
-                  )
+                  <>
+                    <span className="text-xs text-muted-foreground">
+                      {status?.lastSyncAt ? `Última sync: ${timeAgo(status.lastSyncAt)}` : "Sin sincronizar"}
+                    </span>
+                    <div className="flex gap-2 w-full sm:w-auto">
+                      <button
+                        onClick={() => handleSync(integration.type)}
+                        disabled={isSyncing}
+                        className="flex items-center gap-1.5 rounded-lg bg-secondary/50 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-secondary disabled:opacity-50"
+                      >
+                        {isSyncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                        {isSyncing ? "Sincronizando..." : "Sincronizar"}
+                      </button>
+                      <button
+                        onClick={() => setConfirmDisconnect(integration.type)}
+                        className="flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-500 transition-colors hover:bg-red-500/20"
+                      >
+                        Desconectar
+                      </button>
+                    </div>
+                  </>
                 ) : integration.connectUrl ? (
                   <button
-                    onClick={() => handleConnect(integration.type, integration.connectUrl!)}
+                    onClick={() => handleConnect(integration.connectUrl!)}
                     className="w-full rounded-lg gradient-bg py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
                   >
                     Conectar {integration.name}
@@ -559,17 +450,14 @@ export default function IntegrationsPage() {
         open={confirmDisconnect !== null}
         title={confirmDisconnect === "SHEETS" ? "Desconectar hoja de cálculo" : `Desconectar ${confirmDisconnect}`}
         description={
-          confirmDisconnect === "SAT"
-            ? "¿Desconectar SAT? Se dejará de sincronizar tus CFDIs automáticamente."
-            : confirmDisconnect === "SHEETS"
-              ? "¿Desconectar tu hoja de cálculo? Se olvidará el mapeo de celdas (los datos ya importados se conservan)."
-              : `¿Desconectar ${confirmDisconnect}? Se dejarán de sincronizar sus métricas.`
+          confirmDisconnect === "SHEETS"
+            ? "¿Desconectar tu hoja de cálculo? Se olvidará el mapeo de celdas (los datos ya importados se conservan)."
+            : `¿Desconectar ${confirmDisconnect}? Se dejarán de sincronizar sus métricas.`
         }
         confirmLabel="Desconectar"
         destructive
         onConfirm={() => {
-          if (confirmDisconnect === "SAT") handleSatDisconnect();
-          else if (confirmDisconnect === "SHEETS") handleSheetsDisconnect();
+          if (confirmDisconnect === "SHEETS") handleSheetsDisconnect();
           else if (confirmDisconnect) handleDisconnect(confirmDisconnect);
         }}
         onCancel={() => setConfirmDisconnect(null)}

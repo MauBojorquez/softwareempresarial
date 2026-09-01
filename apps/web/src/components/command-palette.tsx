@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   LayoutDashboard, DollarSign, TrendingUp, Settings2, Users,
-  Megaphone, FileText, Plug, CreditCard, Settings, Target,
+  Megaphone, FileText, Plug, Settings, Target,
   Sparkles, Search, ArrowRight, RefreshCw, Moon, Sun, UsersRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -44,8 +44,7 @@ export function CommandPalette() {
     { id: "marketing", label: "Marketing", subtitle: "Meta Ads, campañas", icon: <Megaphone className="h-4 w-4" />, action: () => navigate("/dashboard/marketing"), category: "Navegación", keywords: ["meta", "ads", "publicidad"] },
     { id: "reports", label: "Reportes IA", subtitle: "Genera y consulta reportes", icon: <FileText className="h-4 w-4" />, action: () => navigate("/dashboard/reports"), category: "Navegación" },
     { id: "team", label: "Equipo", subtitle: "Miembros y actividad", icon: <UsersRound className="h-4 w-4" />, action: () => navigate("/dashboard/team"), category: "Navegación", keywords: ["equipo", "miembros", "usuarios", "actividad"] },
-    { id: "integrations", label: "Integraciones", subtitle: "SAT, HubSpot, Meta Ads", icon: <Plug className="h-4 w-4" />, action: () => navigate("/dashboard/integrations"), category: "Navegación", keywords: ["conectar", "sat", "hubspot"] },
-    { id: "billing", label: "Suscripción", subtitle: "Plan y facturación", icon: <CreditCard className="h-4 w-4" />, action: () => navigate("/dashboard/billing"), category: "Navegación", keywords: ["plan", "pago", "stripe"] },
+    { id: "integrations", label: "Integraciones", subtitle: "HubSpot, Meta Ads", icon: <Plug className="h-4 w-4" />, action: () => navigate("/dashboard/integrations"), category: "Navegación", keywords: ["conectar", "hubspot", "meta"] },
     { id: "settings", label: "Configuración", subtitle: "Perfil y empresa", icon: <Settings className="h-4 w-4" />, action: () => navigate("/dashboard/settings"), category: "Navegación", keywords: ["perfil", "logo", "color"] },
     { id: "generate-report", label: "Generar Reporte IA", subtitle: "Análisis con inteligencia artificial", icon: <Sparkles className="h-4 w-4 text-primary" />, action: () => { navigate("/dashboard/reports"); }, category: "Acciones" },
     { id: "sync", label: "Sincronizar integraciones", subtitle: "Actualiza datos desde SAT, HubSpot, Meta", icon: <RefreshCw className="h-4 w-4" />, action: () => { fetch("/api/integrations/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "ALL" }) }); setOpen(false); }, category: "Acciones" },

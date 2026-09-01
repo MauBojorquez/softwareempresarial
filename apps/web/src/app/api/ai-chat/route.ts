@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/server/db";
-import { checkFeatureAccess, PLAN_LIMITS } from "@/server/services/billing/plan-limits";
 import Anthropic from "@anthropic-ai/sdk";
+
+// Internal tool: no per-plan gating. Keep a sane daily cap to avoid runaway cost.
+const AI_CHAT_MESSAGES_PER_DAY = 200;
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -20,20 +22,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No organization" }, { status: 404 });
   }
 
-  const access = await checkFeatureAccess(membership.organizationId, "aiChatEnabled");
-  if (!access.allowed) {
-    return NextResponse.json({ error: access.reason }, { status: 403 });
-  }
-
-  const sub = await db.subscription.findUnique({
-    where: { organizationId: membership.organizationId },
-  });
-
-  if (!sub) {
-    return NextResponse.json({ error: "Suscripción requerida" }, { status: 403 });
-  }
-
-  const limits = PLAN_LIMITS[sub.plan];
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
 
@@ -45,9 +33,9 @@ export async function POST(req: NextRequest) {
     },
   }).catch(() => 0);
 
-  if (todayMessages >= limits.aiChatMessagesPerDay) {
+  if (todayMessages >= AI_CHAT_MESSAGES_PER_DAY) {
     return NextResponse.json({
-      error: `Límite diario alcanzado (${limits.aiChatMessagesPerDay} mensajes). Actualiza tu plan para más.`,
+      error: `Límite diario alcanzado (${AI_CHAT_MESSAGES_PER_DAY} mensajes). Intenta de nuevo mañana.`,
     }, { status: 429 });
   }
 
@@ -121,7 +109,7 @@ Instrucciones:
 
     return NextResponse.json({
       reply,
-      remaining: limits.aiChatMessagesPerDay - todayMessages - 1,
+      remaining: AI_CHAT_MESSAGES_PER_DAY - todayMessages - 1,
     });
   } catch (err: any) {
     console.error("AI Chat error:", err);

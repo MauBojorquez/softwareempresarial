@@ -24,14 +24,6 @@ export async function ensureMembership(userId: string): Promise<Membership | nul
       data: {
         name: user.name ?? user.email ?? "Mi Empresa",
         ownerId: userId,
-        subscription: {
-          create: {
-            stripeCustomerId: `cus_free_${userId}`,
-            plan: "FREE",
-            status: "ACTIVE",
-            interval: "MONTHLY",
-          },
-        },
       },
     });
   }

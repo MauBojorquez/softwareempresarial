@@ -4,7 +4,6 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/server/db";
 import { generateMonthlyReport } from "@/server/services/ai/report-generator";
 import { notify } from "@/server/services/push/notify";
-import { checkFeatureAccess } from "@/server/services/billing/plan-limits";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { logActivity } from "@/lib/activity";
 
@@ -30,14 +29,6 @@ export async function POST(req: NextRequest) {
 
   if (!membership) {
     return NextResponse.json({ error: "No organization found" }, { status: 404 });
-  }
-
-  const access = await checkFeatureAccess(membership.organizationId, "aiReportsPerWeek");
-  if (!access.allowed) {
-    return NextResponse.json(
-      { error: access.reason, limit: access.limit, current: access.current },
-      { status: 403 }
-    );
   }
 
   try {

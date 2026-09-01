@@ -82,8 +82,9 @@ export async function GET(req: NextRequest) {
     };
 
     // ── Finanzas Fiscales (SAT) ───────────────────────────
-    const satCredential = await db.satCredential.findUnique({ where: { organizationId: orgId } });
-    const satConnected = !!satCredential;
+    // SAT integration was removed; SAT-sourced metric rows (source "SAT") are
+    // no longer produced, so these sums naturally fall to 0. Kept for API shape.
+    const satConnected = false;
 
     // When SAT is connected we trust SAT-sourced metrics; otherwise we sum
     // whatever the user entered manually in FINANCE.

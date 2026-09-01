@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/server/db";
 import { sendEmail, inviteEmail } from "@/server/services/email";
-import type { MembershipRole } from "@prisma/client";
+import type { MembershipRole, JobRole } from "@prisma/client";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { logActivity } from "@/lib/activity";
 
@@ -38,8 +38,11 @@ export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { email, role = "VIEWER", allowedSections = [] } = (await req.json()) as { email: string; role?: MembershipRole; allowedSections?: string[] };
+  const { email, role = "VIEWER", allowedSections = [], jobRole } = (await req.json()) as { email: string; role?: MembershipRole; allowedSections?: string[]; jobRole?: JobRole | null };
   if (!email) return NextResponse.json({ error: "Email required" }, { status: 400 });
+
+  const VALID_JOB_ROLES: JobRole[] = ["DIRECCION", "OPERACIONES", "COMERCIAL", "MARKETING", "ADMINISTRACION"];
+  const normalizedJobRole: JobRole | null = jobRole && VALID_JOB_ROLES.includes(jobRole) ? jobRole : null;
 
   const membership = await db.membership.findFirst({
     where: { userId: session.user.id },
@@ -73,11 +76,12 @@ export async function POST(req: NextRequest) {
       email,
       role: role as MembershipRole,
       allowedSections,
+      jobRole: normalizedJobRole,
       expiresAt,
       organizationId: membership.organizationId,
       invitedById: session.user.id,
     },
-    update: { role: role as MembershipRole, allowedSections, expiresAt, acceptedAt: null, invitedById: session.user.id },
+    update: { role: role as MembershipRole, allowedSections, jobRole: normalizedJobRole, expiresAt, acceptedAt: null, invitedById: session.user.id },
   });
 
   const inviteUrl = `${process.env.NEXTAUTH_URL}/invite/${invitation.token}`;

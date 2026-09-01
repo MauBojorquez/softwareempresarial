@@ -59,13 +59,6 @@ export const authOptions: NextAuthOptions = {
         data: {
           name: user.name ?? user.email ?? "Mi Empresa",
           ownerId: user.id,
-          subscription: {
-            create: {
-              stripeCustomerId: `cus_demo_${user.id}`,
-              plan: "STARTER",
-              interval: "MONTHLY",
-            },
-          },
         },
       });
       await db.membership.create({

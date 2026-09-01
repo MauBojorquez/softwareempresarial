@@ -53,13 +53,14 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  // Accept the invitation — create membership with section permissions
+  // Accept the invitation — create membership with section permissions + jobRole
   await db.membership.create({
     data: {
       userId: user.id,
       organizationId: invitation.organizationId,
       role: invitation.role,
       allowedSections: invitation.allowedSections,
+      jobRole: invitation.jobRole,
     },
   });
 

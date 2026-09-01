@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
-import { getOrganizationId } from "@/lib/get-org";
+import { requireAccess } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -9,8 +9,9 @@ async function ownRow(orgId: string, id: string) {
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const orgId = await getOrganizationId(req);
-  if (!orgId) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  const access = await requireAccess(req, "cobranza");
+  if (access instanceof NextResponse) return access;
+  const { orgId } = access;
 
   const existing = await ownRow(orgId, params.id);
   if (!existing) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
@@ -45,8 +46,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
-  const orgId = await getOrganizationId(req);
-  if (!orgId) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  const access = await requireAccess(req, "cobranza");
+  if (access instanceof NextResponse) return access;
+  const { orgId } = access;
 
   const existing = await ownRow(orgId, params.id);
   if (!existing) return NextResponse.json({ error: "No encontrado" }, { status: 404 });

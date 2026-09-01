@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
-import { getOrganizationId } from "@/lib/get-org";
+import { requireAccess } from "@/lib/access";
 import { syncCashflowMetrics } from "@/lib/cashflow-sync";
 
 export const dynamic = "force-dynamic";
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const orgId = await getOrganizationId(req);
-  if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const access = await requireAccess(req, "flujo");
+  if (access instanceof NextResponse) return access;
+  const { orgId } = access;
   const body = await req.json();
   const data: Record<string, unknown> = {};
   if (body.date !== undefined) data.date = new Date(body.date);
@@ -40,8 +41,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
-  const orgId = await getOrganizationId(req);
-  if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const access = await requireAccess(req, "flujo");
+  if (access instanceof NextResponse) return access;
+  const { orgId } = access;
   const tx = await db.cashFlowTransaction.findUnique({
     where: { id: params.id },
     include: { account: { select: { organizationId: true } } },

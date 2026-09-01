@@ -33,11 +33,11 @@ export async function POST(req: NextRequest) {
     }, { status: 403 });
   }
 
-  // Add membership (carry over allowedSections from the invitation)
+  // Add membership (carry over allowedSections + jobRole from the invitation)
   await db.membership.upsert({
     where: { userId_organizationId: { userId: session.user.id, organizationId: invitation.organizationId } },
-    create: { userId: session.user.id, organizationId: invitation.organizationId, role: invitation.role, allowedSections: invitation.allowedSections },
-    update: { role: invitation.role, allowedSections: invitation.allowedSections },
+    create: { userId: session.user.id, organizationId: invitation.organizationId, role: invitation.role, allowedSections: invitation.allowedSections, jobRole: invitation.jobRole },
+    update: { role: invitation.role, allowedSections: invitation.allowedSections, jobRole: invitation.jobRole },
   });
 
   await db.invitation.update({ where: { id: invitation.id }, data: { acceptedAt: new Date() } });

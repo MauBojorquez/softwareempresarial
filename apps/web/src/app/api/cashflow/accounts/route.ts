@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
-import { getOrganizationId } from "@/lib/get-org";
+import { requireAccess } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const orgId = await getOrganizationId(req);
-    if (!orgId) return NextResponse.json({ accounts: [] });
+    const access = await requireAccess(req, "flujo");
+    if (access instanceof NextResponse) return access;
+    const { orgId } = access;
     const accounts = await db.cashFlowAccount.findMany({
       where: { organizationId: orgId, isActive: true },
       orderBy: { order: "asc" },
@@ -21,8 +22,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const orgId = await getOrganizationId(req);
-    if (!orgId) return NextResponse.json({ error: "No organization" }, { status: 401 });
+    const access = await requireAccess(req, "flujo");
+    if (access instanceof NextResponse) return access;
+    const { orgId } = access;
     const body = await req.json();
     if (!body?.name || !String(body.name).trim()) {
       return NextResponse.json({ error: "Name required" }, { status: 400 });

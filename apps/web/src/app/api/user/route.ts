@@ -132,7 +132,7 @@ export async function DELETE(req: NextRequest) {
 
   const memberships = await db.membership.findMany({
     where: { userId: session.user.id },
-    include: { organization: { include: { subscription: true } } },
+    include: { organization: true },
   });
 
   // Track member users (other than the owner) belonging to orgs we're about to
@@ -153,20 +153,9 @@ export async function DELETE(req: NextRequest) {
       });
       for (const om of orgMembers) memberUserIds.add(om.userId);
 
-      // Cancel the Stripe subscription if there is a real one.
-      const stripeSub = org.subscription;
-      if (stripeSub?.stripeSubscriptionId && process.env.STRIPE_SECRET_KEY) {
-        try {
-          const { stripe } = await import("@/lib/stripe");
-          await stripe.subscriptions.cancel(stripeSub.stripeSubscriptionId);
-        } catch (err) {
-          console.error("Failed to cancel Stripe subscription on account delete:", err);
-        }
-      }
-
       // Deleting the organization cascades all org-scoped data (metrics,
-      // reports, chat, integrations, dashboards, subscription, memberships,
-      // invitations, alert rules, SAT credentials, activity logs).
+      // reports, chat, integrations, dashboards, memberships,
+      // invitations, alert rules, activity logs).
       await db.organization.delete({ where: { id: org.id } });
     }
 

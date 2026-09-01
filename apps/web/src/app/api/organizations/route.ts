@@ -44,14 +44,6 @@ export async function POST(req: NextRequest) {
       name: name.trim().slice(0, 100),
       industry: industry?.trim().slice(0, 100) || null,
       ownerId: session.user.id,
-      subscription: {
-        create: {
-          stripeCustomerId: `cus_free_${session.user.id}_${Date.now()}`,
-          plan: "FREE",
-          status: "ACTIVE",
-          interval: "MONTHLY",
-        },
-      },
     },
   });
 

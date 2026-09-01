@@ -89,36 +89,6 @@ export function inviteEmail(inviterName: string, orgName: string, inviteUrl: str
   };
 }
 
-export function billingEmail(name: string, event: "upgraded" | "canceled" | "payment_failed" | "trial_ending", planName?: string) {
-  const content: Record<string, { title: string; body: string }> = {
-    upgraded: {
-      title: "Plan actualizado",
-      body: `Tu plan fue actualizado a <strong>${esc(planName)}</strong>. Ya tienes acceso a todas las funciones de tu nuevo plan.`,
-    },
-    canceled: {
-      title: "Suscripción cancelada",
-      body: `Tu suscripción fue cancelada. Seguirás teniendo acceso hasta el final del período actual.`,
-    },
-    payment_failed: {
-      title: "Pago fallido",
-      body: `No pudimos procesar tu pago. Por favor actualiza tu método de pago para continuar usando StratiuMetrics.`,
-    },
-    trial_ending: {
-      title: "Tu período de prueba termina pronto",
-      body: `Tu prueba gratuita termina en 3 días. Actualiza tu plan para no perder el acceso.`,
-    },
-  };
-  const { title, body } = content[event];
-  return {
-    subject: `StratiuMetrics: ${title}`,
-    html: base(`
-      <h2 style="margin:0 0 8px;color:#18181b;font-size:20px;">${title}</h2>
-      <p style="color:#71717a;font-size:15px;line-height:1.6;">Hola <strong>${esc(name)}</strong>, ${body}</p>
-      <a href="${process.env.NEXTAUTH_URL}/dashboard/billing" style="display:inline-block;margin-top:20px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:600;font-size:14px;">Ver Suscripción</a>
-    `),
-  };
-}
-
 const fmtMoney = (v: number) =>
   new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 }).format(v);
 

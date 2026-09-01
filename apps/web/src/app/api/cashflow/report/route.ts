@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
-import { getOrganizationId } from "@/lib/get-org";
+import { requireAccess } from "@/lib/access";
 import { syncCashflowMetrics } from "@/lib/cashflow-sync";
 
 export const dynamic = "force-dynamic";
@@ -16,8 +16,9 @@ const EMPTY = {
 
 export async function GET(req: NextRequest) {
   try {
-    const orgId = await getOrganizationId(req);
-    if (!orgId) return NextResponse.json(EMPTY);
+    const access = await requireAccess(req, "flujo");
+    if (access instanceof NextResponse) return access;
+    const { orgId } = access;
 
     // Reconcile cashflow → finance metrics in the background so existing
     // transactions (entered before the sync existed) show up in Finanzas

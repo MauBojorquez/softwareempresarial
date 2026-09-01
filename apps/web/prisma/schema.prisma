@@ -91,7 +91,6 @@ model Organization {
 
   @@index([ownerId])
 
-  subscription   Subscription?
   memberships    Membership[]
   integrations   Integration[]
   metrics        Metric[]
@@ -99,8 +98,6 @@ model Organization {
   reports        AIReport[]
   chatMessages   AIChatMessage[]
   invitations    Invitation[]
-  satCredential  SatCredential?
-  satDownloadRequests SatDownloadRequest[]
   activityLogs   ActivityLog[]
   alertRules     AlertRule[]
   cashFlowAccounts    CashFlowAccount[]
@@ -117,28 +114,9 @@ model Membership {
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  jobRole        JobRole?
 
   @@unique([userId, organizationId])
-}
-
-// ─── Subscription & Billing ─────────────────────────────────────────
-
-model Subscription {
-  id                   String             @id @default(cuid())
-  stripeCustomerId     String             @unique
-  stripeSubscriptionId String?            @unique
-  stripePriceId        String?
-  status               SubscriptionStatus @default(TRIALING)
-  plan                 Plan               @default(STARTER)
-  interval             BillingInterval    @default(MONTHLY)
-  currentPeriodStart   DateTime?
-  currentPeriodEnd     DateTime?
-  cancelAtPeriodEnd    Boolean            @default(false)
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
-
-  organizationId String       @unique
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 }
 
 // ─── Integrations ───────────────────────────────────────────────────
@@ -233,6 +211,7 @@ model Invitation {
   email           String
   role            MembershipRole @default(VIEWER)
   allowedSections String[]       @default([])
+  jobRole         JobRole?
   token           String         @unique @default(cuid())
   expiresAt       DateTime
   acceptedAt      DateTime?
@@ -261,24 +240,12 @@ enum MembershipRole {
   VIEWER
 }
 
-enum SubscriptionStatus {
-  TRIALING
-  ACTIVE
-  PAST_DUE
-  CANCELED
-  UNPAID
-}
-
-enum Plan {
-  FREE
-  STARTER
-  PROFESSIONAL
-  ENTERPRISE
-}
-
-enum BillingInterval {
-  MONTHLY
-  ANNUAL
+enum JobRole {
+  DIRECCION
+  OPERACIONES
+  COMERCIAL
+  MARKETING
+  ADMINISTRACION
 }
 
 enum IntegrationType {
@@ -394,42 +361,6 @@ model ApiKey {
   userId         String
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   organizationId String
-}
-
-// ─── SAT / Facturapi ────────────────────────────────────────────────
-
-model SatCredential {
-  id             String       @id @default(cuid())
-  organizationId String       @unique
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  rfc            String
-  encryptedCer      String @db.Text
-  encryptedKey      String @db.Text
-  encryptedPassword String @db.Text
-  syncStatus     String       @default("pending") // pending | syncing | synced | error
-  lastSyncAt     DateTime?
-  lastError      String?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-}
-
-model SatDownloadRequest {
-  id             String   @id @default(cuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  satRequestId   String?  // request id returned by SAT query
-  downloadType   String   // "issued" | "received"
-  periodFrom     DateTime
-  periodTo       DateTime
-  status         String   @default("pending") // pending | accepted | finished | downloaded | failed | expired
-  packageIds     String[] @default([])
-  attempts       Int      @default(0)
-  lastError      String?
-  lastCheckedAt  DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  @@index([organizationId, status])
 }
 
 // ─── Cash Flow ──────────────────────────────────────────────────────

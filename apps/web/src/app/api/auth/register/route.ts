@@ -9,8 +9,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Demasiados registros. Intenta más tarde." }, { status: 429 });
   }
 
-  const { name, email, password, company, plan } = await req.json();
-  const chosenPlan = plan === "FREE" ? "FREE" : "STARTER";
+  const { name, email, password, company } = await req.json();
 
   if (!name || !email || !password || !company) {
     return NextResponse.json({ error: "Todos los campos son requeridos" }, { status: 400 });
@@ -47,14 +46,6 @@ export async function POST(req: NextRequest) {
     data: {
       name: trimmedCompany,
       ownerId: user.id,
-      subscription: {
-        create: {
-          stripeCustomerId: `cus_demo_${email}`,
-          plan: chosenPlan,
-          status: chosenPlan === "FREE" ? "ACTIVE" : "TRIALING",
-          interval: "MONTHLY",
-        },
-      },
     },
   });
 

@@ -115,6 +115,7 @@ export default function SettingsPage() {
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"VIEWER" | "EDITOR" | "ADMIN">("VIEWER");
+  const [inviteJobRole, setInviteJobRole] = useState<"" | "DIRECCION" | "OPERACIONES" | "COMERCIAL" | "MARKETING" | "ADMINISTRACION">("");
   const [inviteSections, setInviteSections] = useState<string[]>([]);
   const [inviting, setInviting] = useState(false);
 
@@ -430,12 +431,13 @@ export default function SettingsPage() {
       const res = await fetch("/api/invitations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: inviteEmail, role: inviteRole, allowedSections: inviteSections }),
+        body: JSON.stringify({ email: inviteEmail, role: inviteRole, allowedSections: inviteSections, jobRole: inviteJobRole || null }),
       });
       const data = await res.json();
       if (res.ok) {
         toast("Invitación enviada a " + inviteEmail, "success");
         setInviteEmail("");
+        setInviteJobRole("");
         const updated = await fetch("/api/invitations").then((r) => r.json());
         setInvitations(Array.isArray(updated.invitations) ? updated.invitations : []);
       } else {
@@ -917,6 +919,14 @@ export default function SettingsPage() {
             <option value="EDITOR">Editor</option>
             <option value="ADMIN">Administrador</option>
           </select>
+          <select value={inviteJobRole} onChange={(e) => setInviteJobRole(e.target.value as typeof inviteJobRole)} className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none" aria-label="Rol de puesto">
+            <option value="">Puesto (sin asignar)</option>
+            <option value="DIRECCION">Dirección</option>
+            <option value="OPERACIONES">Operaciones</option>
+            <option value="COMERCIAL">Comercial</option>
+            <option value="MARKETING">Marketing</option>
+            <option value="ADMINISTRACION">Administración</option>
+          </select>
           <button onClick={handleInvite} disabled={inviting || !inviteEmail} className="flex items-center gap-1.5 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50">
             {inviting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
             Invitar
@@ -1043,7 +1053,7 @@ export default function SettingsPage() {
           <h2 className="text-lg font-semibold text-destructive">Zona de peligro</h2>
         </div>
         <p className="text-sm text-muted-foreground">
-          Eliminar tu cuenta borrará permanentemente tu organización y todos sus datos: métricas, reportes, integraciones y metas. También se cancelará tu suscripción de Stripe y se eliminarán las cuentas de los miembros de tu equipo que solo pertenezcan a esta organización. Esta acción no se puede deshacer.
+          Eliminar tu cuenta borrará permanentemente tu organización y todos sus datos: métricas, reportes, integraciones y metas. También se eliminarán las cuentas de los miembros de tu equipo que solo pertenezcan a esta organización. Esta acción no se puede deshacer.
         </p>
         <div className="space-y-3">
           <div>
