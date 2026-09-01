@@ -9,6 +9,7 @@ import { useEffect, useState, useRef } from "react";
 import {
   LayoutDashboard, DollarSign, LogOut, X, Settings,
   Building2, ChevronDown, Plus, Check, UsersRound, Wallet, BarChart3, Receipt,
+  Users, ListChecks,
 } from "lucide-react";
 
 type NavChild = { name: string; href: string; icon: typeof LayoutDashboard };
@@ -26,7 +27,9 @@ const navigation: NavItem[] = [
     children: [
       { name: "Dashboard", href: "/dashboard/finance", icon: BarChart3 },
       { name: "Flujo de Efectivo", href: "/dashboard/finance/cashflow", icon: Wallet },
+      { name: "Cartera", href: "/dashboard/finance/cartera", icon: Users },
       { name: "Cobranza", href: "/dashboard/finance/cobranza", icon: Receipt },
+      { name: "Tareas", href: "/dashboard/finance/tareas", icon: ListChecks },
     ],
   },
   { name: "Configuración", href: "/dashboard/settings", icon: Settings },

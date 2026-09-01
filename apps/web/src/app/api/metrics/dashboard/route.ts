@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getOrganizationId } from "@/lib/get-org";
 import { db } from "@/server/db";
 import { syncCashflowMetrics } from "@/lib/cashflow-sync";
+import { receivableStatus, saldo as calcSaldo } from "@/lib/cobranza";
 
 type M = { name: string; value: number; unit: string | null; period: Date; category: string; source: string | null };
 
@@ -123,15 +124,23 @@ export async function GET(req: NextRequest) {
     const cajaWithdrawalsChange = pctChange(cajaWdMonth, cajaWdPrev);
 
     // ── Cobranza (cuentas por cobrar) — read straight from the source ─────
-    const receivables = await db.receivable.findMany({ where: { organizationId: orgId } });
-    const OVERDUE_MS = 30 * 24 * 60 * 60 * 1000;
+    // Status/saldo are DERIVED from summed payments via receivableStatus().
+    const receivables = await db.receivable.findMany({
+      where: { organizationId: orgId },
+      include: { payments: { select: { monto: true } } },
+    });
     let cobPorCobrar = 0, cobCobrado = 0, cobVencido = 0;
     let cobPagadas = 0, cobPendientes = 0;
     for (const r of receivables) {
-      if (r.status === "PAGADA") { cobCobrado += r.amount; cobPagadas += 1; }
-      else {
-        cobPorCobrar += r.amount; cobPendientes += 1;
-        if (Date.now() - new Date(r.issueDate).getTime() > OVERDUE_MS) cobVencido += r.amount;
+      const paidTotal = r.payments.reduce((s, p) => s + p.monto, 0);
+      cobCobrado += paidTotal;
+      const status = receivableStatus(r.amount, paidTotal, r.issueDate);
+      if (status === "PAGADA") {
+        cobPagadas += 1;
+      } else {
+        const saldoR = calcSaldo(r.amount, paidTotal);
+        cobPorCobrar += saldoR; cobPendientes += 1;
+        if (status === "VENCIDA") cobVencido += saldoR;
       }
     }
     const cobranza = {

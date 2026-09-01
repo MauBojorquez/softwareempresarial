@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { ReceivableTipo } from "@prisma/client";
 import { db } from "@/server/db";
 import { requireAccess } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
+
+const TIPOS = ["RECURRENTE", "UNICA"] as const;
 
 async function ownRow(orgId: string, id: string) {
   return db.receivable.findFirst({ where: { id, organizationId: orgId } });
@@ -19,7 +22,27 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const body = await req.json().catch(() => ({}));
   const data: Record<string, unknown> = {};
 
-  if (body.client !== undefined) data.client = String(body.client).trim();
+  if (body.clienteId !== undefined) {
+    const clienteId = String(body.clienteId).trim();
+    const cliente = await db.cliente.findFirst({ where: { id: clienteId, organizationId: orgId } });
+    if (!cliente) return NextResponse.json({ error: "Cliente no encontrado" }, { status: 400 });
+    data.clienteId = clienteId;
+  }
+  if (body.tipo !== undefined) {
+    if (!TIPOS.includes(body.tipo)) return NextResponse.json({ error: "Tipo inválido" }, { status: 400 });
+    data.tipo = body.tipo as ReceivableTipo;
+  }
+  if (body.vendedorId !== undefined) {
+    if (!body.vendedorId) {
+      data.vendedorId = null;
+    } else {
+      const member = await db.membership.findFirst({
+        where: { userId: String(body.vendedorId), organizationId: orgId },
+      });
+      if (!member) return NextResponse.json({ error: "Vendedor no válido" }, { status: 400 });
+      data.vendedorId = String(body.vendedorId);
+    }
+  }
   if (body.invoiceFolio !== undefined) data.invoiceFolio = body.invoiceFolio ? String(body.invoiceFolio).trim() : null;
   if (body.concept !== undefined) data.concept = body.concept ? String(body.concept).trim() : null;
   if (body.amount !== undefined) {
@@ -28,18 +51,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
   if (body.issueDate !== undefined) data.issueDate = new Date(body.issueDate);
   if (body.notes !== undefined) data.notes = body.notes ? String(body.notes).trim() : null;
-
-  if (body.status !== undefined) {
-    const status = body.status === "PAGADA" ? "PAGADA" : "ENVIADA";
-    data.status = status;
-    if (status === "PAGADA") {
-      data.paidDate = body.paidDate ? new Date(body.paidDate) : existing.paidDate ?? new Date();
-    } else {
-      data.paidDate = null;
-    }
-  } else if (body.paidDate !== undefined) {
-    data.paidDate = body.paidDate ? new Date(body.paidDate) : null;
-  }
 
   const updated = await db.receivable.update({ where: { id: params.id }, data });
   return NextResponse.json({ receivable: updated });

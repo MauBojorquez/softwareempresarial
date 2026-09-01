@@ -38,6 +38,9 @@ model User {
   activityLogs     ActivityLog[]
   alertRules       AlertRule[]
   pushSubscriptions PushSubscription[]
+  tareasAsignadas     Tarea[]      @relation("TareaResponsable")
+  receivablesVendidos Receivable[] @relation("ReceivableVendedor")
+  paymentsRegistrados Payment[]    @relation("PaymentRegistradoPor")
 }
 
 model Account {
@@ -103,6 +106,8 @@ model Organization {
   cashFlowAccounts    CashFlowAccount[]
   cashFlowCategories  CashFlowCategory[]
   receivables         Receivable[]
+  clientes            Cliente[]
+  tareas              Tarea[]
 }
 
 model Membership {
@@ -246,6 +251,29 @@ enum JobRole {
   COMERCIAL
   MARKETING
   ADMINISTRACION
+}
+
+enum ClienteEstatus {
+  ACTIVO
+  ESPERA
+  VENCIDO
+  BAJA
+}
+
+enum Salud {
+  VERDE
+  AMARILLO
+  ROJO
+}
+
+enum ReceivableTipo {
+  RECURRENTE
+  UNICA
+}
+
+enum TareaEstatus {
+  PENDIENTE
+  COMPLETADA
 }
 
 enum IntegrationType {
@@ -409,26 +437,89 @@ model CashFlowTransaction {
   @@index([accountId, date])
 }
 
+// ─── Cartera (clientes) ─────────────────────────────────────────────
+model Cliente {
+  id           String         @id @default(cuid())
+  nombre       String
+  contacto     String?
+  montoMensual Float          @default(0)
+  diaDePago    Int?           // 1..31
+  estatus      ClienteEstatus @default(ACTIVO)
+  salud        Salud          @default(VERDE)
+  fechaAlta    DateTime       @default(now())
+  notas        String?        @db.Text
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  receivables    Receivable[]
+  tareas         Tarea[]
+
+  @@index([organizationId])
+}
+
+// ─── Tareas (por cliente / mes) ─────────────────────────────────────
+model Tarea {
+  id              String       @id @default(cuid())
+  descripcion     String
+  mes             String       // "YYYY-MM"
+  estatus         TareaEstatus @default(PENDIENTE)
+  fechaCompletada DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  clienteId      String
+  cliente        Cliente      @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  responsableId  String?
+  responsable    User?        @relation("TareaResponsable", fields: [responsableId], references: [id])
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, mes])
+}
+
 // ─── Cobranza (cuentas por cobrar / facturación) ────────────────────
 model Receivable {
   id            String    @id @default(cuid())
-  client        String
   invoiceFolio  String?
   concept       String?
   amount        Float     @default(0)
   issueDate     DateTime
-  // ENVIADA | PAGADA. "Vencida" se calcula al vuelo (ENVIADA + >30 días).
-  status        String    @default("ENVIADA")
-  paidDate      DateTime?
   notes         String?   @db.Text
   order         Int       @default(0)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  // Estatus y saldo se DERIVAN de los payments (nunca se almacenan).
+  clienteId  String?
+  cliente    Cliente?        @relation(fields: [clienteId], references: [id])
+  tipo       ReceivableTipo?
+  vendedorId String?
+  vendedor   User?           @relation("ReceivableVendedor", fields: [vendedorId], references: [id])
+  payments   Payment[]
+
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, issueDate])
+}
+
+// ─── Abonos (pagos parciales sobre un receivable) ───────────────────
+model Payment {
+  id        String   @id @default(cuid())
+  monto     Float
+  fecha     DateTime @default(now())
+  metodo    String?
+  notas     String?  @db.Text
+  createdAt DateTime @default(now())
+
+  receivableId    String
+  receivable      Receivable @relation(fields: [receivableId], references: [id], onDelete: Cascade)
+  registradoPorId String?
+  registradoPor   User?      @relation("PaymentRegistradoPor", fields: [registradoPorId], references: [id])
+
+  @@index([receivableId])
 }
 
 model CashFlowCategory {
