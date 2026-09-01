@@ -52,20 +52,16 @@ const MATRIX: Record<JobRole, Set<Resource>> = {
 /**
  * Returns whether `jobRole` is allowed to read/use `resource`.
  *
- * Deny-by-default: an unknown / null / undefined jobRole gets nothing, EXCEPT
- * the temporary migration fail-open (see below) when `opts.legacyAdmin` is set.
+ * Deny-by-default: a member without a puesto (null/undefined jobRole) gets
+ * nothing. (The temporary migration fail-open for legacy ADMINs was removed
+ * once all members were assigned their jobRole.)
  */
 export function can(
   jobRole: JobRole | null | undefined,
   resource: Resource,
-  opts?: { legacyAdmin?: boolean },
 ): boolean {
-  if (jobRole) return MATRIX[jobRole].has(resource);
-
-  // TODO(fase0-migration): REMOVE fail-open. Temporary only — legacy ADMIN (null jobRole) is allowed through so Direccion isn't locked out during migration. Delete this branch once the 4 users are invited with their jobRole.
-  if (opts?.legacyAdmin) return true;
-
-  return false;
+  if (!jobRole) return false;
+  return MATRIX[jobRole].has(resource);
 }
 
 type AccessGrant = { orgId: string; jobRole: JobRole | null; userId: string };
@@ -107,9 +103,7 @@ export async function requireAccess(
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  const allowed = can(membership.jobRole, resource, {
-    legacyAdmin: membership.role === "ADMIN",
-  });
+  const allowed = can(membership.jobRole, resource);
 
   if (!allowed) {
     return NextResponse.json(
