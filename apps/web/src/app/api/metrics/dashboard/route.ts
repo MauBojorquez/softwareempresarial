@@ -15,18 +15,10 @@ export async function GET(req: NextRequest) {
     // from its own tables below for the dedicated "Caja" block.
     await syncCashflowMetrics(orgId).catch((e) => console.error("cashflow purge (dashboard):", e));
 
-    // Finanzas is SAT-only. Purge any legacy MANUAL FINANCE rows (source not
-    // "SAT") so old hand-entered numbers stop polluting the dashboard. The
-    // sums below also filter by source "SAT", so this is belt-and-suspenders.
-    await db.metric
-      .deleteMany({
-        where: {
-          organizationId: orgId,
-          category: "FINANCE",
-          OR: [{ source: null }, { source: { not: "SAT" } }],
-        },
-      })
-      .catch((e) => console.error("finance manual purge (dashboard):", e));
+    // NOTE: this endpoint used to deleteMany() manual FINANCE metrics on every
+    // load ("belt-and-suspenders" purge). That destroyed hand-entered data on
+    // each dashboard view, so it was removed. The sums below already filter by
+    // source "SAT", which is enough to avoid double counting without deleting.
 
     const metrics = (await db.metric.findMany({
       where: { organizationId: orgId },
