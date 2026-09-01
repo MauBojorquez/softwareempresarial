@@ -48,6 +48,24 @@ const ROLE_LABELS: Record<string, string> = {
   ADMIN: "Administrador",
 };
 
+const JOB_ROLES = ["DIRECCION", "OPERACIONES", "COMERCIAL", "MARKETING", "ADMINISTRACION"] as const;
+type JobRoleValue = (typeof JOB_ROLES)[number];
+const JOB_ROLE_LABELS: Record<JobRoleValue, string> = {
+  DIRECCION: "Dirección",
+  OPERACIONES: "Operaciones",
+  COMERCIAL: "Comercial",
+  MARKETING: "Marketing",
+  ADMINISTRACION: "Administración",
+};
+
+type Member = {
+  membershipId: string;
+  name: string | null;
+  email: string;
+  role: string;
+  jobRole: JobRoleValue | null;
+};
+
 const CONDITION_LABELS: Record<string, string> = {
   below: "Cae por debajo de",
   above: "Sube por encima de",
@@ -113,6 +131,8 @@ export default function SettingsPage() {
 
   type Invitation = { id: string; email: string; role: string; expiresAt: string; invitedBy: { name: string | null; email: string } };
   const [invitations, setInvitations] = useState<Invitation[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [savingMemberId, setSavingMemberId] = useState<string | null>(null);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"VIEWER" | "EDITOR" | "ADMIN">("VIEWER");
   const [inviteJobRole, setInviteJobRole] = useState<"" | "DIRECCION" | "OPERACIONES" | "COMERCIAL" | "MARKETING" | "ADMINISTRACION">("");
@@ -164,6 +184,12 @@ export default function SettingsPage() {
     fetch("/api/invitations")
       .then((r) => r.json())
       .then((d) => setInvitations(Array.isArray(d.invitations) ? d.invitations : []))
+      .catch(() => {});
+
+    // Members + puestos (Dirección only; a 403 just returns no list).
+    fetch("/api/members")
+      .then((r) => (r.ok ? r.json() : { members: [] }))
+      .then((d) => setMembers(Array.isArray(d.members) ? d.members : []))
       .catch(() => {});
 
     fetch("/api/alerts")
@@ -447,6 +473,27 @@ export default function SettingsPage() {
       toast("Error de conexión", "error");
     }
     setInviting(false);
+  };
+
+  const handleSetJobRole = async (membershipId: string, jobRole: string) => {
+    setSavingMemberId(membershipId);
+    try {
+      const res = await fetch("/api/members", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ membershipId, jobRole: jobRole || null }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMembers((prev) => prev.map((m) => (m.membershipId === membershipId ? { ...m, jobRole: (jobRole || null) as JobRoleValue | null } : m)));
+        toast("Puesto actualizado", "success");
+      } else {
+        toast(data.error || "No se pudo actualizar el puesto", "error");
+      }
+    } catch {
+      toast("Error de conexión", "error");
+    }
+    setSavingMemberId(null);
   };
 
   const handleRevokeInvite = async (id: string) => {
@@ -904,6 +951,48 @@ export default function SettingsPage() {
           </button>
         </div>
       </div>
+
+      {/* ── Miembros y Puestos ── */}
+      {members.length > 0 && (
+        <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
+          <div className="flex items-center gap-3">
+            <Users className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold text-foreground">Miembros y puestos</h2>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Asigna el puesto de cada persona. El puesto define qué puede ver y hacer en la app.
+            Un miembro <span className="text-amber-500 font-medium">sin puesto asignado</span> no tiene acceso a los módulos por rol.
+          </p>
+          <div className="divide-y divide-border rounded-lg border border-border">
+            {members.map((m) => (
+              <div key={m.membershipId} className="flex flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate">{m.name || m.email}</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {m.email} · {ROLE_LABELS[m.role] ?? m.role}
+                    {!m.jobRole && <span className="ml-2 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-600">Sin puesto</span>}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={m.jobRole ?? ""}
+                    disabled={savingMemberId === m.membershipId}
+                    onChange={(e) => handleSetJobRole(m.membershipId, e.target.value)}
+                    aria-label={`Puesto de ${m.name || m.email}`}
+                    className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none disabled:opacity-50"
+                  >
+                    <option value="">Sin puesto</option>
+                    {JOB_ROLES.map((jr) => (
+                      <option key={jr} value={jr}>{JOB_ROLE_LABELS[jr]}</option>
+                    ))}
+                  </select>
+                  {savingMemberId === m.membershipId && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── Invitar Usuarios ── */}
       <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
