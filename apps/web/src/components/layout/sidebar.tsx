@@ -6,38 +6,45 @@ import { useSession, signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/logo";
 import { useEffect, useState, useRef } from "react";
+import type { JobRole } from "@prisma/client";
 import {
   LayoutDashboard, DollarSign, LogOut, X, Settings,
   Building2, ChevronDown, Plus, Check, UsersRound, Wallet, BarChart3, Receipt,
-  Users, ListChecks,
+  Users, ListChecks, KanbanSquare, TrendingUp,
 } from "lucide-react";
 
-type NavChild = { name: string; href: string; icon: typeof LayoutDashboard };
-type NavItem = { name: string; href: string; icon: typeof LayoutDashboard; children?: NavChild[] };
+type NavChild = { name: string; href: string; icon: typeof LayoutDashboard; roles: JobRole[] };
+type NavItem = { name: string; href: string; icon: typeof LayoutDashboard; roles: JobRole[]; children?: NavChild[] };
 
-// Internal Stratium tool: only the financial modules are shown. The rest of
-// the product (Ventas, Marketing, Operaciones, RRHH, Reportes, Metas,
-// Integraciones, Suscripción) still exists but is hidden from navigation.
+const ALL_ROLES: JobRole[] = ["DIRECCION", "OPERACIONES", "COMERCIAL", "MARKETING", "ADMINISTRACION"];
+
+// Role-aware navigation. Each item (and child) carries a `roles` allow-list;
+// backend RBAC is the real gate — this only tailors what each puesto sees.
+// A member with a null jobRole falls back to Resumen + Configuración only.
 const navigation: NavItem[] = [
-  { name: "Resumen", href: "/dashboard/overview", icon: LayoutDashboard },
+  { name: "Resumen", href: "/dashboard/overview", icon: LayoutDashboard, roles: ALL_ROLES },
   {
     name: "Finanzas",
     href: "/dashboard/finance",
     icon: DollarSign,
+    roles: ["DIRECCION", "OPERACIONES", "ADMINISTRACION"],
     children: [
-      { name: "Dashboard", href: "/dashboard/finance", icon: BarChart3 },
-      { name: "Flujo de Efectivo", href: "/dashboard/finance/cashflow", icon: Wallet },
-      { name: "Cartera", href: "/dashboard/finance/cartera", icon: Users },
-      { name: "Cobranza", href: "/dashboard/finance/cobranza", icon: Receipt },
-      { name: "Tareas", href: "/dashboard/finance/tareas", icon: ListChecks },
+      { name: "Dashboard", href: "/dashboard/finance", icon: BarChart3, roles: ["DIRECCION"] },
+      { name: "Flujo de Efectivo", href: "/dashboard/finance/cashflow", icon: Wallet, roles: ["DIRECCION", "ADMINISTRACION"] },
+      { name: "Cartera", href: "/dashboard/finance/cartera", icon: Users, roles: ["DIRECCION", "OPERACIONES", "ADMINISTRACION"] },
+      { name: "Cobranza", href: "/dashboard/finance/cobranza", icon: Receipt, roles: ["DIRECCION", "ADMINISTRACION"] },
+      { name: "Tareas", href: "/dashboard/finance/tareas", icon: ListChecks, roles: ["DIRECCION", "OPERACIONES", "ADMINISTRACION"] },
     ],
   },
-  { name: "Configuración", href: "/dashboard/settings", icon: Settings },
+  { name: "CRM", href: "/dashboard/crm", icon: KanbanSquare, roles: ["DIRECCION", "COMERCIAL", "MARKETING"] },
+  { name: "Ventas", href: "/dashboard/ventas", icon: TrendingUp, roles: ["DIRECCION", "COMERCIAL", "ADMINISTRACION"] },
+  { name: "Configuración", href: "/dashboard/settings", icon: Settings, roles: ALL_ROLES },
 ];
 
 // Admin-only extra: the owner can still reach Equipo to invite teammates.
+// Gated by the membership role (ADMIN), so it's visible to any jobRole.
 const adminNavigation: NavItem[] = [
-  { name: "Equipo", href: "/dashboard/team", icon: UsersRound },
+  { name: "Equipo", href: "/dashboard/team", icon: UsersRound, roles: ALL_ROLES },
 ];
 
 type OrgItem = { id: string; name: string; logo?: string | null; brandColor?: string | null; isActive: boolean };
@@ -51,7 +58,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
   const [orgs, setOrgs] = useState<OrgItem[]>([]);
   const [avatar, setAvatar] = useState<string | null>(null);
   const [showOrgMenu, setShowOrgMenu] = useState(false);
-  const [allowedSections, setAllowedSections] = useState<string[]>([]);
+  const [jobRole, setJobRole] = useState<JobRole | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const orgMenuRef = useRef<HTMLDivElement>(null);
 
@@ -72,7 +79,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
       .then((data) => {
         if (data.organization) setOrgData(data.organization);
         if (data.user?.avatar) setAvatar(data.user.avatar);
-        if (Array.isArray(data.allowedSections)) setAllowedSections(data.allowedSections);
+        if (data.jobRole) setJobRole(data.jobRole);
       })
       .catch(() => {});
 
@@ -194,20 +201,16 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
             ...navigation,
             ...(session?.user?.role === "ADMIN" ? adminNavigation : []),
           ].filter((item) => {
-            // Section-based filtering for editors/viewers
-            if (allowedSections.length === 0) return true;
-            const sectionMap: Record<string, string> = {
-              "/dashboard/finance": "FINANCE",
-              "/dashboard/sales": "SALES",
-              "/dashboard/operations": "OPERATIONS",
-              "/dashboard/hr": "HR",
-              "/dashboard/marketing": "MARKETING",
-            };
-            const section = sectionMap[item.href];
-            return !section || allowedSections.includes(section);
+            // Role-aware filtering. A null jobRole (deny-by-default UX) sees only
+            // Resumen + Configuración; backend RBAC still blocks the data itself.
+            if (!jobRole) return item.href === "/dashboard/overview" || item.href === "/dashboard/settings";
+            return item.roles.includes(jobRole);
           }).map((item) => {
             // Items with children render as an expandable group.
             if (item.children) {
+              // Only render the children this role may see.
+              const children = jobRole ? item.children.filter((c) => c.roles.includes(jobRole)) : [];
+              if (children.length === 0) return null;
               const isOpen = expanded.has(item.href);
               const isActive = pathname.startsWith(item.href);
               return (
@@ -239,7 +242,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
                   </button>
                   {isOpen && (
                     <div className="mt-0.5 space-y-0.5 pl-4">
-                      {item.children.map((child) => {
+                      {children.map((child) => {
                         // Exact match for the parent's index route, prefix match otherwise,
                         // so "Dashboard" isn't highlighted while on the cashflow sub-route.
                         const childActive =

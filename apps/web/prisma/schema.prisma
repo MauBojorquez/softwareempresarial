@@ -41,6 +41,9 @@ model User {
   tareasAsignadas     Tarea[]      @relation("TareaResponsable")
   receivablesVendidos Receivable[] @relation("ReceivableVendedor")
   paymentsRegistrados Payment[]    @relation("PaymentRegistradoPor")
+  leads               Lead[]       @relation("LeadDueno")
+  leadNotas           LeadNota[]   @relation("LeadNotaAutor")
+  ventas              Venta[]      @relation("VentaVendedor")
 }
 
 model Account {
@@ -108,6 +111,8 @@ model Organization {
   receivables         Receivable[]
   clientes            Cliente[]
   tareas              Tarea[]
+  leads               Lead[]
+  ventas              Venta[]
 }
 
 model Membership {
@@ -269,6 +274,24 @@ enum Salud {
 enum ReceivableTipo {
   RECURRENTE
   UNICA
+}
+
+enum LeadOrigen {
+  META
+  ORGANICO
+  OUTBOUND
+  REFERIDO
+  RED_DIRECTA
+}
+
+enum LeadEtapa {
+  NUEVO
+  CONTACTADO
+  SESION_AGENDADA
+  DIAGNOSTICO_VENDIDO
+  PROPUESTA_ENVIADA
+  CERRADO_GANADO
+  CERRADO_PERDIDO
 }
 
 enum TareaEstatus {
@@ -455,6 +478,7 @@ model Cliente {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   receivables    Receivable[]
   tareas         Tarea[]
+  ventas         Venta[]
 
   @@index([organizationId])
 }
@@ -536,4 +560,66 @@ model CashFlowCategory {
 
   @@unique([organizationId, code])
   @@index([organizationId, order])
+}
+
+// ─── CRM (leads / pipeline) ─────────────────────────────────────────
+model Lead {
+  id                       String    @id @default(cuid())
+  nombre                   String
+  empresa                  String?
+  contacto                 String?
+  origen                   LeadOrigen
+  etapa                    LeadEtapa @default(NUEVO)
+  valorEstimado            Float?
+  valorMensualEstimado     Float?
+  motivoPerdida            String?   @db.Text
+  diagnosticoVentaGenerada Boolean   @default(false) // guards the one-time 9,997 venta
+  fechaUltimoMovimiento    DateTime  @default(now())
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  duenoId        String
+  dueno          User         @relation("LeadDueno", fields: [duenoId], references: [id])
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  notas          LeadNota[]
+  ventas         Venta[]
+
+  @@index([organizationId, etapa])
+}
+
+model LeadNota {
+  id        String   @id @default(cuid())
+  contenido String   @db.Text
+  createdAt DateTime @default(now())
+
+  leadId  String
+  lead    Lead    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  autorId String?
+  autor   User?   @relation("LeadNotaAutor", fields: [autorId], references: [id])
+
+  @@index([leadId])
+}
+
+// ─── Ventas ─────────────────────────────────────────────────────────
+model Venta {
+  id                 String         @id @default(cuid())
+  monto              Float
+  tipo               ReceivableTipo
+  concepto           String? // "Diagnóstico vendido" | "Cierre ganado" | manual note
+  fechaCierre        DateTime       @default(now())
+  fechaCobroEsperada DateTime?
+  origen             LeadOrigen?
+  createdAt          DateTime       @default(now())
+
+  leadId         String?
+  lead           Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  clienteId      String?
+  cliente        Cliente?     @relation(fields: [clienteId], references: [id])
+  vendedorId     String?
+  vendedor       User?        @relation("VentaVendedor", fields: [vendedorId], references: [id])
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, fechaCierre])
 }

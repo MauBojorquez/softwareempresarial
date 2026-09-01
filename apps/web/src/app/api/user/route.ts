@@ -29,6 +29,7 @@ export async function GET() {
       user,
       organization: membership?.organization ?? null,
       allowedSections: membership?.allowedSections ?? [],
+      jobRole: membership?.jobRole ?? null,
     });
   } catch {
     const user = await db.user.findUnique({
