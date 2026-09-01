@@ -6,7 +6,6 @@ const anthropic = new Anthropic();
 export async function generateMonthlyReport(organizationId: string, userId: string) {
   const org = await db.organization.findUniqueOrThrow({
     where: { id: organizationId },
-    include: { subscription: true },
   });
 
   const now = new Date();
