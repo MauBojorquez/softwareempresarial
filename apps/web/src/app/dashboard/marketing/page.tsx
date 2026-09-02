@@ -7,6 +7,7 @@ import { cn, formatCurrency } from "@/lib/utils";
 
 export default function MarketingPage() {
   const [campaigns, setCampaigns] = useState<any>(null);
+  const [acq, setAcq] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"overview" | "campaigns" | "history">("overview");
@@ -31,6 +32,15 @@ export default function MarketingPage() {
   };
 
   useEffect(() => { load(); }, []);
+
+  // Automatic "Adquisición" block: our own META leads + conversion, fed by the
+  // shared Resumen marketing computation (Meta metrics + Lead/Venta tables).
+  useEffect(() => {
+    fetch("/api/resumen?blocks=marketing")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => setAcq(j?.blocks?.marketing ?? null))
+      .catch(() => {});
+  }, []);
 
   if (loading) {
     return <div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
@@ -126,6 +136,58 @@ export default function MarketingPage() {
         <MetricCard title="Costo por Lead" value={fmtMoney(current.costPerResult ?? 0)} icon={BarChart3} />
         <MetricCard title="Clics" value={fmt(current.clicks)} change={changes.clicks ?? undefined} icon={MousePointerClick} />
       </div>
+
+      {acq && (
+        <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <Target className="h-4 w-4 text-primary" />
+            <h3 className="text-sm font-semibold sm:text-base">Adquisición (leads Meta)</h3>
+          </div>
+          {acq.porCampana === undefined && acq.gasto === undefined ? (
+            // Count-only view (COMERCIAL).
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-xl border border-border bg-background/50 p-3">
+                <p className="text-xs text-muted-foreground">Leads del mes</p>
+                <p className="mt-1 text-lg font-bold">{fmt(acq.metaLeadsMes)}</p>
+              </div>
+              <div className="rounded-xl border border-border bg-background/50 p-3">
+                <p className="text-xs text-muted-foreground">Leads de hoy</p>
+                <p className="mt-1 text-lg font-bold">{fmt(acq.metaLeadsDia)}</p>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                {[
+                  { label: "Leads del mes", value: fmt(acq.metaLeadsMes), sub: `${fmt(acq.metaLeadsDia)} hoy` },
+                  { label: "Costo por lead", value: acq.cpl != null ? fmtMoney(acq.cpl) : "—" },
+                  { label: "Valor generado", value: fmtMoney(acq.valorPesos) },
+                  { label: "Ganados", value: fmt(acq.conversion?.ganados ?? 0) },
+                ].map((t) => (
+                  <div key={t.label} className="rounded-xl border border-border bg-background/50 p-3">
+                    <p className="text-xs text-muted-foreground">{t.label}</p>
+                    <p className="mt-1 text-lg font-bold">{t.value}</p>
+                    {t.sub && <p className="mt-0.5 text-[11px] text-muted-foreground">{t.sub}</p>}
+                  </div>
+                ))}
+              </div>
+              {acq.porCampana?.length > 0 && (
+                <div>
+                  <p className="mb-2 text-xs font-semibold text-muted-foreground">Leads por campaña</p>
+                  <div className="space-y-1.5">
+                    {acq.porCampana.map((c: any) => (
+                      <div key={c.campana} className="flex items-center justify-between text-sm">
+                        <span className="truncate pr-2">{c.campana}</span>
+                        <span className="font-semibold">{fmt(c.leads)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="flex items-center gap-1 rounded-lg border border-border bg-secondary/50 p-1 w-fit overflow-x-auto">
         {(["overview", "campaigns", "history"] as const).map((t) => (

@@ -25,23 +25,25 @@ export type Resource =
   | "reporte_propio"
   | "rocas"
   | "dashboard_direccion"
-  | "metas";
+  | "metas"
+  | "marketing";
 
 // Per-role allow-lists. Anything not listed is denied.
 const MATRIX: Record<JobRole, Set<Resource>> = {
   DIRECCION: new Set<Resource>([
     "clientes", "cartera", "cobranza", "flujo", "crm", "ventas", "tareas",
     "reportes_all", "reporte_propio", "rocas", "dashboard_direccion", "metas",
+    "marketing",
   ]),
   OPERACIONES: new Set<Resource>([
     "clientes", "cartera", "tareas", "reporte_propio", "rocas",
   ]),
   COMERCIAL: new Set<Resource>([
-    "crm", "ventas", "reporte_propio", "rocas",
+    "crm", "ventas", "reporte_propio", "rocas", "marketing",
   ]),
   MARKETING: new Set<Resource>([
     // CRM is allowed but the endpoint must restrict Marketing to their own leads.
-    "crm", "reporte_propio", "rocas",
+    "crm", "reporte_propio", "rocas", "marketing",
   ]),
   ADMINISTRACION: new Set<Resource>([
     "clientes", "cartera", "cobranza", "flujo", "ventas", "tareas",
@@ -65,6 +67,41 @@ export function can(
 }
 
 type AccessGrant = { orgId: string; jobRole: JobRole | null; userId: string };
+
+/**
+ * Resolves the caller (mobile token OR web session) and their Membership for the
+ * active org WITHOUT enforcing any resource. Use this for endpoints that any
+ * authenticated member may call but whose response depends on the caller's
+ * jobRole (e.g. the personalizable Resumen). Returns { orgId, jobRole, userId }
+ * on success, or a NextResponse (401) the caller must return as-is.
+ */
+export async function resolveMember(
+  req: NextRequest,
+): Promise<AccessGrant | NextResponse> {
+  const orgId = await getOrganizationId(req);
+
+  const mobile = await getMobileUser(req);
+  let userId = mobile?.userId ?? null;
+  if (!userId) {
+    const session = await getServerSession(authOptions);
+    userId = session?.user?.id ?? null;
+  }
+
+  if (!userId || !orgId) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+
+  const membership = await db.membership.findFirst({
+    where: { userId, organizationId: orgId },
+    select: { jobRole: true },
+  });
+
+  if (!membership) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+
+  return { orgId, jobRole: membership.jobRole, userId };
+}
 
 /**
  * Resolves the caller (mobile token OR web session), loads their Membership for
