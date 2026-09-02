@@ -255,18 +255,19 @@ function SubmitterView({ jobRole }: { jobRole: Exclude<JobRole, "DIRECCION"> }) 
                   disabled={frozen}
                   onChange={(e) => setForm((s) => ({ ...s, [f.key]: e.target.value }))}
                   rows={3}
-                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm disabled:opacity-60"
+                  className="rounded-lg border border-border bg-background px-3 py-2.5 text-base disabled:opacity-60 sm:text-sm"
                 />
               ) : (
                 <input
                   type="number"
+                  inputMode={f.type === "int" ? "numeric" : "decimal"}
                   value={form[f.key] ?? ""}
                   disabled={frozen}
                   min={f.min}
                   max={f.max}
                   step={f.type === "int" ? 1 : "any"}
                   onChange={(e) => setForm((s) => ({ ...s, [f.key]: e.target.value }))}
-                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm disabled:opacity-60"
+                  className="min-h-[44px] rounded-lg border border-border bg-background px-3 py-2.5 text-base disabled:opacity-60 sm:text-sm"
                 />
               )}
             </div>
@@ -298,7 +299,7 @@ function SubmitterView({ jobRole }: { jobRole: Exclude<JobRole, "DIRECCION"> }) 
             <button
               onClick={save}
               disabled={saving}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60"
+              className="inline-flex w-full min-h-[48px] items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-base font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60 sm:w-auto sm:min-h-0 sm:py-2 sm:text-sm"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               Guardar reporte

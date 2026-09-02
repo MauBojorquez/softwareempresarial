@@ -212,7 +212,7 @@ export default function CobranzaPage() {
         <p className="mb-3 text-sm font-semibold">Registrar factura</p>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-6">
           <select
-            className="rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm lg:col-span-2"
+            className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm lg:col-span-2"
             value={form.clienteId}
             onChange={(e) => setForm((f) => ({ ...f, clienteId: e.target.value }))}
           >
@@ -220,7 +220,7 @@ export default function CobranzaPage() {
             {clientes.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
           </select>
           <select
-            className="rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
+            className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
             value={form.tipo}
             onChange={(e) => setForm((f) => ({ ...f, tipo: e.target.value as "" | Tipo }))}
           >
@@ -229,7 +229,7 @@ export default function CobranzaPage() {
             <option value="UNICA">Única</option>
           </select>
           <select
-            className="rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
+            className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
             value={form.vendedorId}
             onChange={(e) => setForm((f) => ({ ...f, vendedorId: e.target.value }))}
           >
@@ -238,25 +238,26 @@ export default function CobranzaPage() {
           </select>
           <input
             type="number"
-            className="rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
+            inputMode="numeric"
+            className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
             placeholder="Monto"
             value={form.amount}
             onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
           />
           <input
             type="date"
-            className="rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
+            className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
             value={form.issueDate}
             onChange={(e) => setForm((f) => ({ ...f, issueDate: e.target.value }))}
           />
           <input
-            className="rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
+            className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
             placeholder="Folio / Factura"
             value={form.invoiceFolio}
             onChange={(e) => setForm((f) => ({ ...f, invoiceFolio: e.target.value }))}
           />
           <input
-            className="rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm lg:col-span-2"
+            className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm lg:col-span-2"
             placeholder="Concepto"
             value={form.concept}
             onChange={(e) => setForm((f) => ({ ...f, concept: e.target.value }))}
@@ -288,8 +289,33 @@ export default function CobranzaPage() {
         ))}
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto rounded-2xl border border-border bg-card">
+      {/* Mobile card list (below sm) */}
+      <div className="space-y-3 sm:hidden">
+        {loading ? (
+          <div className="rounded-2xl border border-border bg-card px-4 py-10 text-center text-muted-foreground">
+            <Loader2 className="mx-auto h-5 w-5 animate-spin" />
+          </div>
+        ) : visible.length === 0 ? (
+          <div className="rounded-2xl border border-border bg-card px-4 py-10 text-center text-muted-foreground">
+            Sin facturas todavía. Registra la primera arriba.
+          </div>
+        ) : (
+          visible.map((r) => (
+            <FacturaCard
+              key={r.id}
+              r={r}
+              expanded={expanded.has(r.id)}
+              onToggle={() => toggleExpand(r.id)}
+              onRemove={() => remove(r)}
+              onAddPayment={(monto, metodo, fecha) => addPayment(r, monto, metodo, fecha)}
+              onRemovePayment={(pid) => removePayment(r, pid)}
+            />
+          ))
+        )}
+      </div>
+
+      {/* Table (sm and up) */}
+      <div className="hidden overflow-x-auto rounded-2xl border border-border bg-card sm:block">
         <table className="w-full min-w-[820px] text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
@@ -452,6 +478,124 @@ function FacturaRow({
         </tr>
       )}
     </>
+  );
+}
+
+function FacturaCard({
+  r, expanded, onToggle, onRemove, onAddPayment, onRemovePayment,
+}: {
+  r: Receivable;
+  expanded: boolean;
+  onToggle: () => void;
+  onRemove: () => void;
+  onAddPayment: (monto: number, metodo: string, fecha: string) => void;
+  onRemovePayment: (paymentId: string) => void;
+}) {
+  const [monto, setMonto] = useState("");
+  const [metodo, setMetodo] = useState("");
+  const [fecha, setFecha] = useState(today());
+
+  const submit = () => {
+    onAddPayment(Number(monto), metodo, fecha);
+    setMonto("");
+    setMetodo("");
+    setFecha(today());
+  };
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4">
+      <div className="flex items-start justify-between gap-2">
+        <button onClick={onToggle} className="flex min-w-0 items-center gap-1.5 text-left">
+          {expanded ? <ChevronDown className="h-4 w-4 flex-shrink-0 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />}
+          <span className="truncate font-semibold">{r.clienteNombre || "—"}</span>
+        </button>
+        <span className={"inline-block flex-shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold " + STATUS_STYLE[r.status]}>
+          {STATUS_LABEL[r.status]}
+        </span>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+        <div>
+          <p className="text-[11px] text-muted-foreground">Monto</p>
+          <p className="font-semibold">{formatCurrency(r.amount)}</p>
+        </div>
+        <div>
+          <p className="text-[11px] text-muted-foreground">Saldo</p>
+          <p className="font-semibold">{formatCurrency(r.saldo)}</p>
+        </div>
+        <div>
+          <p className="text-[11px] text-muted-foreground">Tipo</p>
+          <p className="text-muted-foreground">{r.tipo ? TIPO_LABEL[r.tipo] : "—"}</p>
+        </div>
+        <div>
+          <p className="text-[11px] text-muted-foreground">Emitida</p>
+          <p className="text-muted-foreground">{fmtDate(r.issueDate)}</p>
+        </div>
+      </div>
+      <div className="mt-3 flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">Vendedor: {r.vendedorNombre || "—"}</span>
+        <button onClick={onRemove} title="Eliminar" className="rounded-lg p-2 text-muted-foreground hover:bg-red-500/10 hover:text-red-500">
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+
+      {expanded && (
+        <div className="mt-3 space-y-3 border-t border-border pt-3">
+          <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+            {r.invoiceFolio && <span>Folio: <span className="text-foreground">{r.invoiceFolio}</span></span>}
+            {r.concept && <span>Concepto: <span className="text-foreground">{r.concept}</span></span>}
+            <span>Abonado: <span className="text-foreground">{formatCurrency(r.paidTotal)}</span></span>
+          </div>
+
+          {/* Payments list */}
+          <div className="space-y-2">
+            {r.payments.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Sin abonos todavía.</p>
+            ) : (
+              r.payments.map((p) => (
+                <div key={p.id} className="flex items-center justify-between rounded-lg border border-border bg-secondary/20 px-3 py-2 text-xs">
+                  <div className="min-w-0">
+                    <p className="font-semibold">{formatCurrency(p.monto)}</p>
+                    <p className="truncate text-muted-foreground">{fmtDate(p.fecha)} · {p.metodo || "—"}</p>
+                  </div>
+                  <button onClick={() => onRemovePayment(p.id)} title="Eliminar abono" className="rounded p-1.5 text-muted-foreground hover:bg-red-500/10 hover:text-red-500">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Add payment */}
+          {r.status !== "PAGADA" && (
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="number"
+                inputMode="numeric"
+                className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
+                placeholder="Monto abono"
+                value={monto}
+                onChange={(e) => setMonto(e.target.value)}
+              />
+              <input
+                className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
+                placeholder="Método"
+                value={metodo}
+                onChange={(e) => setMetodo(e.target.value)}
+              />
+              <input
+                type="date"
+                className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
+                value={fecha}
+                onChange={(e) => setFecha(e.target.value)}
+              />
+              <button onClick={submit} className="flex min-h-[40px] items-center justify-center gap-1.5 rounded-lg gradient-bg px-3 py-2 text-sm font-semibold text-white hover:opacity-90">
+                <Plus className="h-4 w-4" /> Abono
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

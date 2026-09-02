@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { requireAccess } from "@/lib/access";
+import { notify } from "@/server/services/push/notify";
+import { formatCurrency } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +13,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (access instanceof NextResponse) return access;
   const { orgId, userId } = access;
 
-  const receivable = await db.receivable.findFirst({ where: { id: params.id, organizationId: orgId } });
+  const receivable = await db.receivable.findFirst({
+    where: { id: params.id, organizationId: orgId },
+    include: { cliente: { select: { nombre: true } } },
+  });
   if (!receivable) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   const body = await req.json().catch(() => ({}));
@@ -30,6 +35,33 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       registradoPorId: userId,
     },
   });
+
+  // Best-effort push: alert Dirección + Administración that a payment came in.
+  // Never blocks the response.
+  try {
+    const recipients = await db.membership.findMany({
+      where: { organizationId: orgId, jobRole: { in: ["DIRECCION", "ADMINISTRACION"] } },
+      select: { userId: true },
+    });
+    const cliente = receivable.cliente?.nombre;
+    const message = `${cliente ? `${cliente} · ` : ""}${formatCurrency(monto)}`;
+    const seen = new Set<string>();
+    await Promise.all(
+      recipients
+        .filter((r) => !seen.has(r.userId) && seen.add(r.userId))
+        .map((r) =>
+          notify({
+            userId: r.userId,
+            title: "Cobro registrado",
+            message,
+            type: "cobro",
+            url: "/dashboard/finance/cobranza",
+          }),
+        ),
+    );
+  } catch (e) {
+    console.error("payment push notify failed:", e);
+  }
 
   return NextResponse.json({ payment }, { status: 201 });
 }

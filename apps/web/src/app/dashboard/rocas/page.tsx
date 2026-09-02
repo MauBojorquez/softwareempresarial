@@ -151,7 +151,89 @@ export default function RocasPage() {
       ) : rocas.length === 0 ? (
         <p className="py-16 text-center text-sm text-muted-foreground">No hay rocas para este mes.</p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-border bg-card">
+        <>
+        {/* Mobile card list (below sm) */}
+        <div className="space-y-3 sm:hidden">
+          {rocas.map((r) => {
+            const canEditOwn = isDireccion || r.duenoId === userId;
+            return (
+              <div key={r.id} className="rounded-2xl border border-border bg-card p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-foreground">{r.titulo}</p>
+                    <p className="text-xs text-muted-foreground">{r.metricaExito}</p>
+                  </div>
+                  {canEditOwn ? (
+                    <select
+                      value={r.estatus}
+                      onChange={(e) => updateOwn(r, { estatus: e.target.value as Salud })}
+                      className={cn("min-h-[36px] flex-shrink-0 rounded px-2 py-1 text-xs font-semibold border-0", SALUD_COLOR[r.estatus])}
+                    >
+                      <option value="VERDE">VERDE</option>
+                      <option value="AMARILLO">AMARILLO</option>
+                      <option value="ROJO">ROJO</option>
+                    </select>
+                  ) : (
+                    <span className={cn("inline-block flex-shrink-0 rounded px-2 py-0.5 text-xs font-semibold", SALUD_COLOR[r.estatus])}>
+                      {r.estatus}
+                    </span>
+                  )}
+                </div>
+                <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Dueño: {r.duenoNombre ?? "—"}</span>
+                  <span>Límite: {fmtDate(r.fechaLimite)}</span>
+                </div>
+                <div className="mt-3 flex items-center gap-2">
+                  <div className="h-2 flex-1 rounded-full bg-secondary">
+                    <div
+                      className={cn("h-2 rounded-full", BAR_COLOR[r.estatus])}
+                      style={{ width: `${Math.min(100, Math.max(0, r.porcentajeAvance))}%` }}
+                    />
+                  </div>
+                  {canEditOwn ? (
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      max={100}
+                      defaultValue={r.porcentajeAvance}
+                      onBlur={(e) => {
+                        const p = Number(e.target.value);
+                        if (Number.isInteger(p) && p >= 0 && p <= 100 && p !== r.porcentajeAvance) {
+                          updateOwn(r, { porcentajeAvance: p });
+                        }
+                      }}
+                      className="min-h-[40px] w-16 rounded border border-border bg-background px-2 py-1 text-xs"
+                    />
+                  ) : (
+                    <span className="w-10 text-right text-xs font-medium text-foreground">{r.porcentajeAvance}%</span>
+                  )}
+                </div>
+                {isDireccion && (
+                  <div className="mt-3 flex justify-end gap-1">
+                    <button
+                      onClick={() => { setEditing(r); setShowForm(true); }}
+                      className="rounded-lg p-2 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                      aria-label="Editar"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => remove(r)}
+                      className="rounded-lg p-2 text-muted-foreground hover:bg-red-500/10 hover:text-red-600"
+                      aria-label="Eliminar"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Table (sm and up) */}
+        <div className="hidden overflow-x-auto rounded-xl border border-border bg-card sm:block">
           <table className="w-full min-w-[720px] text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs text-muted-foreground">
@@ -242,6 +324,7 @@ export default function RocasPage() {
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {showForm && isDireccion && (

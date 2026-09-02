@@ -417,13 +417,13 @@ function NewLeadModal({
     <Modal title="Nuevo lead" onClose={onClose}>
       <div className="space-y-3 p-6">
         <input
-          className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
+          className="min-h-[40px] w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
           placeholder="Nombre *"
           value={nombre}
           onChange={(e) => setNombre(e.target.value)}
         />
         <select
-          className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
+          className="min-h-[40px] w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
           value={origen}
           onChange={(e) => setOrigen(e.target.value as "" | Origen)}
         >
@@ -451,14 +451,16 @@ function NewLeadModal({
         <div className="grid grid-cols-2 gap-3">
           <input
             type="number"
-            className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
+            inputMode="numeric"
+            className="min-h-[40px] w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
             placeholder="Valor estimado"
             value={valorEstimado}
             onChange={(e) => setValorEstimado(e.target.value)}
           />
           <input
             type="number"
-            className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
+            inputMode="numeric"
+            className="min-h-[40px] w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
             placeholder="Valor mensual estimado"
             value={valorMensualEstimado}
             onChange={(e) => setValorMensualEstimado(e.target.value)}
@@ -521,7 +523,8 @@ function GanadoModal({
         <p className="text-xs text-muted-foreground">Registra los datos de la venta ganada.</p>
         <input
           type="number"
-          className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
+          inputMode="numeric"
+          className="min-h-[40px] w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
           placeholder="Monto *"
           value={monto}
           onChange={(e) => setMonto(e.target.value)}

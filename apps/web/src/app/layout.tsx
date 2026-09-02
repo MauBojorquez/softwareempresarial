@@ -29,7 +29,11 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "StratiuMetrics",
-    startupImage: [{ url: "/brand-icon.png" }],
+    // NOTE: iOS does not synthesize a launch/splash screen from the manifest.
+    // The standalone display + theme color + apple-web-app meta give a clean
+    // Add-to-Home-Screen install today. Per-device splash PNGs (one <link
+    // rel="apple-touch-startup-image"> with a media query per screen size) can
+    // be generated and added here later for a branded launch image on iOS.
   },
   formatDetection: { telephone: false },
   icons: [
@@ -54,8 +58,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  // Zoom is intentionally left enabled (no maximumScale / userScalable:false)
+  // for accessibility; viewport-fit=cover handles the notch/safe areas.
   viewportFit: "cover",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#f5f6f8" },

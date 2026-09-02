@@ -152,13 +152,13 @@ export default function TareasPage() {
         <p className="mb-3 text-sm font-semibold">Nueva tarea</p>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <input
-            className="rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm lg:col-span-2"
+            className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm lg:col-span-2"
             placeholder="Descripción *"
             value={form.descripcion}
             onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
           />
           <select
-            className="rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
+            className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
             value={form.clienteId}
             onChange={(e) => setForm((f) => ({ ...f, clienteId: e.target.value }))}
           >
@@ -166,7 +166,7 @@ export default function TareasPage() {
             {clientes.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
           </select>
           <select
-            className="rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
+            className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
             value={form.responsableId}
             onChange={(e) => setForm((f) => ({ ...f, responsableId: e.target.value }))}
           >
@@ -184,8 +184,57 @@ export default function TareasPage() {
         </button>
       </div>
 
-      {/* List */}
-      <div className="overflow-x-auto rounded-2xl border border-border bg-card">
+      {/* Mobile card list (below sm) */}
+      <div className="space-y-3 sm:hidden">
+        {loading ? (
+          <div className="rounded-2xl border border-border bg-card px-4 py-10 text-center text-muted-foreground">
+            <Loader2 className="mx-auto h-5 w-5 animate-spin" />
+          </div>
+        ) : tareas.length === 0 ? (
+          <div className="rounded-2xl border border-border bg-card px-4 py-10 text-center text-muted-foreground">
+            Sin tareas para este mes.
+          </div>
+        ) : (
+          tareas.map((t) => (
+            <div key={t.id} className="rounded-2xl border border-border bg-card p-4">
+              <div className="flex items-start justify-between gap-2">
+                <p className="min-w-0 font-medium">{t.descripcion}</p>
+                <span className={
+                  "inline-block flex-shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold " +
+                  (t.estatus === "COMPLETADA"
+                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                    : "bg-amber-500/10 text-amber-600 dark:text-amber-400")
+                }>
+                  {t.estatus === "COMPLETADA" ? "Completada" : "Pendiente"}
+                </span>
+              </div>
+              <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                <span>Cliente: {t.clienteNombre || "—"}</span>
+                <span>Resp.: {t.responsableNombre || "—"}</span>
+              </div>
+              <div className="mt-3 flex justify-end gap-1">
+                <button
+                  onClick={() => toggle(t)}
+                  title={t.estatus === "COMPLETADA" ? "Marcar pendiente" : "Marcar completada"}
+                  className="rounded-lg p-2 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                >
+                  {t.estatus === "COMPLETADA" ? <RotateCcw className="h-4 w-4" /> : <Check className="h-4 w-4 text-emerald-500" />}
+                </button>
+                <button
+                  onClick={() => remove(t)}
+                  title="Eliminar"
+                  className="rounded-lg p-2 text-muted-foreground hover:bg-red-500/10 hover:text-red-500"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Table (sm and up) */}
+      <div className="hidden overflow-x-auto rounded-2xl border border-border bg-card sm:block">
         <table className="w-full min-w-[640px] text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">

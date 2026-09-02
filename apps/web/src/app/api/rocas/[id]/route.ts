@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import type { Salud } from "@prisma/client";
 import { db } from "@/server/db";
 import { requireAccess } from "@/lib/access";
+import { notify } from "@/server/services/push/notify";
 
 export const dynamic = "force-dynamic";
 
@@ -86,6 +87,32 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     data,
     include: { dueno: { select: { name: true, email: true } } },
   });
+
+  // Best-effort push: when a roca transitions INTO rojo, alert its dueño and
+  // every Dirección member. Never blocks the response.
+  if (data.estatus === "ROJO" && existing.estatus !== "ROJO") {
+    try {
+      const direccion = await db.membership.findMany({
+        where: { organizationId: orgId, jobRole: "DIRECCION" },
+        select: { userId: true },
+      });
+      const recipients = new Set<string>(direccion.map((m) => m.userId));
+      if (roca.duenoId) recipients.add(roca.duenoId);
+      await Promise.all(
+        [...recipients].map((uid) =>
+          notify({
+            userId: uid,
+            title: "Roca en rojo",
+            message: roca.titulo,
+            type: "roca",
+            url: "/dashboard/rocas",
+          }),
+        ),
+      );
+    } catch (e) {
+      console.error("roca rojo push notify failed:", e);
+    }
+  }
 
   return NextResponse.json({
     roca: {

@@ -2,17 +2,48 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Wallet, Receipt, Menu } from "lucide-react";
+import { useEffect, useState } from "react";
+import type { JobRole } from "@prisma/client";
+import {
+  LayoutDashboard, Gauge, KanbanSquare, ClipboardList,
+  TrendingUp, Megaphone, Users, ListChecks, Receipt, Menu,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const TABS = [
-  { name: "Inicio", href: "/dashboard/overview", icon: LayoutDashboard },
-  { name: "Flujo", href: "/dashboard/finance/cashflow", icon: Wallet },
-  { name: "Cobranza", href: "/dashboard/finance/cobranza", icon: Receipt },
-];
+type Tab = { name: string; href: string; icon: typeof LayoutDashboard };
+
+const RESUMEN: Tab = { name: "Resumen", href: "/dashboard/overview", icon: LayoutDashboard };
+const REPORTES: Tab = { name: "Reportes", href: "/dashboard/reportes", icon: ClipboardList };
+const CRM: Tab = { name: "CRM", href: "/dashboard/crm", icon: KanbanSquare };
+const CARTERA: Tab = { name: "Cartera", href: "/dashboard/finance/cartera", icon: Users };
+
+// Up to 4 primary destinations per puesto; the "Más" button (sidebar) is always
+// appended. Mirrors the sidebar's role map + icons. A null jobRole gets the
+// minimal fallback. Backend RBAC is still the real gate.
+const TABS_BY_ROLE: Record<JobRole, Tab[]> = {
+  DIRECCION: [RESUMEN, { name: "Dirección", href: "/dashboard/direccion", icon: Gauge }, CRM, REPORTES],
+  COMERCIAL: [RESUMEN, CRM, { name: "Ventas", href: "/dashboard/ventas", icon: TrendingUp }, REPORTES],
+  MARKETING: [RESUMEN, { name: "Marketing", href: "/dashboard/marketing", icon: Megaphone }, CRM, REPORTES],
+  OPERACIONES: [RESUMEN, CARTERA, { name: "Tareas", href: "/dashboard/finance/tareas", icon: ListChecks }, REPORTES],
+  ADMINISTRACION: [RESUMEN, { name: "Cobranza", href: "/dashboard/finance/cobranza", icon: Receipt }, CARTERA, REPORTES],
+};
+
+const FALLBACK_TABS: Tab[] = [RESUMEN, REPORTES];
 
 export function BottomNav({ onMenuClick }: { onMenuClick: () => void }) {
   const pathname = usePathname();
+  const [jobRole, setJobRole] = useState<JobRole | null>(null);
+
+  useEffect(() => {
+    fetch("/api/user")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.jobRole) setJobRole(data.jobRole);
+      })
+      .catch(() => {});
+  }, []);
+
+  const tabs = jobRole ? TABS_BY_ROLE[jobRole] : FALLBACK_TABS;
 
   return (
     <nav
@@ -24,8 +55,11 @@ export function BottomNav({ onMenuClick }: { onMenuClick: () => void }) {
       <div className="absolute inset-0 bg-card/90 backdrop-blur-xl border-t border-border" />
 
       <div className="relative flex items-stretch h-16">
-        {TABS.map((tab) => {
-          const active = pathname.startsWith(tab.href);
+        {tabs.map((tab) => {
+          const active =
+            tab.href === "/dashboard/overview"
+              ? pathname === tab.href
+              : pathname.startsWith(tab.href);
           return (
             <Link
               key={tab.href}

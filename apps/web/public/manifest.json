@@ -15,22 +15,27 @@
   "icons": [
     {
       "src": "/brand-icon.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/brand-icon.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "/brand-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/brand-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "shortcuts": [
     { "name": "Resumen", "short_name": "Inicio", "url": "/dashboard/overview", "description": "Ver dashboard principal" },
-    { "name": "Metas", "url": "/dashboard/goals", "description": "Mis objetivos" },
-    { "name": "Finanzas", "url": "/dashboard/finance", "description": "Ingresos y gastos" },
-    { "name": "Ventas", "url": "/dashboard/sales", "description": "Pipeline y CRM" }
+    { "name": "Reportes", "url": "/dashboard/reportes", "description": "Reporte diario" },
+    { "name": "CRM", "url": "/dashboard/crm", "description": "Pipeline y clientes" }
   ],
   "screenshots": [],
   "prefer_related_applications": false

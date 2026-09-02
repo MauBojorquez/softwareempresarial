@@ -215,7 +215,7 @@ export default function CarteraPage() {
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-6">
           <div className="lg:col-span-2">
             <input
-              className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
+              className="min-h-[40px] w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
               placeholder="Nombre *"
               value={form.nombre}
               onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
@@ -223,7 +223,7 @@ export default function CarteraPage() {
             {errors.nombre && <p className="mt-1 text-[11px] text-red-500">{errors.nombre}</p>}
           </div>
           <input
-            className="rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
+            className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
             placeholder="Contacto"
             value={form.contacto}
             onChange={(e) => setForm((f) => ({ ...f, contacto: e.target.value }))}
@@ -231,7 +231,8 @@ export default function CarteraPage() {
           <div>
             <input
               type="number"
-              className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
+              inputMode="numeric"
+              className="min-h-[40px] w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
               placeholder="Monto mensual"
               value={form.montoMensual}
               onChange={(e) => setForm((f) => ({ ...f, montoMensual: e.target.value }))}
@@ -241,7 +242,8 @@ export default function CarteraPage() {
           <div>
             <input
               type="number"
-              className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
+              inputMode="numeric"
+              className="min-h-[40px] w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
               placeholder="Día de pago (1-31)"
               value={form.diaDePago}
               onChange={(e) => setForm((f) => ({ ...f, diaDePago: e.target.value }))}
@@ -249,14 +251,14 @@ export default function CarteraPage() {
             {errors.diaDePago && <p className="mt-1 text-[11px] text-red-500">{errors.diaDePago}</p>}
           </div>
           <select
-            className="rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
+            className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
             value={form.estatus}
             onChange={(e) => setForm((f) => ({ ...f, estatus: e.target.value as Estatus }))}
           >
             {ESTATUS_OPTS.map((e) => <option key={e} value={e}>{ESTATUS_LABEL[e]}</option>)}
           </select>
           <select
-            className="rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
+            className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
             value={form.salud}
             onChange={(e) => setForm((f) => ({ ...f, salud: e.target.value as Salud }))}
           >
@@ -273,8 +275,67 @@ export default function CarteraPage() {
         </button>
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto rounded-2xl border border-border bg-card">
+      {/* Mobile card list (below sm) */}
+      <div className="space-y-3 sm:hidden">
+        {loading ? (
+          <div className="rounded-2xl border border-border bg-card px-4 py-10 text-center text-muted-foreground">
+            <Loader2 className="mx-auto h-5 w-5 animate-spin" />
+          </div>
+        ) : clientes.length === 0 ? (
+          <div className="rounded-2xl border border-border bg-card px-4 py-10 text-center text-muted-foreground">
+            Sin clientes todavía. Da de alta el primero arriba.
+          </div>
+        ) : (
+          clientes.map((c) => (
+            <div key={c.id} className="rounded-2xl border border-border bg-card p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-semibold">{c.nombre}</p>
+                  <p className="truncate text-xs text-muted-foreground">{c.contacto || "—"}</p>
+                </div>
+                <span className={"inline-block flex-shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold " + ESTATUS_STYLE[c.estatus]}>
+                  {ESTATUS_LABEL[c.estatus]}
+                </span>
+              </div>
+              <div className="mt-3 flex items-center justify-between text-sm">
+                <span className="font-semibold">{formatCurrency(c.montoMensual)}</span>
+                <span className="text-xs text-muted-foreground">Día pago: {c.diaDePago ?? "—"}</span>
+              </div>
+              <div className="mt-3 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className={"h-2.5 w-2.5 rounded-full " + SALUD_DOT[c.salud]} />
+                  <select
+                    value={c.salud}
+                    onChange={(e) => changeSalud(c, e.target.value as Salud)}
+                    className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-2 py-1 text-xs"
+                  >
+                    {SALUD_OPTS.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setEditing(c)}
+                    title="Editar"
+                    className="rounded-lg p-2 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => remove(c)}
+                    title="Dar de baja"
+                    className="rounded-lg p-2 text-muted-foreground hover:bg-red-500/10 hover:text-red-500"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Table (sm and up) */}
+      <div className="hidden overflow-x-auto rounded-2xl border border-border bg-card sm:block">
         <table className="w-full min-w-[760px] text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
