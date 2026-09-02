@@ -545,10 +545,13 @@ model Receivable {
   issueDate     DateTime
   notes         String?   @db.Text
   order         Int       @default(0)
+  pagado        Boolean   @default(false)
+  fechaPago     DateTime?
+  clienteManual String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  // Estatus y saldo se DERIVAN de los payments (nunca se almacenan).
+  // Estatus se DERIVA de `pagado` y `issueDate` (nunca se almacena).
   clienteId  String?
   cliente    Cliente?        @relation(fields: [clienteId], references: [id])
   tipo       ReceivableTipo?

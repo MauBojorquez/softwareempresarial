@@ -1,27 +1,19 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Trash2, Loader2, Receipt, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, Trash2, Loader2, Receipt } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/components/toast";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
-type Status = "PENDIENTE" | "PARCIAL" | "PAGADA" | "VENCIDA";
+type Status = "PENDIENTE" | "PAGADA" | "VENCIDA";
 type Tipo = "RECURRENTE" | "UNICA";
-
-interface Payment {
-  id: string;
-  monto: number;
-  fecha: string;
-  metodo?: string | null;
-  notas?: string | null;
-  registradoPorNombre?: string | null;
-}
 
 interface Receivable {
   id: string;
   clienteId?: string | null;
+  clienteManual?: string | null;
   clienteNombre?: string | null;
   tipo?: Tipo | null;
   vendedorId?: string | null;
@@ -30,32 +22,38 @@ interface Receivable {
   concept?: string | null;
   amount: number;
   issueDate: string;
-  paidTotal: number;
+  pagado: boolean;
+  fechaPago?: string | null;
   saldo: number;
   status: Status;
-  payments: Payment[];
 }
+
+interface TipoTotals { cobrado: number; porCobrar: number; }
 
 interface Totals {
   porCobrar: number; cobrado: number; vencido: number;
   pagadas: number; pendientes: number; vencidas: number;
+  recurrente: TipoTotals;
+  unica: TipoTotals;
 }
 
 interface ClienteOpt { id: string; nombre: string; }
 interface Member { id: string; name: string | null; }
 
-const EMPTY_TOTALS: Totals = { porCobrar: 0, cobrado: 0, vencido: 0, pagadas: 0, pendientes: 0, vencidas: 0 };
+const EMPTY_TOTALS: Totals = {
+  porCobrar: 0, cobrado: 0, vencido: 0, pagadas: 0, pendientes: 0, vencidas: 0,
+  recurrente: { cobrado: 0, porCobrar: 0 },
+  unica: { cobrado: 0, porCobrar: 0 },
+};
 
 const STATUS_STYLE: Record<Status, string> = {
   PENDIENTE: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-  PARCIAL: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
   PAGADA: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
   VENCIDA: "bg-red-500/10 text-red-600 dark:text-red-400",
 };
 
 const STATUS_LABEL: Record<Status, string> = {
   PENDIENTE: "Pendiente",
-  PARCIAL: "Parcial",
   PAGADA: "Pagada",
   VENCIDA: "Vencida",
 };
@@ -78,16 +76,18 @@ export default function CobranzaPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState<"TODAS" | Status>("TODAS");
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [clientMode, setClientMode] = useState<"elegir" | "escribir">("elegir");
 
   const [form, setForm] = useState({
     clienteId: "",
+    clienteManual: "",
     tipo: "" as "" | Tipo,
     vendedorId: "",
     invoiceFolio: "",
     concept: "",
     amount: "",
     issueDate: today(),
+    pagado: false,
   });
 
   const load = useCallback(async () => {
@@ -97,6 +97,7 @@ export default function CobranzaPage() {
       setRows(data.receivables ?? []);
       setTotals(data.totals ?? EMPTY_TOTALS);
       setMembers(data.members ?? []);
+      setClientes(data.clientes ?? []);
     } catch {
       /* noop */
     }
@@ -105,15 +106,9 @@ export default function CobranzaPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  useEffect(() => {
-    fetch("/api/clientes")
-      .then((r) => r.json())
-      .then((d) => setClientes((d.clientes ?? []).map((c: { id: string; nombre: string }) => ({ id: c.id, nombre: c.nombre }))))
-      .catch(() => {});
-  }, []);
-
   const add = async () => {
-    if (!form.clienteId) { toast("Selecciona un cliente", "error"); return; }
+    if (clientMode === "elegir" && !form.clienteId) { toast("Selecciona un cliente", "error"); return; }
+    if (clientMode === "escribir" && !form.clienteManual.trim()) { toast("Escribe el nombre del cliente", "error"); return; }
     if (!form.tipo) { toast("Selecciona el tipo", "error"); return; }
     setSaving(true);
     try {
@@ -121,17 +116,19 @@ export default function CobranzaPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          clienteId: form.clienteId,
+          clienteId: clientMode === "elegir" ? form.clienteId : null,
+          clienteManual: clientMode === "escribir" ? form.clienteManual.trim() : null,
           tipo: form.tipo,
           vendedorId: form.vendedorId || null,
           invoiceFolio: form.invoiceFolio,
           concept: form.concept,
           amount: Number(form.amount) || 0,
           issueDate: form.issueDate,
+          pagado: form.pagado,
         }),
       });
       if (!res.ok) throw new Error();
-      setForm({ clienteId: "", tipo: "", vendedorId: "", invoiceFolio: "", concept: "", amount: "", issueDate: today() });
+      setForm({ clienteId: "", clienteManual: "", tipo: "", vendedorId: "", invoiceFolio: "", concept: "", amount: "", issueDate: today(), pagado: false });
       toast("Factura registrada", "success");
       await load();
     } catch {
@@ -150,37 +147,21 @@ export default function CobranzaPage() {
     }
   };
 
-  const toggleExpand = (id: string) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
-
-  const addPayment = async (r: Receivable, monto: number, metodo: string, fecha: string) => {
-    if (!Number.isFinite(monto) || monto <= 0) { toast("Monto de abono inválido", "error"); return; }
+  const togglePagado = async (r: Receivable) => {
+    // optimistic
+    const next = !r.pagado;
+    setRows((prev) => prev.map((x) => (x.id === r.id ? { ...x, pagado: next } : x)));
     try {
-      const res = await fetch(`/api/receivables/${r.id}/payments`, {
-        method: "POST",
+      const res = await fetch(`/api/receivables/${r.id}`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ monto, metodo: metodo || null, fecha }),
+        body: JSON.stringify({ pagado: next }),
       });
       if (!res.ok) throw new Error();
-      toast("Abono registrado", "success");
       await load();
     } catch {
-      toast("No se pudo registrar el abono", "error");
-    }
-  };
-
-  const removePayment = async (r: Receivable, paymentId: string) => {
-    if (!confirm("¿Eliminar este abono?")) return;
-    try {
-      await fetch(`/api/receivables/${r.id}/payments/${paymentId}`, { method: "DELETE" });
+      toast("No se pudo actualizar", "error");
       await load();
-    } catch {
-      toast("No se pudo eliminar el abono", "error");
     }
   };
 
@@ -195,14 +176,33 @@ export default function CobranzaPage() {
         </div>
         <div>
           <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Cobranza</h1>
-          <p className="text-sm text-muted-foreground">Facturas por cliente, abonos y saldo por cobrar.</p>
+          <p className="text-sm text-muted-foreground">Facturas por cliente. Marca &quot;Pagado&quot; y su monto completo cuenta como cobrado.</p>
         </div>
       </div>
 
-      {/* Summary tiles */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {/* Summary tiles: recurrente vs única + grand total */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+        <Tile
+          label="Recurrente (mensual)"
+          value={formatCurrency(totals.recurrente.cobrado)}
+          sub={`Por cobrar: ${formatCurrency(totals.recurrente.porCobrar)}`}
+          tone="emerald"
+        />
+        <Tile
+          label="Única (vendido)"
+          value={formatCurrency(totals.unica.cobrado)}
+          sub={`Por cobrar: ${formatCurrency(totals.unica.porCobrar)}`}
+          tone="emerald"
+        />
+        <Tile
+          label="Cobrado total"
+          value={formatCurrency(totals.cobrado)}
+          sub={`Por cobrar: ${formatCurrency(totals.porCobrar)}`}
+          tone="slate"
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         <Tile label="Por cobrar" value={formatCurrency(totals.porCobrar)} sub={`${totals.pendientes} pendientes`} tone="amber" />
-        <Tile label="Cobrado" value={formatCurrency(totals.cobrado)} sub={`${totals.pagadas} pagadas`} tone="emerald" />
         <Tile label="Vencido (+30 días)" value={formatCurrency(totals.vencido)} sub={`${totals.vencidas} facturas`} tone="red" />
         <Tile label="Total facturas" value={String(rows.length)} sub={`${totals.pagadas} pagadas / ${totals.pendientes} por cobrar`} tone="slate" />
       </div>
@@ -210,15 +210,43 @@ export default function CobranzaPage() {
       {/* Add form */}
       <div className="rounded-2xl border border-border bg-card p-4">
         <p className="mb-3 text-sm font-semibold">Registrar factura</p>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-6">
-          <select
-            className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm lg:col-span-2"
-            value={form.clienteId}
-            onChange={(e) => setForm((f) => ({ ...f, clienteId: e.target.value }))}
+
+        {/* Client picker toggle */}
+        <div className="mb-2 flex gap-2">
+          <button
+            type="button"
+            onClick={() => setClientMode("elegir")}
+            className={"rounded-full px-3 py-1 text-xs font-medium transition-colors " + (clientMode === "elegir" ? "bg-primary text-white" : "bg-secondary text-muted-foreground hover:text-foreground")}
           >
-            <option value="">Cliente *</option>
-            {clientes.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-          </select>
+            Elegir cliente
+          </button>
+          <button
+            type="button"
+            onClick={() => setClientMode("escribir")}
+            className={"rounded-full px-3 py-1 text-xs font-medium transition-colors " + (clientMode === "escribir" ? "bg-primary text-white" : "bg-secondary text-muted-foreground hover:text-foreground")}
+          >
+            Escribir nombre
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-6">
+          {clientMode === "elegir" ? (
+            <select
+              className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm lg:col-span-2"
+              value={form.clienteId}
+              onChange={(e) => setForm((f) => ({ ...f, clienteId: e.target.value }))}
+            >
+              <option value="">Cliente *</option>
+              {clientes.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+            </select>
+          ) : (
+            <input
+              className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm lg:col-span-2"
+              placeholder="Nombre del cliente *"
+              value={form.clienteManual}
+              onChange={(e) => setForm((f) => ({ ...f, clienteManual: e.target.value }))}
+            />
+          )}
           <select
             className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
             value={form.tipo}
@@ -263,19 +291,30 @@ export default function CobranzaPage() {
             onChange={(e) => setForm((f) => ({ ...f, concept: e.target.value }))}
           />
         </div>
-        <button
-          onClick={add}
-          disabled={saving}
-          className="mt-3 flex items-center gap-1.5 rounded-lg gradient-bg px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-        >
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-          Agregar factura
-        </button>
+        <div className="mt-3 flex flex-wrap items-center gap-4">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-border"
+              checked={form.pagado}
+              onChange={(e) => setForm((f) => ({ ...f, pagado: e.target.checked }))}
+            />
+            Pagado
+          </label>
+          <button
+            onClick={add}
+            disabled={saving}
+            className="flex items-center gap-1.5 rounded-lg gradient-bg px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            Agregar factura
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2">
-        {(["TODAS", "PENDIENTE", "PARCIAL", "VENCIDA", "PAGADA"] as const).map((f) => (
+        {(["TODAS", "PENDIENTE", "VENCIDA", "PAGADA"] as const).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
@@ -301,31 +340,23 @@ export default function CobranzaPage() {
           </div>
         ) : (
           visible.map((r) => (
-            <FacturaCard
-              key={r.id}
-              r={r}
-              expanded={expanded.has(r.id)}
-              onToggle={() => toggleExpand(r.id)}
-              onRemove={() => remove(r)}
-              onAddPayment={(monto, metodo, fecha) => addPayment(r, monto, metodo, fecha)}
-              onRemovePayment={(pid) => removePayment(r, pid)}
-            />
+            <FacturaCard key={r.id} r={r} onRemove={() => remove(r)} onTogglePagado={() => togglePagado(r)} />
           ))
         )}
       </div>
 
       {/* Table (sm and up) */}
       <div className="hidden overflow-x-auto rounded-2xl border border-border bg-card sm:block">
-        <table className="w-full min-w-[820px] text-sm">
+        <table className="w-full min-w-[820px] text-sm tabular-nums">
           <thead>
             <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
               <th className="px-4 py-3 font-medium">Cliente</th>
               <th className="px-4 py-3 font-medium">Tipo</th>
               <th className="px-4 py-3 font-medium">Vendedor</th>
               <th className="px-4 py-3 text-right font-medium">Monto</th>
-              <th className="px-4 py-3 text-right font-medium">Saldo</th>
               <th className="px-4 py-3 font-medium">Emitida</th>
               <th className="px-4 py-3 font-medium">Estatus</th>
+              <th className="px-4 py-3 text-center font-medium">Pagado</th>
               <th className="px-4 py-3 text-right font-medium">Acciones</th>
             </tr>
           </thead>
@@ -336,15 +367,7 @@ export default function CobranzaPage() {
               <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">Sin facturas todavía. Registra la primera arriba.</td></tr>
             ) : (
               visible.map((r) => (
-                <FacturaRow
-                  key={r.id}
-                  r={r}
-                  expanded={expanded.has(r.id)}
-                  onToggle={() => toggleExpand(r.id)}
-                  onRemove={() => remove(r)}
-                  onAddPayment={(monto, metodo, fecha) => addPayment(r, monto, metodo, fecha)}
-                  onRemovePayment={(pid) => removePayment(r, pid)}
-                />
+                <FacturaRow key={r.id} r={r} onRemove={() => remove(r)} onTogglePagado={() => togglePagado(r)} />
               ))
             )}
           </tbody>
@@ -354,161 +377,44 @@ export default function CobranzaPage() {
   );
 }
 
-function FacturaRow({
-  r, expanded, onToggle, onRemove, onAddPayment, onRemovePayment,
-}: {
-  r: Receivable;
-  expanded: boolean;
-  onToggle: () => void;
-  onRemove: () => void;
-  onAddPayment: (monto: number, metodo: string, fecha: string) => void;
-  onRemovePayment: (paymentId: string) => void;
-}) {
-  const [monto, setMonto] = useState("");
-  const [metodo, setMetodo] = useState("");
-  const [fecha, setFecha] = useState(today());
-
-  const submit = () => {
-    onAddPayment(Number(monto), metodo, fecha);
-    setMonto("");
-    setMetodo("");
-    setFecha(today());
-  };
-
+function FacturaRow({ r, onRemove, onTogglePagado }: { r: Receivable; onRemove: () => void; onTogglePagado: () => void; }) {
   return (
-    <>
-      <tr className="border-b border-border last:border-0 hover:bg-secondary/30">
-        <td className="px-4 py-3 font-medium">
-          <button onClick={onToggle} className="flex items-center gap-1.5 text-left">
-            {expanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-            <span>{r.clienteNombre || "—"}</span>
+    <tr className="border-b border-border last:border-0 hover:bg-secondary/30">
+      <td className="px-4 py-3 font-medium">{r.clienteNombre || "—"}</td>
+      <td className="px-4 py-3 text-muted-foreground">{r.tipo ? TIPO_LABEL[r.tipo] : "—"}</td>
+      <td className="px-4 py-3 text-muted-foreground">{r.vendedorNombre || "—"}</td>
+      <td className="px-4 py-3 text-right font-semibold">{formatCurrency(r.amount)}</td>
+      <td className="px-4 py-3 text-muted-foreground">{fmtDate(r.issueDate)}</td>
+      <td className="px-4 py-3">
+        <span className={"inline-block rounded-full px-2.5 py-1 text-[11px] font-semibold " + STATUS_STYLE[r.status]}>
+          {STATUS_LABEL[r.status]}
+        </span>
+      </td>
+      <td className="px-4 py-3 text-center">
+        <input
+          type="checkbox"
+          className="h-4 w-4 rounded border-border"
+          checked={r.pagado}
+          onChange={onTogglePagado}
+          title="Marcar como pagado"
+        />
+      </td>
+      <td className="px-4 py-3">
+        <div className="flex items-center justify-end gap-1">
+          <button onClick={onRemove} title="Eliminar" className="rounded-lg p-1.5 text-muted-foreground hover:bg-red-500/10 hover:text-red-500">
+            <Trash2 className="h-4 w-4" />
           </button>
-        </td>
-        <td className="px-4 py-3 text-muted-foreground">{r.tipo ? TIPO_LABEL[r.tipo] : "—"}</td>
-        <td className="px-4 py-3 text-muted-foreground">{r.vendedorNombre || "—"}</td>
-        <td className="px-4 py-3 text-right font-semibold">{formatCurrency(r.amount)}</td>
-        <td className="px-4 py-3 text-right font-semibold">{formatCurrency(r.saldo)}</td>
-        <td className="px-4 py-3 text-muted-foreground">{fmtDate(r.issueDate)}</td>
-        <td className="px-4 py-3">
-          <span className={"inline-block rounded-full px-2.5 py-1 text-[11px] font-semibold " + STATUS_STYLE[r.status]}>
-            {STATUS_LABEL[r.status]}
-          </span>
-        </td>
-        <td className="px-4 py-3">
-          <div className="flex items-center justify-end gap-1">
-            <button onClick={onRemove} title="Eliminar" className="rounded-lg p-1.5 text-muted-foreground hover:bg-red-500/10 hover:text-red-500">
-              <Trash2 className="h-4 w-4" />
-            </button>
-          </div>
-        </td>
-      </tr>
-      {expanded && (
-        <tr className="border-b border-border bg-secondary/20">
-          <td colSpan={8} className="px-4 py-4">
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-                {r.invoiceFolio && <span>Folio: <span className="text-foreground">{r.invoiceFolio}</span></span>}
-                {r.concept && <span>Concepto: <span className="text-foreground">{r.concept}</span></span>}
-                <span>Abonado: <span className="text-foreground">{formatCurrency(r.paidTotal)}</span></span>
-              </div>
-
-              {/* Payments list */}
-              <div className="overflow-x-auto rounded-lg border border-border bg-card">
-                <table className="w-full min-w-[520px] text-xs">
-                  <thead>
-                    <tr className="border-b border-border text-left text-[10px] uppercase tracking-wide text-muted-foreground">
-                      <th className="px-3 py-2 font-medium">Fecha</th>
-                      <th className="px-3 py-2 text-right font-medium">Monto</th>
-                      <th className="px-3 py-2 font-medium">Método</th>
-                      <th className="px-3 py-2 font-medium">Registró</th>
-                      <th className="px-3 py-2 text-right font-medium"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {r.payments.length === 0 ? (
-                      <tr><td colSpan={5} className="px-3 py-4 text-center text-muted-foreground">Sin abonos todavía.</td></tr>
-                    ) : (
-                      r.payments.map((p) => (
-                        <tr key={p.id} className="border-b border-border last:border-0">
-                          <td className="px-3 py-2 text-muted-foreground">{fmtDate(p.fecha)}</td>
-                          <td className="px-3 py-2 text-right font-semibold">{formatCurrency(p.monto)}</td>
-                          <td className="px-3 py-2 text-muted-foreground">{p.metodo || "—"}</td>
-                          <td className="px-3 py-2 text-muted-foreground">{p.registradoPorNombre || "—"}</td>
-                          <td className="px-3 py-2 text-right">
-                            <button onClick={() => onRemovePayment(p.id)} title="Eliminar abono" className="rounded p-1 text-muted-foreground hover:bg-red-500/10 hover:text-red-500">
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Add payment */}
-              {r.status !== "PAGADA" && (
-                <div className="flex flex-wrap items-end gap-2">
-                  <input
-                    type="number"
-                    className="w-32 rounded-lg border border-border bg-secondary/40 px-3 py-1.5 text-sm"
-                    placeholder="Monto abono"
-                    value={monto}
-                    onChange={(e) => setMonto(e.target.value)}
-                  />
-                  <input
-                    className="w-36 rounded-lg border border-border bg-secondary/40 px-3 py-1.5 text-sm"
-                    placeholder="Método"
-                    value={metodo}
-                    onChange={(e) => setMetodo(e.target.value)}
-                  />
-                  <input
-                    type="date"
-                    className="rounded-lg border border-border bg-secondary/40 px-3 py-1.5 text-sm"
-                    value={fecha}
-                    onChange={(e) => setFecha(e.target.value)}
-                  />
-                  <button onClick={submit} className="flex items-center gap-1.5 rounded-lg gradient-bg px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90">
-                    <Plus className="h-4 w-4" /> Abono
-                  </button>
-                </div>
-              )}
-            </div>
-          </td>
-        </tr>
-      )}
-    </>
+        </div>
+      </td>
+    </tr>
   );
 }
 
-function FacturaCard({
-  r, expanded, onToggle, onRemove, onAddPayment, onRemovePayment,
-}: {
-  r: Receivable;
-  expanded: boolean;
-  onToggle: () => void;
-  onRemove: () => void;
-  onAddPayment: (monto: number, metodo: string, fecha: string) => void;
-  onRemovePayment: (paymentId: string) => void;
-}) {
-  const [monto, setMonto] = useState("");
-  const [metodo, setMetodo] = useState("");
-  const [fecha, setFecha] = useState(today());
-
-  const submit = () => {
-    onAddPayment(Number(monto), metodo, fecha);
-    setMonto("");
-    setMetodo("");
-    setFecha(today());
-  };
-
+function FacturaCard({ r, onRemove, onTogglePagado }: { r: Receivable; onRemove: () => void; onTogglePagado: () => void; }) {
   return (
-    <div className="rounded-2xl border border-border bg-card p-4">
+    <div className="rounded-2xl border border-border bg-card p-4 tabular-nums">
       <div className="flex items-start justify-between gap-2">
-        <button onClick={onToggle} className="flex min-w-0 items-center gap-1.5 text-left">
-          {expanded ? <ChevronDown className="h-4 w-4 flex-shrink-0 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />}
-          <span className="truncate font-semibold">{r.clienteNombre || "—"}</span>
-        </button>
+        <span className="truncate font-semibold">{r.clienteNombre || "—"}</span>
         <span className={"inline-block flex-shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold " + STATUS_STYLE[r.status]}>
           {STATUS_LABEL[r.status]}
         </span>
@@ -519,10 +425,6 @@ function FacturaCard({
           <p className="font-semibold">{formatCurrency(r.amount)}</p>
         </div>
         <div>
-          <p className="text-[11px] text-muted-foreground">Saldo</p>
-          <p className="font-semibold">{formatCurrency(r.saldo)}</p>
-        </div>
-        <div>
           <p className="text-[11px] text-muted-foreground">Tipo</p>
           <p className="text-muted-foreground">{r.tipo ? TIPO_LABEL[r.tipo] : "—"}</p>
         </div>
@@ -530,71 +432,25 @@ function FacturaCard({
           <p className="text-[11px] text-muted-foreground">Emitida</p>
           <p className="text-muted-foreground">{fmtDate(r.issueDate)}</p>
         </div>
+        <div>
+          <p className="text-[11px] text-muted-foreground">Vendedor</p>
+          <p className="text-muted-foreground">{r.vendedorNombre || "—"}</p>
+        </div>
       </div>
-      <div className="mt-3 flex items-center justify-between">
-        <span className="text-xs text-muted-foreground">Vendedor: {r.vendedorNombre || "—"}</span>
+      <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="h-4 w-4 rounded border-border"
+            checked={r.pagado}
+            onChange={onTogglePagado}
+          />
+          Pagado
+        </label>
         <button onClick={onRemove} title="Eliminar" className="rounded-lg p-2 text-muted-foreground hover:bg-red-500/10 hover:text-red-500">
           <Trash2 className="h-4 w-4" />
         </button>
       </div>
-
-      {expanded && (
-        <div className="mt-3 space-y-3 border-t border-border pt-3">
-          <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-            {r.invoiceFolio && <span>Folio: <span className="text-foreground">{r.invoiceFolio}</span></span>}
-            {r.concept && <span>Concepto: <span className="text-foreground">{r.concept}</span></span>}
-            <span>Abonado: <span className="text-foreground">{formatCurrency(r.paidTotal)}</span></span>
-          </div>
-
-          {/* Payments list */}
-          <div className="space-y-2">
-            {r.payments.length === 0 ? (
-              <p className="text-xs text-muted-foreground">Sin abonos todavía.</p>
-            ) : (
-              r.payments.map((p) => (
-                <div key={p.id} className="flex items-center justify-between rounded-lg border border-border bg-secondary/20 px-3 py-2 text-xs">
-                  <div className="min-w-0">
-                    <p className="font-semibold">{formatCurrency(p.monto)}</p>
-                    <p className="truncate text-muted-foreground">{fmtDate(p.fecha)} · {p.metodo || "—"}</p>
-                  </div>
-                  <button onClick={() => onRemovePayment(p.id)} title="Eliminar abono" className="rounded p-1.5 text-muted-foreground hover:bg-red-500/10 hover:text-red-500">
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-
-          {/* Add payment */}
-          {r.status !== "PAGADA" && (
-            <div className="grid grid-cols-2 gap-2">
-              <input
-                type="number"
-                inputMode="numeric"
-                className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-                placeholder="Monto abono"
-                value={monto}
-                onChange={(e) => setMonto(e.target.value)}
-              />
-              <input
-                className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-                placeholder="Método"
-                value={metodo}
-                onChange={(e) => setMetodo(e.target.value)}
-              />
-              <input
-                type="date"
-                className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-                value={fecha}
-                onChange={(e) => setFecha(e.target.value)}
-              />
-              <button onClick={submit} className="flex min-h-[40px] items-center justify-center gap-1.5 rounded-lg gradient-bg px-3 py-2 text-sm font-semibold text-white hover:opacity-90">
-                <Plus className="h-4 w-4" /> Abono
-              </button>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
@@ -609,8 +465,8 @@ function Tile({ label, value, sub, tone }: { label: string; value: string; sub: 
   return (
     <div className="rounded-2xl border border-border bg-card p-4">
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className={"mt-1 text-xl font-bold tracking-tight " + accent[tone]}>{value}</p>
-      <p className="mt-0.5 text-[11px] text-muted-foreground">{sub}</p>
+      <p className={"mt-1 text-xl font-bold tracking-tight tabular-nums " + accent[tone]}>{value}</p>
+      <p className="mt-0.5 text-[11px] text-muted-foreground tabular-nums">{sub}</p>
     </div>
   );
 }

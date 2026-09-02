@@ -124,21 +124,20 @@ export async function GET(req: NextRequest) {
     const cajaWithdrawalsChange = pctChange(cajaWdMonth, cajaWdPrev);
 
     // ── Cobranza (cuentas por cobrar) — read straight from the source ─────
-    // Status/saldo are DERIVED from summed payments via receivableStatus().
+    // Status/saldo are DERIVED from the `pagado` flag via receivableStatus().
     const receivables = await db.receivable.findMany({
       where: { organizationId: orgId },
-      include: { payments: { select: { monto: true } } },
+      select: { amount: true, pagado: true, issueDate: true },
     });
     let cobPorCobrar = 0, cobCobrado = 0, cobVencido = 0;
     let cobPagadas = 0, cobPendientes = 0;
     for (const r of receivables) {
-      const paidTotal = r.payments.reduce((s, p) => s + p.monto, 0);
-      cobCobrado += paidTotal;
-      const status = receivableStatus(r.amount, paidTotal, r.issueDate);
+      const status = receivableStatus(r.pagado, r.issueDate);
       if (status === "PAGADA") {
+        cobCobrado += r.amount;
         cobPagadas += 1;
       } else {
-        const saldoR = calcSaldo(r.amount, paidTotal);
+        const saldoR = calcSaldo(r.amount, r.pagado);
         cobPorCobrar += saldoR; cobPendientes += 1;
         if (status === "VENCIDA") cobVencido += saldoR;
       }

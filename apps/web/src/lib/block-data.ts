@@ -36,33 +36,32 @@ export type MonthPayments = {
   cobradoByVendedor: Map<string, number>;
 };
 
-/** This month's confirmed payments (source of "cobrado"), with per-cliente and
- * per-vendedor breakdowns. Reused by numeroCritico, cartera and ventasVendedor. */
+/** This month's cobrado (source of "cobrado"), with per-cliente and per-vendedor
+ * breakdowns. A "paid this month" receivable is one with pagado === true whose
+ * fechaPago falls within [start, end). Reused by numeroCritico, cartera and
+ * ventasVendedor. Manual-name invoices have no clienteId → not attributed to a
+ * cartera client. */
 export async function getMonthPayments(
   orgId: string,
   start: Date,
   end: Date,
 ): Promise<MonthPayments> {
-  const payments = await db.payment.findMany({
+  const receivables = await db.receivable.findMany({
     where: {
-      fecha: { gte: start, lt: end },
-      receivable: { organizationId: orgId },
+      organizationId: orgId,
+      pagado: true,
+      fechaPago: { gte: start, lt: end },
     },
-    select: {
-      monto: true,
-      receivable: { select: { clienteId: true, vendedorId: true } },
-    },
+    select: { amount: true, clienteId: true, vendedorId: true },
   });
 
   let cobradoTotal = 0;
   const cobradoByCliente = new Map<string, number>();
   const cobradoByVendedor = new Map<string, number>();
-  for (const p of payments) {
-    cobradoTotal += p.monto;
-    const cId = p.receivable?.clienteId;
-    if (cId) cobradoByCliente.set(cId, (cobradoByCliente.get(cId) ?? 0) + p.monto);
-    const vId = p.receivable?.vendedorId;
-    if (vId) cobradoByVendedor.set(vId, (cobradoByVendedor.get(vId) ?? 0) + p.monto);
+  for (const r of receivables) {
+    cobradoTotal += r.amount;
+    if (r.clienteId) cobradoByCliente.set(r.clienteId, (cobradoByCliente.get(r.clienteId) ?? 0) + r.amount);
+    if (r.vendedorId) cobradoByVendedor.set(r.vendedorId, (cobradoByVendedor.get(r.vendedorId) ?? 0) + r.amount);
   }
 
   return { cobradoTotal, cobradoByCliente, cobradoByVendedor };
@@ -299,17 +298,16 @@ export async function computeTareas(orgId: string, mes: string) {
 export async function computeCobranza(orgId: string) {
   const receivables = await db.receivable.findMany({
     where: { organizationId: orgId },
-    include: { payments: { select: { monto: true } } },
+    select: { amount: true, pagado: true, issueDate: true },
   });
   let porCobrar = 0, cobrado = 0, vencido = 0, pagadas = 0, pendientes = 0;
   for (const r of receivables) {
-    const paidTotal = r.payments.reduce((s, p) => s + p.monto, 0);
-    cobrado += paidTotal;
-    const status = receivableStatus(r.amount, paidTotal, r.issueDate);
+    const status = receivableStatus(r.pagado, r.issueDate);
     if (status === "PAGADA") {
+      cobrado += r.amount;
       pagadas += 1;
     } else {
-      const saldoR = calcSaldo(r.amount, paidTotal);
+      const saldoR = calcSaldo(r.amount, r.pagado);
       porCobrar += saldoR;
       pendientes += 1;
       if (status === "VENCIDA") vencido += saldoR;

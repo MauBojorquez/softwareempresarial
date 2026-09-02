@@ -23,10 +23,29 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const data: Record<string, unknown> = {};
 
   if (body.clienteId !== undefined) {
-    const clienteId = String(body.clienteId).trim();
-    const cliente = await db.cliente.findFirst({ where: { id: clienteId, organizationId: orgId } });
-    if (!cliente) return NextResponse.json({ error: "Cliente no encontrado" }, { status: 400 });
-    data.clienteId = clienteId;
+    const clienteId = String(body.clienteId ?? "").trim();
+    if (!clienteId) {
+      data.clienteId = null;
+    } else {
+      const cliente = await db.cliente.findFirst({ where: { id: clienteId, organizationId: orgId } });
+      if (!cliente) return NextResponse.json({ error: "Cliente no encontrado" }, { status: 400 });
+      data.clienteId = clienteId;
+      data.clienteManual = null;
+    }
+  }
+  if (body.clienteManual !== undefined) {
+    const manual = String(body.clienteManual ?? "").trim();
+    data.clienteManual = manual || null;
+    if (manual) data.clienteId = null;
+  }
+  if (body.pagado !== undefined) {
+    const pagado = body.pagado === true;
+    data.pagado = pagado;
+    if (pagado) {
+      data.fechaPago = body.fechaPago ? new Date(body.fechaPago) : new Date();
+    } else {
+      data.fechaPago = null;
+    }
   }
   if (body.tipo !== undefined) {
     if (!TIPOS.includes(body.tipo)) return NextResponse.json({ error: "Tipo inválido" }, { status: 400 });
