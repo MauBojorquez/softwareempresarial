@@ -230,8 +230,8 @@ export default function CrmPage() {
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <div className="overflow-x-auto pb-4">
-          <div className="flex gap-3" style={{ minWidth: "min-content" }}>
+        <div className="pb-4 sm:overflow-x-auto">
+          <div className="flex flex-col gap-4 sm:flex-row sm:gap-3">
             {ETAPAS.map((etapa) => {
               const cards = byEtapa(etapa);
               const total = cards.reduce((s, c) => s + (c.valorEstimado ?? 0), 0);
@@ -245,7 +245,7 @@ export default function CrmPage() {
                   onDragLeave={() => setDragOver((cur) => (cur === etapa ? null : cur))}
                   onDrop={() => handleDrop(etapa)}
                   className={
-                    "flex w-72 flex-shrink-0 flex-col rounded-2xl border bg-secondary/30 " +
+                    "flex w-full flex-col rounded-2xl border bg-secondary/30 sm:w-72 sm:flex-shrink-0 " +
                     (dragOver === etapa ? "border-primary" : "border-border")
                   }
                 >

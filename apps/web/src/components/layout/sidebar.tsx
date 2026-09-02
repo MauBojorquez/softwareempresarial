@@ -11,7 +11,7 @@ import {
   LayoutDashboard, DollarSign, LogOut, X, Settings,
   Building2, ChevronDown, Plus, Check, UsersRound, Wallet, BarChart3, Receipt,
   Users, ListChecks, KanbanSquare, TrendingUp, ClipboardList,
-  Mountain, Gauge, Megaphone,
+  Mountain, Gauge, Megaphone, ClipboardCheck, Briefcase,
 } from "lucide-react";
 
 type NavChild = { name: string; href: string; icon: typeof LayoutDashboard; roles: JobRole[] };
@@ -28,18 +28,34 @@ const navigation: NavItem[] = [
     name: "Finanzas",
     href: "/dashboard/finance",
     icon: DollarSign,
-    roles: ["DIRECCION", "OPERACIONES", "ADMINISTRACION"],
+    roles: ["DIRECCION", "ADMINISTRACION"],
     children: [
       { name: "Dashboard", href: "/dashboard/finance", icon: BarChart3, roles: ["DIRECCION"] },
       { name: "Flujo de Efectivo", href: "/dashboard/finance/cashflow", icon: Wallet, roles: ["DIRECCION", "ADMINISTRACION"] },
-      { name: "Cartera", href: "/dashboard/finance/cartera", icon: Users, roles: ["DIRECCION", "OPERACIONES", "ADMINISTRACION"] },
       { name: "Cobranza", href: "/dashboard/finance/cobranza", icon: Receipt, roles: ["DIRECCION", "ADMINISTRACION"] },
+    ],
+  },
+  {
+    name: "Operativo",
+    href: "/dashboard/operativo",
+    icon: ClipboardCheck,
+    roles: ["DIRECCION", "OPERACIONES", "ADMINISTRACION"],
+    children: [
+      { name: "Cartera", href: "/dashboard/finance/cartera", icon: Users, roles: ["DIRECCION", "OPERACIONES", "ADMINISTRACION"] },
       { name: "Tareas", href: "/dashboard/finance/tareas", icon: ListChecks, roles: ["DIRECCION", "OPERACIONES", "ADMINISTRACION"] },
     ],
   },
-  { name: "CRM", href: "/dashboard/crm", icon: KanbanSquare, roles: ["DIRECCION", "COMERCIAL", "MARKETING"] },
-  { name: "Marketing", href: "/dashboard/marketing", icon: Megaphone, roles: ["DIRECCION", "MARKETING", "COMERCIAL"] },
-  { name: "Ventas", href: "/dashboard/ventas", icon: TrendingUp, roles: ["DIRECCION", "COMERCIAL", "ADMINISTRACION"] },
+  {
+    name: "Comercial",
+    href: "/dashboard/comercial",
+    icon: Briefcase,
+    roles: ["DIRECCION", "COMERCIAL", "MARKETING", "ADMINISTRACION"],
+    children: [
+      { name: "CRM", href: "/dashboard/crm", icon: KanbanSquare, roles: ["DIRECCION", "COMERCIAL", "MARKETING"] },
+      { name: "Ventas", href: "/dashboard/ventas", icon: TrendingUp, roles: ["DIRECCION", "COMERCIAL", "ADMINISTRACION"] },
+      { name: "Marketing", href: "/dashboard/marketing", icon: Megaphone, roles: ["DIRECCION", "MARKETING", "COMERCIAL"] },
+    ],
+  },
   { name: "Reportes", href: "/dashboard/reportes", icon: ClipboardList, roles: ALL_ROLES },
   { name: "Rocas", href: "/dashboard/rocas", icon: Mountain, roles: ALL_ROLES },
   { name: "Dirección", href: "/dashboard/direccion", icon: Gauge, roles: ["DIRECCION"] },
@@ -72,7 +88,10 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
     setExpanded((prev) => {
       const next = new Set(prev);
       for (const item of navigation) {
-        if (item.children && pathname.startsWith(item.href)) next.add(item.href);
+        if (!item.children) continue;
+        const onParent = pathname.startsWith(item.href);
+        const onChild = item.children.some((c) => pathname.startsWith(c.href));
+        if (onParent || onChild) next.add(item.href);
       }
       return next;
     });
