@@ -280,7 +280,7 @@ function CarteraBlock({ cartera }: { cartera: Cartera }) {
         <MiniStat label="De baja" value={`${t.baja.count}`} sub={formatCurrency(t.baja.monto)} />
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-border">
+      <div className="hidden overflow-x-auto rounded-lg border border-border sm:block">
         <table className="w-full min-w-[640px] text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs text-muted-foreground">
@@ -308,6 +308,38 @@ function CarteraBlock({ cartera }: { cartera: Cartera }) {
             )}
           </tbody>
         </table>
+      </div>
+
+      <div className="space-y-3 sm:hidden">
+        {cartera.clientes.map((c) => (
+          <div key={c.id} className="rounded-lg border border-border p-3">
+            <div className="flex items-start justify-between gap-2">
+              <p className="font-medium text-foreground">{c.nombre}</p>
+              <span className={cn("inline-block shrink-0 rounded px-2 py-0.5 text-xs font-semibold", SALUD_COLOR[c.salud])}>{c.salud}</span>
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+              <div>
+                <p className="text-[11px] text-muted-foreground">Monto mensual</p>
+                <p className="font-medium text-foreground">{formatCurrency(c.montoMensual)}</p>
+              </div>
+              <div>
+                <p className="text-[11px] text-muted-foreground">Día de pago</p>
+                <p className="font-medium text-foreground">{c.diaDePago ?? "—"}</p>
+              </div>
+              <div>
+                <p className="text-[11px] text-muted-foreground">Estatus</p>
+                <p className="font-medium text-foreground">{ESTATUS_LABEL[c.estatus]}</p>
+              </div>
+              <div>
+                <p className="text-[11px] text-muted-foreground">Cobrado mes</p>
+                <p className="font-medium text-foreground">{formatCurrency(c.cobradoMes)}</p>
+              </div>
+            </div>
+          </div>
+        ))}
+        {cartera.clientes.length === 0 && (
+          <p className="rounded-lg border border-border p-3 text-center text-muted-foreground">Sin clientes.</p>
+        )}
       </div>
     </div>
   );
@@ -375,7 +407,7 @@ function VendedoresBlock({ rows, mes, onSaved, toast }: {
   return (
     <div className="rounded-xl border border-border bg-card p-5">
       <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-foreground"><TrendingUp className="h-5 w-5 text-primary" /> Ventas por vendedor</h2>
-      <div className="overflow-x-auto">
+      <div className="hidden overflow-x-auto sm:block">
         <table className="w-full min-w-[480px] text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs text-muted-foreground">
@@ -421,6 +453,51 @@ function VendedoresBlock({ rows, mes, onSaved, toast }: {
             )}
           </tbody>
         </table>
+      </div>
+
+      <div className="space-y-3 sm:hidden">
+        {rows.map((r) => (
+          <div key={r.userId} className="rounded-lg border border-border p-3">
+            <p className="font-medium text-foreground">{r.name}</p>
+            <div className="mt-2 space-y-1.5 text-sm">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs text-muted-foreground">Meta</span>
+                {editing === r.userId ? (
+                  <div className="flex items-center gap-1">
+                    <input type="number" min={0} value={val} onChange={(e) => setVal(e.target.value)} className="w-24 rounded border border-border bg-background px-2 py-1 text-xs" />
+                    <button onClick={() => save(r.userId)} disabled={saving} className="text-emerald-600" aria-label="Guardar">{saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}</button>
+                    <button onClick={() => setEditing(null)} className="text-muted-foreground" aria-label="Cancelar"><X className="h-3.5 w-3.5" /></button>
+                  </div>
+                ) : (
+                  <span className="inline-flex items-center gap-1 font-medium text-foreground">
+                    {formatCurrency(r.meta)}
+                    <button onClick={() => { setEditing(r.userId); setVal(String(r.meta)); }} className="text-muted-foreground hover:text-foreground" aria-label="Editar meta"><Pencil className="h-3 w-3" /></button>
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Vendido</span>
+                <span className="font-medium text-foreground">{formatCurrency(r.vendido)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Cobrado</span>
+                <span className="font-medium text-foreground">{formatCurrency(r.cobrado)}</span>
+              </div>
+              <div>
+                <div className="mb-1 flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Avance</span>
+                  <span className="text-xs text-muted-foreground">{pct(r.avancePct)}</span>
+                </div>
+                <div className="h-2 rounded-full bg-secondary">
+                  <div className="h-2 rounded-full bg-primary" style={{ width: `${Math.min(100, r.avancePct)}%` }} />
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+        {rows.length === 0 && (
+          <p className="rounded-lg border border-border p-3 text-center text-muted-foreground">Sin vendedores.</p>
+        )}
       </div>
     </div>
   );
@@ -475,7 +552,7 @@ function RocasBlock({ rows }: { rows: RocaRow[] }) {
   return (
     <div className="rounded-xl border border-border bg-card p-5">
       <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-foreground"><Mountain className="h-5 w-5 text-primary" /> Rocas del mes</h2>
-      <div className="overflow-x-auto">
+      <div className="hidden overflow-x-auto sm:block">
         <table className="w-full min-w-[640px] text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs text-muted-foreground">
@@ -511,6 +588,42 @@ function RocasBlock({ rows }: { rows: RocaRow[] }) {
             )}
           </tbody>
         </table>
+      </div>
+
+      <div className="space-y-3 sm:hidden">
+        {rows.map((r) => (
+          <div key={r.id} className="rounded-lg border border-border p-3">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="font-medium text-foreground">{r.titulo}</p>
+                <p className="text-xs text-muted-foreground">{r.metricaExito}</p>
+              </div>
+              <span className={cn("inline-block shrink-0 rounded px-2 py-0.5 text-xs font-semibold", SALUD_COLOR[r.estatus])}>{r.estatus}</span>
+            </div>
+            <div className="mt-2 flex items-center justify-between text-sm">
+              <div>
+                <p className="text-[11px] text-muted-foreground">Dueño</p>
+                <p className="font-medium text-foreground">{r.duenoNombre ?? "—"}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[11px] text-muted-foreground">Fecha</p>
+                <p className="font-medium text-foreground">{fmtDate(r.fechaLimite)}</p>
+              </div>
+            </div>
+            <div className="mt-2">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">% Avance</span>
+                <span className="text-xs text-muted-foreground">{r.porcentajeAvance}%</span>
+              </div>
+              <div className="h-2 rounded-full bg-secondary">
+                <div className={cn("h-2 rounded-full", SEMA_BAR[r.estatus])} style={{ width: `${Math.min(100, r.porcentajeAvance)}%` }} />
+              </div>
+            </div>
+          </div>
+        ))}
+        {rows.length === 0 && (
+          <p className="rounded-lg border border-border p-3 text-center text-muted-foreground">Sin rocas este mes.</p>
+        )}
       </div>
     </div>
   );
