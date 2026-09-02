@@ -50,23 +50,6 @@ export function MakeLogo({ className = "h-6 w-6" }: Props) {
   );
 }
 
-export function HubSpotLogo({ className = "h-6 w-6" }: Props) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="#FF7A59" aria-hidden>
-      <path d="M17.3 8.3V5.9a1.85 1.85 0 0 0 1.06-1.66v-.06A1.85 1.85 0 0 0 16.5 2.3h-.06a1.85 1.85 0 0 0-1.85 1.85v.06A1.85 1.85 0 0 0 15.65 5.9v2.4a5.24 5.24 0 0 0-2.5 1.1L6.55 4.27a2.1 2.1 0 1 0-1 1.32l6.46 5.03a5.26 5.26 0 0 0 .08 5.95l-1.96 1.97a1.7 1.7 0 0 0-.49-.08 1.71 1.71 0 1 0 1.71 1.71 1.7 1.7 0 0 0-.08-.49l1.94-1.95a5.27 5.27 0 1 0 4.09-9.46Zm-.83 7.9a2.7 2.7 0 1 1 0-5.4 2.7 2.7 0 0 1 0 5.4Z" />
-    </svg>
-  );
-}
-
-export function QuickBooksLogo({ className = "h-6 w-6" }: Props) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" aria-hidden>
-      <circle cx="12" cy="12" r="11" fill="#2CA01C" />
-      <path fill="#fff" d="M7.4 8.2A4.6 4.6 0 0 0 8 17.4h1.3V15.6H8a2.8 2.8 0 1 1 0-5.6h.5v8.9a1.8 1.8 0 0 0 1.8 1.8V8.2H7.4Zm9.2 7.6A4.6 4.6 0 0 0 16 6.6h-1.3v1.8H16a2.8 2.8 0 1 1 0 5.6h-.5V5.1a1.8 1.8 0 0 0-1.8-1.8v12.5h2.9Z" />
-    </svg>
-  );
-}
-
 export function StripeLogo({ className = "h-6 w-6" }: Props) {
   return (
     <svg className={className} viewBox="0 0 24 24" aria-hidden>

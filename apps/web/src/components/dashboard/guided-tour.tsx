@@ -32,7 +32,7 @@ const STEPS: Step[] = [
     selector: '[data-tour="/dashboard/integrations"]',
     route: "/dashboard/integrations",
     title: "Conecta tus fuentes",
-    body: "Vincula el SAT, Meta Ads y HubSpot para que los números se actualicen solos, sin capturar nada a mano.",
+    body: "Vincula el SAT y Meta Ads para que los números se actualicen solos, sin capturar nada a mano.",
   },
   {
     selector: '[data-tour="/dashboard/goals"]',

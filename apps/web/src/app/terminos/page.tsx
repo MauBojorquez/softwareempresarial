@@ -78,7 +78,7 @@ export default function TerminosPage() {
 
       <LegalSection n={8} title="Integraciones de terceros">
         <p>
-          La plataforma puede conectarse con servicios externos (SAT, Meta, HubSpot, entre otros). El uso de
+          La plataforma puede conectarse con servicios externos (SAT, Meta, entre otros). El uso de
           esos servicios se rige por sus propios términos y políticas. No somos responsables de la
           disponibilidad, exactitud o cambios de dichos terceros, pero trabajamos para mantener las
           integraciones funcionando.

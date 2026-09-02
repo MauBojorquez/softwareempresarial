@@ -53,7 +53,7 @@ export default function PrivacidadPage() {
           </li>
           <li>
             <strong>Integraciones de terceros:</strong> tokens de acceso de servicios que conectes
-            voluntariamente (por ejemplo Meta Ads o HubSpot), usados solo para traer tus propias métricas.
+            voluntariamente (por ejemplo Meta Ads), usados solo para traer tus propias métricas.
           </li>
           <li>
             <strong>Datos de facturación:</strong> si contratas un plan de pago, el cobro lo procesa
@@ -96,7 +96,7 @@ export default function PrivacidadPage() {
           <li><strong>Infraestructura y hospedaje</strong> para ejecutar la aplicación y la base de datos.</li>
           <li><strong>Stripe</strong>, para procesar pagos de forma segura.</li>
           <li><strong>Anthropic (Claude)</strong>, para generar los reportes con IA a partir de tus métricas.</li>
-          <li><strong>Proveedores que tú conectes</strong> (SAT, Meta, HubSpot, entre otros), según las integraciones que actives.</li>
+          <li><strong>Proveedores que tú conectes</strong> (SAT, Meta, entre otros), según las integraciones que actives.</li>
         </ul>
         <p>
           También podremos divulgar información cuando una autoridad competente lo requiera conforme a la

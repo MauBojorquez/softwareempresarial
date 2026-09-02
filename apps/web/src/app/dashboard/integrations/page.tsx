@@ -8,9 +8,7 @@ import { addActivityLog } from "@/components/dashboard/activity-log";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { SheetsConnectModal } from "@/components/dashboard/sheets-connect-modal";
 import { cn } from "@/lib/utils";
-import {
-  MetaLogo, HubSpotLogo,
-} from "@/components/brand-logos";
+import { MetaLogo } from "@/components/brand-logos";
 
 type IntegrationStatus = {
   type: string;
@@ -21,15 +19,6 @@ type IntegrationStatus = {
 };
 
 const integrationConfig = [
-  {
-    type: "HUBSPOT",
-    name: "HubSpot",
-    description: "Pipeline de ventas, deals, contactos y métricas de conversión en tiempo real.",
-    category: "CRM",
-    metrics: ["Pipeline", "Deals", "Conversión", "Leads", "Revenue"],
-    Logo: HubSpotLogo,
-    connectUrl: "/api/integrations/hubspot",
-  },
   {
     type: "META_ADS",
     name: "Meta Ads",
@@ -46,15 +35,12 @@ const ERROR_MESSAGES: Record<string, string> = {
   invalid_state: "La sesión de conexión expiró o no coincidió. Vuelve a intentar.",
   meta_token_exchange: "Meta rechazó el intercambio de token. Revisa que la app y el redirect URI estén bien configurados.",
   meta_failed: "Falló la conexión con Meta. Intenta de nuevo.",
-  token_exchange: "HubSpot rechazó el intercambio de token. Revisa la configuración de la app.",
-  hubspot_failed: "Falló la conexión con HubSpot. Intenta de nuevo.",
   no_org: "No se encontró tu organización. Recarga la página.",
   limit: "Alcanzaste el límite de integraciones de tu plan.",
 };
 
 const SUCCESS_MESSAGES: Record<string, string> = {
   meta: "Meta Ads conectado correctamente",
-  hubspot: "HubSpot conectado correctamente",
 };
 
 function timeAgo(dateStr: string) {
