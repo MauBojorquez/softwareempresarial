@@ -44,6 +44,7 @@ model User {
   leads               Lead[]       @relation("LeadDueno")
   leadNotas           LeadNota[]   @relation("LeadNotaAutor")
   ventas              Venta[]      @relation("VentaVendedor")
+  dailyReports        DailyReport[] @relation("DailyReportUser")
 }
 
 model Account {
@@ -113,6 +114,7 @@ model Organization {
   tareas              Tarea[]
   leads               Lead[]
   ventas              Venta[]
+  dailyReports        DailyReport[]
 }
 
 model Membership {
@@ -622,4 +624,23 @@ model Venta {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, fechaCierre])
+}
+
+// ─── Reportes diarios (por puesto) ──────────────────────────────────
+model DailyReport {
+  id        String   @id @default(cuid())
+  fecha     String   // "YYYY-MM-DD" en America/Mexico_City (el día del reporte)
+  jobRole   JobRole? // snapshot del puesto del autor al momento de enviar
+  payload   Json     // campos específicos por puesto
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String
+  user   User   @relation("DailyReportUser", fields: [userId], references: [id])
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, fecha])
+  @@index([organizationId, fecha])
 }

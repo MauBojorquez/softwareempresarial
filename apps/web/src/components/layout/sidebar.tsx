@@ -10,7 +10,7 @@ import type { JobRole } from "@prisma/client";
 import {
   LayoutDashboard, DollarSign, LogOut, X, Settings,
   Building2, ChevronDown, Plus, Check, UsersRound, Wallet, BarChart3, Receipt,
-  Users, ListChecks, KanbanSquare, TrendingUp,
+  Users, ListChecks, KanbanSquare, TrendingUp, ClipboardList,
 } from "lucide-react";
 
 type NavChild = { name: string; href: string; icon: typeof LayoutDashboard; roles: JobRole[] };
@@ -38,6 +38,7 @@ const navigation: NavItem[] = [
   },
   { name: "CRM", href: "/dashboard/crm", icon: KanbanSquare, roles: ["DIRECCION", "COMERCIAL", "MARKETING"] },
   { name: "Ventas", href: "/dashboard/ventas", icon: TrendingUp, roles: ["DIRECCION", "COMERCIAL", "ADMINISTRACION"] },
+  { name: "Reportes", href: "/dashboard/reportes", icon: ClipboardList, roles: ALL_ROLES },
   { name: "Configuración", href: "/dashboard/settings", icon: Settings, roles: ALL_ROLES },
 ];
 
