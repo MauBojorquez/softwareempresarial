@@ -60,6 +60,7 @@ const JOB_ROLE_LABELS: Record<JobRoleValue, string> = {
 
 type Member = {
   membershipId: string;
+  userId: string;
   name: string | null;
   email: string;
   role: string;
@@ -97,6 +98,7 @@ export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
   const { toast } = useToast();
 
+  const [isAdmin, setIsAdmin] = useState(false);
   const [profile, setProfile] = useState({ name: "", email: "" });
   const [org, setOrg] = useState({ name: "", industry: "" });
   const [avatar, setAvatar] = useState<string | null>(null);
@@ -132,7 +134,10 @@ export default function SettingsPage() {
   type Invitation = { id: string; email: string; role: string; expiresAt: string; invitedBy: { name: string | null; email: string } };
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
+  const [membersOwnerId, setMembersOwnerId] = useState<string | null>(null);
+  const [membersCurrentUserId, setMembersCurrentUserId] = useState<string | null>(null);
   const [savingMemberId, setSavingMemberId] = useState<string | null>(null);
+  const [confirmDeleteMember, setConfirmDeleteMember] = useState<Member | null>(null);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"VIEWER" | "EDITOR" | "ADMIN">("VIEWER");
   const [inviteJobRole, setInviteJobRole] = useState<"" | "DIRECCION" | "OPERACIONES" | "COMERCIAL" | "MARKETING" | "ADMINISTRACION">("");
@@ -167,6 +172,9 @@ export default function SettingsPage() {
           if (data.organization.logo) setOrgLogo(data.organization.logo);
           if (data.organization.brandColor) setBrandColor(data.organization.brandColor);
         }
+        // Org/admin sections are Dirección-only. DIRECCION == ADMIN membership
+        // here; accept either signal from /api/user.
+        setIsAdmin(data.role === "ADMIN" || data.jobRole === "DIRECCION");
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -189,7 +197,11 @@ export default function SettingsPage() {
     // Members + puestos (Dirección only; a 403 just returns no list).
     fetch("/api/members")
       .then((r) => (r.ok ? r.json() : { members: [] }))
-      .then((d) => setMembers(Array.isArray(d.members) ? d.members : []))
+      .then((d) => {
+        setMembers(Array.isArray(d.members) ? d.members : []);
+        setMembersOwnerId(d.ownerId ?? null);
+        setMembersCurrentUserId(d.currentUserId ?? null);
+      })
       .catch(() => {});
 
     fetch("/api/alerts")
@@ -496,6 +508,22 @@ export default function SettingsPage() {
     setSavingMemberId(null);
   };
 
+  const handleDeleteMember = async (membershipId: string) => {
+    try {
+      const res = await fetch(`/api/members?membershipId=${membershipId}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast(data.error || "No se pudo eliminar el acceso", "error");
+        return;
+      }
+      setMembers((prev) => prev.filter((m) => m.membershipId !== membershipId));
+      toast("Acceso eliminado", "success");
+    } catch {
+      toast("Error de conexión", "error");
+    }
+    setConfirmDeleteMember(null);
+  };
+
   const handleRevokeInvite = async (id: string) => {
     try {
       const res = await fetch(`/api/invitations?id=${id}`, { method: "DELETE" });
@@ -597,6 +625,7 @@ export default function SettingsPage() {
             <p className="mt-1 rounded-lg border border-border bg-secondary/30 px-3 py-2 text-sm text-muted-foreground">{profile.email}</p>
           </div>
         </div>
+        {isAdmin && (
         <div className="flex items-start gap-2 pt-1">
           <Building2 className="h-4 w-4 text-muted-foreground mt-6" />
           <div className="flex-1 grid gap-4 sm:grid-cols-2">
@@ -623,6 +652,7 @@ export default function SettingsPage() {
             </div>
           </div>
         </div>
+        )}
         <button
           onClick={handleSaveProfile}
           disabled={saving}
@@ -633,7 +663,8 @@ export default function SettingsPage() {
         </button>
       </div>
 
-      {/* ── Identidad Visual ── */}
+      {/* ── Identidad Visual (solo Dirección) ── */}
+      {isAdmin && (
       <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
         <div className="flex items-center gap-3">
           <Palette className="h-5 w-5 text-primary" />
@@ -706,6 +737,7 @@ export default function SettingsPage() {
           {savingBranding ? "Guardando..." : "Guardar Identidad Visual"}
         </button>
       </div>
+      )}
 
       {/* ── Contraseña ── */}
       <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
@@ -952,8 +984,8 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* ── Miembros y Puestos ── */}
-      {members.length > 0 && (
+      {/* ── Miembros y Puestos (solo Dirección) ── */}
+      {isAdmin && members.length > 0 && (
         <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
           <div className="flex items-center gap-3">
             <Users className="h-5 w-5 text-primary" />
@@ -987,6 +1019,15 @@ export default function SettingsPage() {
                     ))}
                   </select>
                   {savingMemberId === m.membershipId && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                  {m.userId !== membersCurrentUserId && m.userId !== membersOwnerId && (
+                    <button
+                      onClick={() => setConfirmDeleteMember(m)}
+                      className="text-muted-foreground hover:text-red-500 transition-colors"
+                      aria-label={`Eliminar acceso de ${m.name || m.email}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -994,7 +1035,8 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* ── Invitar Usuarios ── */}
+      {/* ── Invitar Usuarios (solo Dirección) ── */}
+      {isAdmin && (
       <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
         <div className="flex items-center gap-3">
           <Users className="h-5 w-5 text-primary" />
@@ -1061,8 +1103,10 @@ export default function SettingsPage() {
           </div>
         )}
       </div>
+      )}
 
-      {/* ── API Keys ── */}
+      {/* ── API Keys (solo Dirección) ── */}
+      {isAdmin && (
       <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
         <div className="flex items-center gap-3">
           <Key className="h-5 w-5 text-primary" />
@@ -1116,6 +1160,7 @@ export default function SettingsPage() {
           <p className="text-emerald-400">{"}"}</p>
         </div>
       </div>
+      )}
 
       {/* ── Datos ── */}
       <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
@@ -1175,6 +1220,15 @@ export default function SettingsPage() {
         destructive
         onConfirm={() => confirmDeleteKeyId && handleDeleteKey(confirmDeleteKeyId)}
         onCancel={() => setConfirmDeleteKeyId(null)}
+      />
+      <ConfirmDialog
+        open={confirmDeleteMember !== null}
+        title="Eliminar acceso"
+        description={confirmDeleteMember ? `¿Eliminar el acceso de ${confirmDeleteMember.name || confirmDeleteMember.email}? Perderá el acceso a la app.` : ""}
+        confirmLabel="Eliminar acceso"
+        destructive
+        onConfirm={() => confirmDeleteMember && handleDeleteMember(confirmDeleteMember.membershipId)}
+        onCancel={() => setConfirmDeleteMember(null)}
       />
       <ConfirmDialog
         open={confirmClearData}

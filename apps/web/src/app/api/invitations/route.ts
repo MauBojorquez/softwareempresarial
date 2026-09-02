@@ -17,6 +17,7 @@ export async function GET() {
     include: { organization: true },
   });
   if (!membership) return NextResponse.json({ error: "No org" }, { status: 404 });
+  if (membership.role !== "ADMIN") return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
 
   const invitations = await db.invitation.findMany({
     where: { organizationId: membership.organizationId, acceptedAt: null, expiresAt: { gt: new Date() } },
@@ -48,13 +49,8 @@ export async function POST(req: NextRequest) {
     where: { userId: session.user.id },
     include: { organization: true },
   });
-  if (!membership || membership.role === "VIEWER") {
+  if (!membership || membership.role !== "ADMIN") {
     return NextResponse.json({ error: "No tienes permisos para invitar" }, { status: 403 });
-  }
-
-  // Prevent privilege escalation: only an ADMIN may grant ADMIN.
-  if (role === "ADMIN" && membership.role !== "ADMIN") {
-    return NextResponse.json({ error: "Solo un administrador puede invitar a otro administrador" }, { status: 403 });
   }
 
   // Check if already a member
@@ -111,7 +107,7 @@ export async function DELETE(req: NextRequest) {
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   const membership = await db.membership.findFirst({ where: { userId: session.user.id } });
-  if (!membership || membership.role === "VIEWER") return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
+  if (!membership || membership.role !== "ADMIN") return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
 
   await db.invitation.deleteMany({ where: { id, organizationId: membership.organizationId } });
   return NextResponse.json({ success: true });

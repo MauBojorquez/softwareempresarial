@@ -4,15 +4,35 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/server/db";
 import crypto from "crypto";
 
-export async function GET() {
+/**
+ * API keys are org-level credentials; only Dirección (ADMIN membership) may
+ * list, create or delete them. Returns the caller's ADMIN membership or a
+ * NextResponse error to return as-is.
+ */
+async function requireAdmin() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
+  const membership = await db.membership.findFirst({
+    where: { userId: session.user.id },
+  });
+  if (!membership) {
+    return { error: NextResponse.json({ error: "No organization" }, { status: 404 }) };
+  }
+  if (membership.role !== "ADMIN") {
+    return { error: NextResponse.json({ error: "Solo Dirección puede gestionar API Keys" }, { status: 403 }) };
+  }
+  return { userId: session.user.id, orgId: membership.organizationId };
+}
+
+export async function GET() {
+  const ctx = await requireAdmin();
+  if ("error" in ctx) return ctx.error;
 
   try {
     const keys = await db.apiKey.findMany({
-      where: { userId: session.user.id },
+      where: { userId: ctx.userId },
       select: { id: true, name: true, key: true, lastUsed: true, isActive: true, createdAt: true },
       orderBy: { createdAt: "desc" },
     });
@@ -29,17 +49,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const membership = await db.membership.findFirst({
-    where: { userId: session.user.id },
-  });
-  if (!membership) {
-    return NextResponse.json({ error: "No organization" }, { status: 404 });
-  }
+  const ctx = await requireAdmin();
+  if ("error" in ctx) return ctx.error;
 
   const { name } = await req.json();
   const key = `mp_${crypto.randomBytes(24).toString("hex")}`;
@@ -48,8 +59,8 @@ export async function POST(req: NextRequest) {
     data: {
       name: (name || "API Key").slice(0, 50),
       key,
-      userId: session.user.id,
-      organizationId: membership.organizationId,
+      userId: ctx.userId,
+      organizationId: ctx.orgId,
     },
   });
 
@@ -57,14 +68,12 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const ctx = await requireAdmin();
+  if ("error" in ctx) return ctx.error;
 
   const { id } = await req.json();
   await db.apiKey.deleteMany({
-    where: { id, userId: session.user.id },
+    where: { id, userId: ctx.userId },
   });
 
   return NextResponse.json({ ok: true });

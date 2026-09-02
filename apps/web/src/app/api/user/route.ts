@@ -30,6 +30,7 @@ export async function GET() {
       organization: membership?.organization ?? null,
       allowedSections: membership?.allowedSections ?? [],
       jobRole: membership?.jobRole ?? null,
+      role: membership?.role ?? null,
     });
   } catch {
     const user = await db.user.findUnique({
