@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Loader2, TrendingUp, X, Check } from "lucide-react";
+import { Plus, Loader2, TrendingUp, X, Check, Trash2 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/components/toast";
 
@@ -71,6 +71,7 @@ export default function VentasPage() {
   const [totals, setTotals] = useState<Totals>(EMPTY_TOTALS);
   const [loading, setLoading] = useState(true);
   const [jobRole, setJobRole] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [clientes, setClientes] = useState<ClienteOpt[]>([]);
   const [showNew, setShowNew] = useState(false);
@@ -94,7 +95,10 @@ export default function VentasPage() {
   useEffect(() => {
     fetch("/api/user")
       .then((r) => r.json())
-      .then((d) => setJobRole(d.jobRole ?? null))
+      .then((d) => {
+        setJobRole(d.jobRole ?? null);
+        setUserId(d.user?.id ?? null);
+      })
       .catch(() => {});
   }, []);
 
@@ -114,6 +118,27 @@ export default function VentasPage() {
   }, [jobRole]);
 
   const isDireccion = jobRole === "DIRECCION";
+
+  const canDelete = useCallback(
+    (v: Venta) =>
+      isDireccion || (jobRole === "COMERCIAL" && !!userId && v.vendedorId === userId),
+    [isDireccion, jobRole, userId],
+  );
+
+  const remove = async (v: Venta) => {
+    if (!confirm("¿Eliminar esta venta?")) return;
+    try {
+      const res = await fetch(`/api/ventas/${v.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || "No se pudo eliminar");
+      }
+      toast("Venta eliminada", "success");
+      await load();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "No se pudo eliminar", "error");
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -168,6 +193,17 @@ export default function VentasPage() {
                 <span>Tipo: {TIPO_LABEL[v.tipo]}</span>
               </div>
               {v.concepto && <p className="mt-2 text-xs text-muted-foreground">{v.concepto}</p>}
+              {canDelete(v) && (
+                <div className="mt-3 flex justify-end">
+                  <button
+                    onClick={() => remove(v)}
+                    className="rounded-lg p-2 text-muted-foreground hover:bg-red-500/10 hover:text-red-600"
+                    aria-label="Eliminar venta"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
             </div>
           ))
         )}
@@ -185,18 +221,19 @@ export default function VentasPage() {
               <th className="px-4 py-3 font-medium">Tipo</th>
               <th className="px-4 py-3 text-right font-medium">Monto</th>
               <th className="px-4 py-3 font-medium">Cobro esperado</th>
+              <th className="px-4 py-3 text-right font-medium">Acciones</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
+                <td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">
                   <Loader2 className="mx-auto h-5 w-5 animate-spin" />
                 </td>
               </tr>
             ) : ventas.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
+                <td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">
                   Sin ventas todavía.
                 </td>
               </tr>
@@ -210,6 +247,17 @@ export default function VentasPage() {
                   <td className="px-4 py-3 text-muted-foreground">{TIPO_LABEL[v.tipo]}</td>
                   <td className="px-4 py-3 text-right font-semibold">{formatCurrency(v.monto)}</td>
                   <td className="px-4 py-3 text-muted-foreground">{fmtDate(v.fechaCobroEsperada)}</td>
+                  <td className="px-4 py-3 text-right whitespace-nowrap">
+                    {canDelete(v) && (
+                      <button
+                        onClick={() => remove(v)}
+                        className="text-muted-foreground hover:text-red-600"
+                        aria-label="Eliminar venta"
+                      >
+                        <Trash2 className="h-4 w-4 inline" />
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))
             )}

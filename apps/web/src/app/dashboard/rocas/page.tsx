@@ -8,6 +8,13 @@ import { cn } from "@/lib/utils";
 type JobRole = "DIRECCION" | "OPERACIONES" | "COMERCIAL" | "MARKETING" | "ADMINISTRACION";
 type Salud = "VERDE" | "AMARILLO" | "ROJO";
 
+interface ChecklistItem {
+  id: string;
+  titulo: string;
+  done: boolean;
+  order: number;
+}
+
 interface Roca {
   id: string;
   titulo: string;
@@ -15,9 +22,11 @@ interface Roca {
   fechaLimite: string;
   estatus: Salud;
   porcentajeAvance: number;
+  usaChecklist: boolean;
   mes: string;
   duenoId: string;
   duenoNombre: string | null;
+  checklist: ChecklistItem[];
 }
 
 interface Member {
@@ -99,6 +108,25 @@ export default function RocasPage() {
       if (!res.ok) throw new Error(d.error || "Error");
       setRocas((prev) => prev.map((r) => (r.id === roca.id ? d.roca : r)));
       toast("Roca actualizada", "success");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "No se pudo actualizar", "error");
+    }
+  };
+
+  const replaceRoca = useCallback((saved: Roca) => {
+    setRocas((prev) => prev.map((r) => (r.id === saved.id ? saved : r)));
+  }, []);
+
+  const toggleItem = async (roca: Roca, item: ChecklistItem, done: boolean) => {
+    try {
+      const res = await fetch(`/api/rocas/${roca.id}/checklist/${item.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ done }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Error");
+      replaceRoca(d.roca);
     } catch (e) {
       toast(e instanceof Error ? e.message : "No se pudo actualizar", "error");
     }
@@ -190,7 +218,7 @@ export default function RocasPage() {
                       style={{ width: `${Math.min(100, Math.max(0, r.porcentajeAvance))}%` }}
                     />
                   </div>
-                  {canEditOwn ? (
+                  {canEditOwn && !r.usaChecklist ? (
                     <input
                       type="number"
                       inputMode="numeric"
@@ -209,6 +237,9 @@ export default function RocasPage() {
                     <span className="w-10 text-right text-xs font-medium text-foreground">{r.porcentajeAvance}%</span>
                   )}
                 </div>
+                {r.usaChecklist && (
+                  <ChecklistView roca={r} canEdit={canEditOwn} onToggle={toggleItem} />
+                )}
                 {isDireccion && (
                   <div className="mt-3 flex justify-end gap-1">
                     <button
@@ -281,7 +312,7 @@ export default function RocasPage() {
                             style={{ width: `${Math.min(100, Math.max(0, r.porcentajeAvance))}%` }}
                           />
                         </div>
-                        {canEditOwn ? (
+                        {canEditOwn && !r.usaChecklist ? (
                           <input
                             type="number"
                             min={0}
@@ -299,6 +330,9 @@ export default function RocasPage() {
                           <span className="w-10 text-right text-xs font-medium text-foreground">{r.porcentajeAvance}%</span>
                         )}
                       </div>
+                      {r.usaChecklist && (
+                        <ChecklistView roca={r} canEdit={canEditOwn} onToggle={toggleItem} />
+                      )}
                     </td>
                     {isDireccion && (
                       <td className="px-4 py-3 text-right whitespace-nowrap">
@@ -350,6 +384,37 @@ export default function RocasPage() {
   );
 }
 
+function ChecklistView({
+  roca,
+  canEdit,
+  onToggle,
+}: {
+  roca: Roca;
+  canEdit: boolean;
+  onToggle: (roca: Roca, item: ChecklistItem, done: boolean) => void;
+}) {
+  const items = roca.checklist ?? [];
+  if (items.length === 0) {
+    return <p className="mt-2 text-xs text-muted-foreground">Sin elementos en la checklist.</p>;
+  }
+  return (
+    <ul className="mt-2 space-y-1">
+      {items.map((item) => (
+        <li key={item.id} className="flex items-start gap-2 text-xs">
+          <input
+            type="checkbox"
+            checked={item.done}
+            disabled={!canEdit}
+            onChange={(e) => onToggle(roca, item, e.target.checked)}
+            className="mt-0.5 h-4 w-4 flex-shrink-0 rounded border-border"
+          />
+          <span className={cn(item.done && "text-muted-foreground line-through")}>{item.titulo}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function RocaForm({
   roca,
   members,
@@ -372,19 +437,66 @@ function RocaForm({
   const [mes, setMes] = useState(roca?.mes ?? defaultMes);
   const [estatus, setEstatus] = useState<Salud>(roca?.estatus ?? "VERDE");
   const [porcentajeAvance, setPorcentajeAvance] = useState<string>(String(roca?.porcentajeAvance ?? 0));
+  const [usaChecklist, setUsaChecklist] = useState<boolean>(roca?.usaChecklist ?? false);
+  const [items, setItems] = useState<{ id?: string; titulo: string }[]>(
+    roca?.checklist?.map((i) => ({ id: i.id, titulo: i.titulo })) ?? [],
+  );
+  const [newItem, setNewItem] = useState("");
+
+  const addItem = async () => {
+    const t = newItem.trim();
+    if (!t) return;
+    // For an existing roca, persist immediately so the % stays derived.
+    if (roca) {
+      try {
+        const res = await fetch(`/api/rocas/${roca.id}/checklist`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ titulo: t }),
+        });
+        const d = await res.json();
+        if (!res.ok) throw new Error(d.error || "Error");
+        setItems((d.roca.checklist as ChecklistItem[]).map((i) => ({ id: i.id, titulo: i.titulo })));
+      } catch (e) {
+        toast(e instanceof Error ? e.message : "No se pudo agregar", "error");
+        return;
+      }
+    } else {
+      setItems((prev) => [...prev, { titulo: t }]);
+    }
+    setNewItem("");
+  };
+
+  const removeItem = async (idx: number) => {
+    const item = items[idx];
+    if (roca && item.id) {
+      try {
+        const res = await fetch(`/api/rocas/${roca.id}/checklist/${item.id}`, { method: "DELETE" });
+        const d = await res.json();
+        if (!res.ok) throw new Error(d.error || "Error");
+        setItems((d.roca.checklist as ChecklistItem[]).map((i) => ({ id: i.id, titulo: i.titulo })));
+      } catch (e) {
+        toast(e instanceof Error ? e.message : "No se pudo eliminar", "error");
+      }
+    } else {
+      setItems((prev) => prev.filter((_, i) => i !== idx));
+    }
+  };
 
   const submit = async () => {
     setSaving(true);
     try {
-      const body = {
+      const body: Record<string, unknown> = {
         titulo,
         metricaExito,
         fechaLimite,
         duenoId,
         mes,
         estatus,
-        porcentajeAvance: Number(porcentajeAvance),
+        usaChecklist,
       };
+      if (!usaChecklist) body.porcentajeAvance = Number(porcentajeAvance);
+      if (!roca && usaChecklist) body.items = items.map((i) => i.titulo);
       const res = await fetch(roca ? `/api/rocas/${roca.id}` : "/api/rocas", {
         method: roca ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
@@ -433,20 +545,81 @@ function RocaForm({
               {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
             </select>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-sm font-medium text-foreground">Estatus</label>
-              <select value={estatus} onChange={(e) => setEstatus(e.target.value as Salud)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">
-                <option value="VERDE">VERDE</option>
-                <option value="AMARILLO">AMARILLO</option>
-                <option value="ROJO">ROJO</option>
-              </select>
+          <div>
+            <label className="text-sm font-medium text-foreground">Estatus</label>
+            <select value={estatus} onChange={(e) => setEstatus(e.target.value as Salud)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">
+              <option value="VERDE">VERDE</option>
+              <option value="AMARILLO">AMARILLO</option>
+              <option value="ROJO">ROJO</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-foreground">Tipo de avance</label>
+            <div className="mt-1 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setUsaChecklist(false)}
+                className={cn(
+                  "flex-1 rounded-lg border px-3 py-2 text-sm font-medium",
+                  !usaChecklist ? "border-primary bg-primary/10 text-foreground" : "border-border text-muted-foreground",
+                )}
+              >
+                Manual (%)
+              </button>
+              <button
+                type="button"
+                onClick={() => setUsaChecklist(true)}
+                className={cn(
+                  "flex-1 rounded-lg border px-3 py-2 text-sm font-medium",
+                  usaChecklist ? "border-primary bg-primary/10 text-foreground" : "border-border text-muted-foreground",
+                )}
+              >
+                Checklist
+              </button>
             </div>
+          </div>
+          {usaChecklist ? (
+            <div>
+              <label className="text-sm font-medium text-foreground">Elementos de la checklist</label>
+              <p className="mt-0.5 text-xs text-muted-foreground">El % se calcula automáticamente según los elementos completados.</p>
+              <ul className="mt-2 space-y-2">
+                {items.map((it, idx) => (
+                  <li key={it.id ?? `new-${idx}`} className="flex items-center gap-2">
+                    <span className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm">{it.titulo}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeItem(idx)}
+                      className="rounded-lg p-2 text-muted-foreground hover:bg-red-500/10 hover:text-red-600"
+                      aria-label="Quitar elemento"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-2 flex gap-2">
+                <input
+                  value={newItem}
+                  onChange={(e) => setNewItem(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addItem(); } }}
+                  placeholder="Nuevo elemento…"
+                  className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={addItem}
+                  className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-secondary"
+                >
+                  <Plus className="h-4 w-4" /> Agregar
+                </button>
+              </div>
+            </div>
+          ) : (
             <div>
               <label className="text-sm font-medium text-foreground">% Avance</label>
               <input type="number" min={0} max={100} value={porcentajeAvance} onChange={(e) => setPorcentajeAvance(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
             </div>
-          </div>
+          )}
         </div>
         <div className="mt-5 flex justify-end gap-2">
           <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary">Cancelar</button>

@@ -689,7 +689,8 @@ model Roca {
   metricaExito     String
   fechaLimite      DateTime
   estatus          Salud    @default(VERDE)
-  porcentajeAvance Int      @default(0) // 0..100
+  porcentajeAvance Int      @default(0) // 0..100 (derived when usaChecklist)
+  usaChecklist     Boolean  @default(false)
   mes              String   // "YYYY-MM"
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
@@ -698,8 +699,22 @@ model Roca {
   dueno          User         @relation("RocaDueno", fields: [duenoId], references: [id])
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  checklist      RocaChecklistItem[]
 
   @@index([organizationId, mes])
+}
+
+model RocaChecklistItem {
+  id        String   @id @default(cuid())
+  titulo    String
+  done      Boolean  @default(false)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  rocaId String
+  roca   Roca   @relation(fields: [rocaId], references: [id], onDelete: Cascade)
+
+  @@index([rocaId])
 }
 
 // ─── Número Crítico mensual (meta de cobranza) ──────────────────────

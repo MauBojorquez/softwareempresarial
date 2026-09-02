@@ -17,9 +17,11 @@ function shape(r: {
   fechaLimite: Date;
   estatus: Salud;
   porcentajeAvance: number;
+  usaChecklist: boolean;
   mes: string;
   duenoId: string;
   dueno?: { name: string | null; email: string } | null;
+  checklist?: { id: string; titulo: string; done: boolean; order: number }[];
 }) {
   return {
     id: r.id,
@@ -28,9 +30,16 @@ function shape(r: {
     fechaLimite: r.fechaLimite,
     estatus: r.estatus,
     porcentajeAvance: r.porcentajeAvance,
+    usaChecklist: r.usaChecklist,
     mes: r.mes,
     duenoId: r.duenoId,
     duenoNombre: r.dueno?.name ?? r.dueno?.email ?? null,
+    checklist: (r.checklist ?? []).map((i) => ({
+      id: i.id,
+      titulo: i.titulo,
+      done: i.done,
+      order: i.order,
+    })),
   };
 }
 
@@ -46,7 +55,10 @@ export async function GET(req: NextRequest) {
   const rows = await db.roca.findMany({
     where: { organizationId: orgId, mes },
     orderBy: [{ createdAt: "asc" }],
-    include: { dueno: { select: { name: true, email: true } } },
+    include: {
+      dueno: { select: { name: true, email: true } },
+      checklist: { orderBy: [{ order: "asc" }, { createdAt: "asc" }] },
+    },
   });
 
   return NextResponse.json({ mes, rocas: rows.map(shape) });
@@ -85,8 +97,18 @@ export async function POST(req: NextRequest) {
 
   const estatus: Salud = SALUD.includes(body.estatus) ? body.estatus : "VERDE";
 
+  const usaChecklist = body.usaChecklist === true;
+
+  // Optional initial checklist item titles.
+  const itemTitulos: string[] = Array.isArray(body.items)
+    ? body.items.map((t: unknown) => String(t ?? "").trim()).filter((t: string) => t.length > 0)
+    : [];
+
   let porcentajeAvance = 0;
-  if (body.porcentajeAvance !== undefined && body.porcentajeAvance !== null && body.porcentajeAvance !== "") {
+  if (usaChecklist) {
+    // Derived from items: all start undone, so 0 regardless of count.
+    porcentajeAvance = 0;
+  } else if (body.porcentajeAvance !== undefined && body.porcentajeAvance !== null && body.porcentajeAvance !== "") {
     const p = Number(body.porcentajeAvance);
     if (!Number.isInteger(p) || p < 0 || p > 100) {
       return NextResponse.json({ error: "El porcentaje de avance debe ser un entero entre 0 y 100" }, { status: 400 });
@@ -102,10 +124,21 @@ export async function POST(req: NextRequest) {
       fechaLimite: new Date(body.fechaLimite),
       estatus,
       porcentajeAvance,
+      usaChecklist,
       mes,
       duenoId,
+      ...(usaChecklist && itemTitulos.length > 0
+        ? {
+            checklist: {
+              create: itemTitulos.map((t, i) => ({ titulo: t.slice(0, 300), order: i })),
+            },
+          }
+        : {}),
     },
-    include: { dueno: { select: { name: true, email: true } } },
+    include: {
+      dueno: { select: { name: true, email: true } },
+      checklist: { orderBy: [{ order: "asc" }, { createdAt: "asc" }] },
+    },
   });
 
   logActivity({ userId, organizationId: orgId, action: "roca.create", detail: titulo });

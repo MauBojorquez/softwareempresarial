@@ -3,6 +3,7 @@ import type { Salud } from "@prisma/client";
 import { db } from "@/server/db";
 import { requireAccess } from "@/lib/access";
 import { notify } from "@/server/services/push/notify";
+import { recomputeRocaProgress } from "@/lib/roca-checklist";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +34,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const data: Record<string, unknown> = {};
 
   // Fields any owner (or Dirección) may change.
-  if (body.porcentajeAvance !== undefined) {
+  // For a checklist roca, porcentajeAvance is derived from items — ignore any
+  // manual value sent in the body (the dueño changes it by toggling items).
+  if (body.porcentajeAvance !== undefined && !existing.usaChecklist) {
     const p = Number(body.porcentajeAvance);
     if (!Number.isInteger(p) || p < 0 || p > 100) {
       return NextResponse.json({ error: "El porcentaje de avance debe ser un entero entre 0 y 100" }, { status: 400 });
@@ -76,16 +79,35 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       if (!member) return NextResponse.json({ error: "Dueño no válido" }, { status: 400 });
       data.duenoId = duenoId;
     }
+    if (body.usaChecklist !== undefined) {
+      data.usaChecklist = body.usaChecklist === true;
+    }
   }
+
+  // When enabling checklist mode, the % is derived — never keep a manual value.
+  const enablingChecklist = isDireccion && data.usaChecklist === true;
+  if (enablingChecklist) delete data.porcentajeAvance;
 
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: "Nada que actualizar" }, { status: 400 });
   }
 
-  const roca = await db.roca.update({
+  await db.roca.update({
     where: { id: params.id },
     data,
-    include: { dueno: { select: { name: true, email: true } } },
+  });
+
+  // When checklist mode is (now) on, recompute the derived % from items.
+  if (enablingChecklist || (existing.usaChecklist && data.usaChecklist !== false)) {
+    await recomputeRocaProgress(params.id);
+  }
+
+  const roca = await db.roca.findFirstOrThrow({
+    where: { id: params.id },
+    include: {
+      dueno: { select: { name: true, email: true } },
+      checklist: { orderBy: [{ order: "asc" }, { createdAt: "asc" }] },
+    },
   });
 
   // Best-effort push: when a roca transitions INTO rojo, alert its dueño and
@@ -122,9 +144,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       fechaLimite: roca.fechaLimite,
       estatus: roca.estatus,
       porcentajeAvance: roca.porcentajeAvance,
+      usaChecklist: roca.usaChecklist,
       mes: roca.mes,
       duenoId: roca.duenoId,
       duenoNombre: roca.dueno?.name ?? roca.dueno?.email ?? null,
+      checklist: roca.checklist.map((i) => ({
+        id: i.id,
+        titulo: i.titulo,
+        done: i.done,
+        order: i.order,
+      })),
     },
   });
 }

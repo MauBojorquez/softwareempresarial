@@ -269,7 +269,10 @@ export async function computeRocas(orgId: string, mes: string) {
   const rocasRows = await db.roca.findMany({
     where: { organizationId: orgId, mes },
     orderBy: { createdAt: "asc" },
-    include: { dueno: { select: { name: true, email: true } } },
+    include: {
+      dueno: { select: { name: true, email: true } },
+      checklist: { orderBy: [{ order: "asc" }, { createdAt: "asc" }] },
+    },
   });
   return rocasRows.map((r) => ({
     id: r.id,
@@ -278,7 +281,9 @@ export async function computeRocas(orgId: string, mes: string) {
     fechaLimite: r.fechaLimite,
     estatus: r.estatus,
     porcentajeAvance: r.porcentajeAvance,
+    usaChecklist: r.usaChecklist,
     duenoNombre: r.dueno?.name ?? r.dueno?.email ?? null,
+    checklist: r.checklist.map((i) => ({ titulo: i.titulo, done: i.done })),
   }));
 }
 
