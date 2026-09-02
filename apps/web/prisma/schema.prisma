@@ -575,6 +575,7 @@ model Lead {
   nombre                   String
   empresa                  String?
   contacto                 String?
+  campana                  String?   // campaña de origen (ingesta Meta/Make)
   origen                   LeadOrigen
   etapa                    LeadEtapa @default(NUEVO)
   valorEstimado            Float?

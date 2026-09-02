@@ -1,27 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
-import { rateLimit } from "@/lib/rate-limit";
+import { authenticateApiKey } from "@/lib/api-key-auth";
 
 export async function POST(req: NextRequest) {
-  const authHeader = req.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return NextResponse.json({ error: "Missing API key" }, { status: 401 });
-  }
-
-  const key = authHeader.slice(7);
-
-  const rl = rateLimit(`api-v1:${key}`, 120, 60_000); // 120 req/min por key
-  if (!rl.success) {
-    return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
-  }
-
-  const apiKey = await db.apiKey.findUnique({ where: { key } });
-
-  if (!apiKey || !apiKey.isActive) {
-    return NextResponse.json({ error: "Invalid or inactive API key" }, { status: 401 });
-  }
-
-  await db.apiKey.update({ where: { id: apiKey.id }, data: { lastUsed: new Date() } });
+  const auth = await authenticateApiKey(req, { bucket: "api-v1", limit: 120, windowMs: 60_000 });
+  if (auth instanceof NextResponse) return auth;
+  const apiKey = { organizationId: auth.organizationId };
 
   const body = await req.json();
 
@@ -70,23 +54,9 @@ async function createMetric(organizationId: string, data: any) {
 }
 
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return NextResponse.json({ error: "Missing API key" }, { status: 401 });
-  }
-
-  const key = authHeader.slice(7);
-
-  const rl = rateLimit(`api-v1:${key}`, 120, 60_000);
-  if (!rl.success) {
-    return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
-  }
-
-  const apiKey = await db.apiKey.findUnique({ where: { key } });
-
-  if (!apiKey || !apiKey.isActive) {
-    return NextResponse.json({ error: "Invalid or inactive API key" }, { status: 401 });
-  }
+  const auth = await authenticateApiKey(req, { bucket: "api-v1", limit: 120, windowMs: 60_000 });
+  if (auth instanceof NextResponse) return auth;
+  const apiKey = { organizationId: auth.organizationId };
 
   const category = req.nextUrl.searchParams.get("category");
   const limit = Math.min(parseInt(req.nextUrl.searchParams.get("limit") || "50"), 200);
