@@ -45,6 +45,8 @@ model User {
   leadNotas           LeadNota[]   @relation("LeadNotaAutor")
   ventas              Venta[]      @relation("VentaVendedor")
   dailyReports        DailyReport[] @relation("DailyReportUser")
+  rocas               Roca[]        @relation("RocaDueno")
+  vendorTargets       VendorTarget[] @relation("VendorTargetUser")
 }
 
 model Account {
@@ -115,6 +117,9 @@ model Organization {
   leads               Lead[]
   ventas              Venta[]
   dailyReports        DailyReport[]
+  rocas               Roca[]
+  monthlyTargets      MonthlyTarget[]
+  vendorTargets       VendorTarget[]
 }
 
 model Membership {
@@ -643,4 +648,50 @@ model DailyReport {
 
   @@unique([userId, fecha])
   @@index([organizationId, fecha])
+}
+
+// ─── Rocas (objetivos trimestrales/mensuales por dueño) ─────────────
+model Roca {
+  id               String   @id @default(cuid())
+  titulo           String
+  metricaExito     String
+  fechaLimite      DateTime
+  estatus          Salud    @default(VERDE)
+  porcentajeAvance Int      @default(0) // 0..100
+  mes              String   // "YYYY-MM"
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  duenoId        String
+  dueno          User         @relation("RocaDueno", fields: [duenoId], references: [id])
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, mes])
+}
+
+// ─── Número Crítico mensual (meta de cobranza) ──────────────────────
+model MonthlyTarget {
+  id             String @id @default(cuid())
+  mes            String
+  meta           Float  @default(0)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, mes])
+}
+
+// ─── Meta de venta mensual por vendedor ─────────────────────────────
+model VendorTarget {
+  id             String @id @default(cuid())
+  mes            String
+  meta           Float  @default(0)
+
+  userId         String
+  user           User         @relation("VendorTargetUser", fields: [userId], references: [id])
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, mes, userId])
 }

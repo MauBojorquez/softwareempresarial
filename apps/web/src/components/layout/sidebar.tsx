@@ -11,6 +11,7 @@ import {
   LayoutDashboard, DollarSign, LogOut, X, Settings,
   Building2, ChevronDown, Plus, Check, UsersRound, Wallet, BarChart3, Receipt,
   Users, ListChecks, KanbanSquare, TrendingUp, ClipboardList,
+  Mountain, Gauge,
 } from "lucide-react";
 
 type NavChild = { name: string; href: string; icon: typeof LayoutDashboard; roles: JobRole[] };
@@ -39,6 +40,8 @@ const navigation: NavItem[] = [
   { name: "CRM", href: "/dashboard/crm", icon: KanbanSquare, roles: ["DIRECCION", "COMERCIAL", "MARKETING"] },
   { name: "Ventas", href: "/dashboard/ventas", icon: TrendingUp, roles: ["DIRECCION", "COMERCIAL", "ADMINISTRACION"] },
   { name: "Reportes", href: "/dashboard/reportes", icon: ClipboardList, roles: ALL_ROLES },
+  { name: "Rocas", href: "/dashboard/rocas", icon: Mountain, roles: ALL_ROLES },
+  { name: "Dirección", href: "/dashboard/direccion", icon: Gauge, roles: ["DIRECCION"] },
   { name: "Configuración", href: "/dashboard/settings", icon: Settings, roles: ALL_ROLES },
 ];
 
