@@ -23,6 +23,8 @@ interface Lead {
   nombre: string;
   empresa?: string | null;
   contacto?: string | null;
+  telefono?: string | null;
+  email?: string | null;
   origen: Origen;
   etapa: Etapa;
   valorEstimado?: number | null;
@@ -98,6 +100,26 @@ const ORIGEN_STYLE: Record<Origen, string> = {
   RED_DIRECTA: "bg-pink-500/10 text-pink-600 dark:text-pink-400",
 };
 
+// Client-side mirror of the API validation. Empty is always valid (optional).
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function emailInvalid(v: string) {
+  const s = v.trim();
+  if (!s) return false;
+  return !EMAIL_RE.test(s.toLowerCase());
+}
+
+function phoneInvalid(v: string) {
+  const s = v.trim();
+  if (!s) return false;
+  const hasPlus = s.startsWith("+");
+  const stripped = s.replace(/[\s\-()]/g, "");
+  const digits = hasPlus ? stripped.slice(1) : stripped;
+  if (!/^\d+$/.test(digits)) return true;
+  const valid = digits.length === 10 || (hasPlus && digits.length >= 11 && digits.length <= 15);
+  return !valid;
+}
+
 function today() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -139,6 +161,11 @@ export default function CrmPage() {
     load();
   }, [load]);
 
+  // Keep the open detail panel in sync with refreshed lead data (e.g. after a stage change).
+  useEffect(() => {
+    setDetail((cur) => (cur ? leads.find((l) => l.id === cur.id) ?? null : cur));
+  }, [leads]);
+
   // Core stage transition. `extra` carries the modal-collected data when needed.
   const move = useCallback(
     async (lead: Lead, etapa: Etapa, extra?: Record<string, unknown>) => {
@@ -170,23 +197,32 @@ export default function CrmPage() {
     [toast, load],
   );
 
+  // Route a stage change through the right modal, else move directly.
+  // Shared by drag-and-drop and the "Cambiar etapa" buttons in the detail panel.
+  const requestStage = useCallback(
+    (lead: Lead, etapa: Etapa) => {
+      if (lead.etapa === etapa) return;
+      if (etapa === "CERRADO_GANADO") {
+        setGanadoModal(lead);
+        return;
+      }
+      if (etapa === "CERRADO_PERDIDO") {
+        setPerdidoModal(lead);
+        return;
+      }
+      move(lead, etapa);
+    },
+    [move],
+  );
+
   const handleDrop = (etapa: Etapa) => {
     setDragOver(null);
     const id = dragId;
     setDragId(null);
     if (!id) return;
     const lead = leads.find((l) => l.id === id);
-    if (!lead || lead.etapa === etapa) return;
-
-    if (etapa === "CERRADO_GANADO") {
-      setGanadoModal(lead);
-      return;
-    }
-    if (etapa === "CERRADO_PERDIDO") {
-      setPerdidoModal(lead);
-      return;
-    }
-    move(lead, etapa);
+    if (!lead) return;
+    requestStage(lead, etapa);
   };
 
   const removeLead = async (lead: Lead) => {
@@ -351,6 +387,7 @@ export default function CrmPage() {
           onClose={() => setDetail(null)}
           onRemove={() => removeLead(detail)}
           onSaved={load}
+          onChangeStage={(etapa) => requestStage(detail, etapa)}
           toast={toast}
         />
       )}
@@ -375,10 +412,15 @@ function NewLeadModal({
   const [origen, setOrigen] = useState<"" | Origen>("");
   const [empresa, setEmpresa] = useState("");
   const [contacto, setContacto] = useState("");
+  const [telefono, setTelefono] = useState("");
+  const [email, setEmail] = useState("");
   const [valorEstimado, setValorEstimado] = useState("");
   const [valorMensualEstimado, setValorMensualEstimado] = useState("");
   const [duenoId, setDuenoId] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const telError = phoneInvalid(telefono);
+  const emailError = emailInvalid(email);
 
   const save = async () => {
     if (!nombre.trim()) {
@@ -387,6 +429,10 @@ function NewLeadModal({
     }
     if (!origen) {
       toast("Selecciona el origen", "error");
+      return;
+    }
+    if (telError || emailError) {
+      toast("Revisa el teléfono o el correo", "error");
       return;
     }
     setSaving(true);
@@ -399,6 +445,8 @@ function NewLeadModal({
           origen,
           empresa: empresa || null,
           contacto: contacto || null,
+          telefono: telefono || null,
+          email: email || null,
           valorEstimado: valorEstimado || null,
           valorMensualEstimado: valorMensualEstimado || null,
           duenoId: duenoId || null,
@@ -447,6 +495,38 @@ function NewLeadModal({
             value={contacto}
             onChange={(e) => setContacto(e.target.value)}
           />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <input
+              type="tel"
+              inputMode="tel"
+              className={
+                "w-full rounded-lg border bg-secondary/40 px-3 py-2 text-sm " +
+                (telError ? "border-red-500" : "border-border")
+              }
+              placeholder="Teléfono"
+              value={telefono}
+              onChange={(e) => setTelefono(e.target.value)}
+            />
+            {telError && (
+              <p className="mt-1 text-[11px] text-red-500">Teléfono inválido (incluye la lada, ej. 55 1234 5678)</p>
+            )}
+          </div>
+          <div>
+            <input
+              type="email"
+              inputMode="email"
+              className={
+                "w-full rounded-lg border bg-secondary/40 px-3 py-2 text-sm " +
+                (emailError ? "border-red-500" : "border-border")
+              }
+              placeholder="Correo"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            {emailError && <p className="mt-1 text-[11px] text-red-500">Correo inválido</p>}
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <input
@@ -601,6 +681,7 @@ function DetailPanel({
   onClose,
   onRemove,
   onSaved,
+  onChangeStage,
   toast,
 }: {
   lead: Lead;
@@ -608,12 +689,15 @@ function DetailPanel({
   onClose: () => void;
   onRemove: () => void;
   onSaved: () => void;
+  onChangeStage: (etapa: Etapa) => void;
   toast: (m: string, t?: "success" | "error" | "info") => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [nombre, setNombre] = useState(lead.nombre);
   const [empresa, setEmpresa] = useState(lead.empresa ?? "");
   const [contacto, setContacto] = useState(lead.contacto ?? "");
+  const [telefono, setTelefono] = useState(lead.telefono ?? "");
+  const [email, setEmail] = useState(lead.email ?? "");
   const [origen, setOrigen] = useState<Origen>(lead.origen);
   const [duenoId, setDuenoId] = useState(lead.duenoId);
   const [valorEstimado, setValorEstimado] = useState(lead.valorEstimado != null ? String(lead.valorEstimado) : "");
@@ -640,9 +724,16 @@ function DetailPanel({
     loadNotas();
   }, [loadNotas]);
 
+  const telError = phoneInvalid(telefono);
+  const emailError = emailInvalid(email);
+
   const saveFields = async () => {
     if (!nombre.trim()) {
       toast("El nombre es obligatorio", "error");
+      return;
+    }
+    if (telError || emailError) {
+      toast("Revisa el teléfono o el correo", "error");
       return;
     }
     try {
@@ -653,6 +744,8 @@ function DetailPanel({
           nombre: nombre.trim(),
           empresa: empresa || null,
           contacto: contacto || null,
+          telefono: telefono || null,
+          email: email || null,
           origen,
           duenoId,
           valorEstimado: valorEstimado || null,
@@ -731,6 +824,38 @@ function DetailPanel({
                   value={contacto}
                   onChange={(e) => setContacto(e.target.value)}
                 />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <input
+                    type="tel"
+                    inputMode="tel"
+                    className={
+                      "w-full rounded-lg border bg-secondary/40 px-3 py-2 text-sm " +
+                      (telError ? "border-red-500" : "border-border")
+                    }
+                    placeholder="Teléfono"
+                    value={telefono}
+                    onChange={(e) => setTelefono(e.target.value)}
+                  />
+                  {telError && (
+                    <p className="mt-1 text-[11px] text-red-500">Teléfono inválido (incluye la lada)</p>
+                  )}
+                </div>
+                <div>
+                  <input
+                    type="email"
+                    inputMode="email"
+                    className={
+                      "w-full rounded-lg border bg-secondary/40 px-3 py-2 text-sm " +
+                      (emailError ? "border-red-500" : "border-border")
+                    }
+                    placeholder="Correo"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                  {emailError && <p className="mt-1 text-[11px] text-red-500">Correo inválido</p>}
+                </div>
               </div>
               <select
                 className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
@@ -812,11 +937,51 @@ function DetailPanel({
                 <Field label="Último movimiento" value={fmtDate(lead.fechaUltimoMovimiento)} />
                 <Field label="Creado" value={fmtDate(lead.createdAt)} />
               </dl>
+              {(lead.telefono || lead.email) && (
+                <div className="flex flex-col gap-1 pt-1 text-sm">
+                  {lead.telefono && (
+                    <a href={`tel:${lead.telefono}`} className="text-primary hover:underline">
+                      {lead.telefono}
+                    </a>
+                  )}
+                  {lead.email && (
+                    <a href={`mailto:${lead.email}`} className="text-primary hover:underline">
+                      {lead.email}
+                    </a>
+                  )}
+                </div>
+              )}
               {lead.etapa === "CERRADO_PERDIDO" && lead.motivoPerdida && (
                 <p className="rounded-lg bg-red-500/10 p-2 text-xs text-red-600 dark:text-red-400">
                   Motivo de pérdida: {lead.motivoPerdida}
                 </p>
               )}
+
+              {/* Cambiar etapa: same flow as drag-and-drop (modals for ganado/perdido). */}
+              <div className="border-t border-border pt-3">
+                <p className="mb-2 text-[11px] uppercase tracking-wide text-muted-foreground">Cambiar etapa</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {ETAPAS.map((e) => {
+                    const active = e === lead.etapa;
+                    return (
+                      <button
+                        key={e}
+                        disabled={active}
+                        onClick={() => onChangeStage(e)}
+                        className={
+                          "rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors " +
+                          (active
+                            ? "cursor-default border-primary bg-primary/10 text-primary"
+                            : "border-border text-muted-foreground hover:border-primary hover:text-foreground")
+                        }
+                      >
+                        {ETAPA_LABEL[e]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               <button
                 onClick={() => setEditing(true)}
                 className="mt-1 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground"

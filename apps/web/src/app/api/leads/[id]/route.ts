@@ -3,6 +3,7 @@ import type { LeadOrigen } from "@prisma/client";
 import { db } from "@/server/db";
 import { requireAccess } from "@/lib/access";
 import { logActivity } from "@/lib/activity";
+import { parseEmail, parsePhone } from "@/lib/lead-contact";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
   if (body.empresa !== undefined) data.empresa = body.empresa ? String(body.empresa).trim() : null;
   if (body.contacto !== undefined) data.contacto = body.contacto ? String(body.contacto).trim() : null;
+  if (body.telefono !== undefined) {
+    const r = parsePhone(body.telefono);
+    if (!r.ok) return NextResponse.json({ error: r.error }, { status: 400 });
+    data.telefono = r.value;
+  }
+  if (body.email !== undefined) {
+    const r = parseEmail(body.email);
+    if (!r.ok) return NextResponse.json({ error: r.error }, { status: 400 });
+    data.email = r.value;
+  }
   if (body.origen !== undefined) {
     if (!ORIGENES.includes(body.origen)) return NextResponse.json({ error: "Origen inválido" }, { status: 400 });
     data.origen = body.origen as LeadOrigen;

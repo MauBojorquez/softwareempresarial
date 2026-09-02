@@ -3,6 +3,7 @@ import type { LeadOrigen, Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { requireAccess } from "@/lib/access";
 import { logActivity } from "@/lib/activity";
+import { parseEmail, parsePhone } from "@/lib/lead-contact";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,8 @@ export async function GET(req: NextRequest) {
     nombre: l.nombre,
     empresa: l.empresa,
     contacto: l.contacto,
+    telefono: l.telefono,
+    email: l.email,
     origen: l.origen,
     etapa: l.etapa,
     valorEstimado: l.valorEstimado,
@@ -82,6 +85,11 @@ export async function POST(req: NextRequest) {
     duenoId = String(body.duenoId);
   }
 
+  const emailResult = parseEmail(body.email);
+  if (!emailResult.ok) return NextResponse.json({ error: emailResult.error }, { status: 400 });
+  const telefonoResult = parsePhone(body.telefono);
+  if (!telefonoResult.ok) return NextResponse.json({ error: telefonoResult.error }, { status: 400 });
+
   const valorEstimado = body.valorEstimado != null && body.valorEstimado !== "" ? Number(body.valorEstimado) : null;
   const valorMensualEstimado =
     body.valorMensualEstimado != null && body.valorMensualEstimado !== "" ? Number(body.valorMensualEstimado) : null;
@@ -92,6 +100,8 @@ export async function POST(req: NextRequest) {
       nombre,
       empresa: body.empresa ? String(body.empresa).trim() : null,
       contacto: body.contacto ? String(body.contacto).trim() : null,
+      telefono: telefonoResult.value,
+      email: emailResult.value,
       origen,
       valorEstimado: valorEstimado != null && Number.isFinite(valorEstimado) ? valorEstimado : null,
       valorMensualEstimado:
