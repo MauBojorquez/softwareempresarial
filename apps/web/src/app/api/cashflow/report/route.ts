@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { requireAccess } from "@/lib/access";
 import { syncCashflowMetrics } from "@/lib/cashflow-sync";
+import { monthRangeMX, currentMonthMX } from "@/lib/day";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,10 @@ export async function GET(req: NextRequest) {
     // without needing a manual edit. Fire-and-forget; never blocks the report.
     void syncCashflowMetrics(orgId).catch(() => {});
 
-    const [accounts, categories] = await Promise.all([
+    const mes = req.nextUrl.searchParams.get("mes") || currentMonthMX();
+    const { start, end } = monthRangeMX(mes);
+
+    const [accounts, categories, settings] = await Promise.all([
       db.cashFlowAccount.findMany({
         where: { organizationId: orgId, isActive: true },
         orderBy: { order: "asc" },
@@ -35,14 +39,23 @@ export async function GET(req: NextRequest) {
         where: { organizationId: orgId, isActive: true },
         orderBy: { order: "asc" },
       }),
+      db.cashFlowSettings.findUnique({ where: { organizationId: orgId } }),
     ]);
 
-    // Per-account summaries (including per-account category totals + tx count)
+    // Per-account summaries for the selected month (carried saldo inicial +
+    // per-account category totals + tx count for that month only).
     const accountSummaries = accounts.map((acc) => {
-      const totalDeposits = acc.transactions.reduce((s, t) => s + (t.deposit ?? 0), 0);
-      const totalWithdrawals = acc.transactions.reduce((s, t) => s + (t.withdrawal ?? 0), 0);
+      // saldoInicial carried from movements strictly before the month start.
+      const before = acc.transactions.filter((t) => t.date < start);
+      const saldoInicial =
+        acc.openingBalance +
+        before.reduce((s, t) => s + (t.deposit ?? 0) - (t.withdrawal ?? 0), 0);
+
+      const monthTx = acc.transactions.filter((t) => t.date >= start && t.date < end);
+      const totalDeposits = monthTx.reduce((s, t) => s + (t.deposit ?? 0), 0);
+      const totalWithdrawals = monthTx.reduce((s, t) => s + (t.withdrawal ?? 0), 0);
       const accCategoryTotals: Record<string, number> = {};
-      for (const tx of acc.transactions) {
+      for (const tx of monthTx) {
         const inc = (tx.incomeCategories ?? {}) as Record<string, number>;
         const exp = (tx.expenseCategories ?? {}) as Record<string, number>;
         for (const [code, amt] of Object.entries(inc)) accCategoryTotals[code] = (accCategoryTotals[code] ?? 0) + (amt ?? 0);
@@ -52,12 +65,12 @@ export async function GET(req: NextRequest) {
         id: acc.id,
         name: acc.name,
         bankName: acc.bankName ?? undefined,
-        openingBalance: acc.openingBalance,
+        openingBalance: saldoInicial,
         totalDeposits,
         totalWithdrawals,
-        currentBalance: acc.openingBalance + totalDeposits - totalWithdrawals,
+        currentBalance: saldoInicial + totalDeposits - totalWithdrawals,
         categoryTotals: accCategoryTotals,
-        transactionCount: acc.transactions.length,
+        transactionCount: monthTx.length,
       };
     });
 
@@ -85,6 +98,8 @@ export async function GET(req: NextRequest) {
       accounts: accountSummaries,
       categories: categorySummaries,
       totals: { totalDeposits, totalWithdrawals, totalBalance, categoryTotals },
+      mes,
+      closedThroughMes: settings?.closedThroughMes ?? null,
       // Aliases consumed by the finance dashboard banner
       grandTotalDeposits: totalDeposits,
       grandTotalWithdrawals: totalWithdrawals,

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import { Plus, Settings, X, ChevronLeft, Trash2, Loader2 } from "lucide-react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { Plus, Settings, X, ChevronLeft, Trash2, Loader2, Download, Lock, Unlock } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -39,6 +39,43 @@ interface CashFlowTransaction {
   incomeCategories?: Record<string, number>;
   expenseCategories?: Record<string, number>;
   notes?: string;
+}
+
+// ─── Month helpers ──────────────────────────────────────────────────
+
+const MX_TZ = "America/Mexico_City";
+
+/** Current month "YYYY-MM" in America/Mexico_City. */
+function currentMonthMX(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: MX_TZ, year: "numeric", month: "2-digit" })
+    .format(new Date())
+    .slice(0, 7);
+}
+
+const MES_NAMES = [
+  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+];
+
+/** "2025-09" → "Septiembre 2025". */
+function mesLabel(mes: string): string {
+  const [y, m] = mes.split("-").map(Number);
+  return `${MES_NAMES[m - 1]} ${y}`;
+}
+
+/** Month "YYYY-MM" `delta` months away from `mes`. */
+function shiftMes(mes: string, delta: number): string {
+  const [y, m] = mes.split("-").map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + delta, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+/** Last 36 months + current, newest first. */
+function monthOptions(): string[] {
+  const cur = currentMonthMX();
+  const out: string[] = [];
+  for (let i = 0; i <= 36; i++) out.push(shiftMes(cur, -i));
+  return out;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────
@@ -106,7 +143,7 @@ function Cell({ value, onChange, type = "text", className = "", readOnly = false
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Tab") commit(); if (e.key === "Escape") setEditing(false); }}
-        className={`w-full bg-[#1a1a2e] border border-[#3D7FFF] rounded px-1 py-0.5 text-xs outline-none ${align === "right" ? "text-right" : "text-left"} ${className}`}
+        className={`w-full bg-[#1a1a2e] border border-[#3D7FFF] rounded px-1 py-0.5 text-xs outline-none tabular-nums ${align === "right" ? "text-right" : "text-left"} ${className}`}
       />
     );
   }
@@ -114,24 +151,25 @@ function Cell({ value, onChange, type = "text", className = "", readOnly = false
   return (
     <div
       onClick={startEdit}
-      className={`w-full min-h-[22px] px-1 py-0.5 text-xs rounded cursor-pointer hover:bg-white/5 truncate ${readOnly ? "cursor-default" : ""} ${align === "right" ? "text-right" : "text-left"} ${className}`}
+      className={`w-full min-h-[22px] px-1 py-0.5 text-xs rounded truncate ${readOnly ? "cursor-default" : "cursor-pointer hover:bg-white/5"} ${align === "right" ? "text-right tabular-nums" : "text-left"} ${className}`}
     >
       {display || <span className="text-muted-foreground/30 text-[10px]">{placeholder}</span>}
     </div>
   );
 }
 
-// ─── Transaction Row ─────────────────────────────────────────────────
+// ─── Transaction Row (desktop table) ─────────────────────────────────
 
 interface TxRowProps {
   index: number;
   tx: CashFlowTransaction;
   categories: CashFlowCategory[];
+  readOnly: boolean;
   onUpdate: (id: string, field: string, value: unknown) => void;
   onDelete: (id: string) => void;
 }
 
-function TxRow({ index, tx, categories, onUpdate, onDelete }: TxRowProps) {
+function TxRow({ index, tx, categories, readOnly, onUpdate, onDelete }: TxRowProps) {
   const incCats = categories.filter((c) => c.type === "income" || c.type === "both");
   const expCats = categories.filter((c) => c.type === "expense" || c.type === "both");
 
@@ -157,70 +195,75 @@ function TxRow({ index, tx, categories, onUpdate, onDelete }: TxRowProps) {
         <Cell
           value={toDateStr(tx.date)}
           type="date"
+          readOnly={readOnly}
           onChange={(v) => onUpdate(tx.id, "date", v)}
           placeholder="fecha"
         />
       </td>
       <td className="px-1 py-1 min-w-[130px]">
-        <Cell value={tx.bankReference} onChange={(v) => onUpdate(tx.id, "bankReference", v)} placeholder="referencia bancaria" />
+        <Cell value={tx.bankReference} readOnly={readOnly} onChange={(v) => onUpdate(tx.id, "bankReference", v)} placeholder="referencia bancaria" />
       </td>
       <td className="px-1 py-1 min-w-[110px]">
-        <Cell value={tx.movementType} onChange={(v) => onUpdate(tx.id, "movementType", v)} placeholder="tipo" />
+        <Cell value={tx.movementType} readOnly={readOnly} onChange={(v) => onUpdate(tx.id, "movementType", v)} placeholder="tipo" />
       </td>
       <td className="px-1 py-1 min-w-[100px]">
         <Cell
           value={tx.deposit !== null && tx.deposit !== undefined ? fmxNum(tx.deposit) : ""}
+          readOnly={readOnly}
           onChange={(v) => onUpdate(tx.id, "deposit", v)}
           placeholder="0.00"
           align="right"
-          className="text-[#00E87B]"
+          className="text-[#00E87B] whitespace-nowrap"
         />
       </td>
       <td className="px-1 py-1 min-w-[100px]">
         <Cell
           value={tx.withdrawal !== null && tx.withdrawal !== undefined ? fmxNum(tx.withdrawal) : ""}
+          readOnly={readOnly}
           onChange={(v) => onUpdate(tx.id, "withdrawal", v)}
           placeholder="0.00"
           align="right"
-          className="text-[#FF4444]"
+          className="text-[#FF4444] whitespace-nowrap"
         />
       </td>
       <td className="px-1 py-1 min-w-[110px]">
-        <div className={`text-xs text-right px-1 py-0.5 font-medium ${tx.balance >= 0 ? "text-[#00E87B]" : "text-[#FF4444]"}`}>
+        <div className={`text-xs text-right px-1 py-0.5 font-medium tabular-nums whitespace-nowrap ${tx.balance >= 0 ? "text-[#00E87B]" : "text-[#FF4444]"}`}>
           {fmx(tx.balance)}
         </div>
       </td>
       <td className="px-1 py-1 min-w-[140px]">
-        <Cell value={tx.concept} onChange={(v) => onUpdate(tx.id, "concept", v)} placeholder="concepto" />
+        <Cell value={tx.concept} readOnly={readOnly} onChange={(v) => onUpdate(tx.id, "concept", v)} placeholder="concepto" />
       </td>
       <td className="px-1 py-1 min-w-[120px]">
-        <Cell value={tx.provider} onChange={(v) => onUpdate(tx.id, "provider", v)} placeholder="proveedor" />
+        <Cell value={tx.provider} readOnly={readOnly} onChange={(v) => onUpdate(tx.id, "provider", v)} placeholder="proveedor" />
       </td>
       <td className="px-1 py-1 min-w-[100px]">
-        <Cell value={tx.reference} onChange={(v) => onUpdate(tx.id, "reference", v)} placeholder="referencia" />
+        <Cell value={tx.reference} readOnly={readOnly} onChange={(v) => onUpdate(tx.id, "reference", v)} placeholder="referencia" />
       </td>
       <td className="px-1 py-1 min-w-[120px]">
-        <Cell value={tx.invoiceUuid} onChange={(v) => onUpdate(tx.id, "invoiceUuid", v)} placeholder="folio/uuid" />
+        <Cell value={tx.invoiceUuid} readOnly={readOnly} onChange={(v) => onUpdate(tx.id, "invoiceUuid", v)} placeholder="folio/uuid" />
       </td>
       <td className="px-1 py-1 min-w-[80px]">
         <Cell
           value={tx.taxRate !== null && tx.taxRate !== undefined ? String(tx.taxRate) : ""}
+          readOnly={readOnly}
           onChange={(v) => onUpdate(tx.id, "taxRate", v)}
           placeholder="0%"
           align="right"
         />
       </td>
       <td className="px-1 py-1 min-w-[100px]">
-        <Cell value={tx.salesType} onChange={(v) => onUpdate(tx.id, "salesType", v)} placeholder="ventas" />
+        <Cell value={tx.salesType} readOnly={readOnly} onChange={(v) => onUpdate(tx.id, "salesType", v)} placeholder="ventas" />
       </td>
       {incCats.map((cat) => (
         <td key={`inc-${cat.id}`} className="px-1 py-1 min-w-[90px]">
           <Cell
             value={tx.incomeCategories?.[cat.code] !== undefined ? fmxNum(tx.incomeCategories[cat.code]) : ""}
+            readOnly={readOnly}
             onChange={(v) => updateCatValue(cat.code, "income", v)}
             align="right"
             placeholder="0.00"
-            className="text-[#00E87B]"
+            className="text-[#00E87B] whitespace-nowrap"
           />
         </td>
       ))}
@@ -228,22 +271,91 @@ function TxRow({ index, tx, categories, onUpdate, onDelete }: TxRowProps) {
         <td key={`exp-${cat.id}`} className="px-1 py-1 min-w-[90px]">
           <Cell
             value={tx.expenseCategories?.[cat.code] !== undefined ? fmxNum(tx.expenseCategories[cat.code]) : ""}
+            readOnly={readOnly}
             onChange={(v) => updateCatValue(cat.code, "expense", v)}
             align="right"
             placeholder="0.00"
-            className="text-[#FF4444]"
+            className="text-[#FF4444] whitespace-nowrap"
           />
         </td>
       ))}
       <td className="px-2 py-1 w-8">
-        <button
-          onClick={() => onDelete(tx.id)}
-          className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-[#FF4444] transition-opacity"
-        >
-          <Trash2 size={12} />
-        </button>
+        {!readOnly && (
+          <button
+            onClick={() => onDelete(tx.id)}
+            className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-[#FF4444] transition-opacity"
+          >
+            <Trash2 size={12} />
+          </button>
+        )}
       </td>
     </tr>
+  );
+}
+
+// ─── Transaction Card (mobile) ───────────────────────────────────────
+
+function TxCard({ index, tx, readOnly, onUpdate, onDelete }: {
+  index: number;
+  tx: CashFlowTransaction;
+  readOnly: boolean;
+  onUpdate: (id: string, field: string, value: unknown) => void;
+  onDelete: (id: string) => void;
+}) {
+  return (
+    <div className="rounded-lg border border-border/50 bg-card/40 p-3 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-[10px] text-muted-foreground/50 shrink-0">{index + 1}</span>
+          <div className="min-w-0 flex-1">
+            <Cell value={toDateStr(tx.date)} type="date" readOnly={readOnly} onChange={(v) => onUpdate(tx.id, "date", v)} placeholder="fecha" />
+          </div>
+        </div>
+        {!readOnly && (
+          <button onClick={() => onDelete(tx.id)} className="text-muted-foreground hover:text-[#FF4444] shrink-0">
+            <Trash2 size={13} />
+          </button>
+        )}
+      </div>
+
+      <div className="min-w-0">
+        <Cell value={tx.concept} readOnly={readOnly} onChange={(v) => onUpdate(tx.id, "concept", v)} placeholder="concepto" className="font-medium" />
+      </div>
+      <div className="min-w-0">
+        <Cell value={tx.provider} readOnly={readOnly} onChange={(v) => onUpdate(tx.id, "provider", v)} placeholder="proveedor / referencia" className="text-muted-foreground" />
+      </div>
+
+      <div className="grid grid-cols-3 gap-2 pt-1 border-t border-border/30">
+        <div className="min-w-0">
+          <p className="text-[9px] uppercase tracking-widest text-[#00E87B]/70">Depósito</p>
+          <Cell
+            value={tx.deposit !== null && tx.deposit !== undefined ? fmxNum(tx.deposit) : ""}
+            readOnly={readOnly}
+            onChange={(v) => onUpdate(tx.id, "deposit", v)}
+            placeholder="0.00"
+            align="right"
+            className="text-[#00E87B] whitespace-nowrap"
+          />
+        </div>
+        <div className="min-w-0">
+          <p className="text-[9px] uppercase tracking-widest text-[#FF4444]/70">Retiro</p>
+          <Cell
+            value={tx.withdrawal !== null && tx.withdrawal !== undefined ? fmxNum(tx.withdrawal) : ""}
+            readOnly={readOnly}
+            onChange={(v) => onUpdate(tx.id, "withdrawal", v)}
+            placeholder="0.00"
+            align="right"
+            className="text-[#FF4444] whitespace-nowrap"
+          />
+        </div>
+        <div className="min-w-0">
+          <p className="text-[9px] uppercase tracking-widest text-muted-foreground">Saldo</p>
+          <p className={`text-xs text-right px-1 py-0.5 font-medium tabular-nums whitespace-nowrap truncate ${tx.balance >= 0 ? "text-[#00E87B]" : "text-[#FF4444]"}`}>
+            {fmx(tx.balance)}
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -252,38 +364,57 @@ function TxRow({ index, tx, categories, onUpdate, onDelete }: TxRowProps) {
 interface AccountLedgerProps {
   account: CashFlowAccount;
   categories: CashFlowCategory[];
+  mes: string;
+  readOnly: boolean;
+  onSettings: (closedThroughMes: string | null) => void;
 }
 
-function AccountLedger({ account, categories }: AccountLedgerProps) {
+function AccountLedger({ account, categories, mes, readOnly, onSettings }: AccountLedgerProps) {
   const [transactions, setTransactions] = useState<CashFlowTransaction[]>([]);
+  const [saldoInicial, setSaldoInicial] = useState(0);
+  const [saldoFinal, setSaldoFinal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const debounceRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
+  const recalc = useCallback((rows: CashFlowTransaction[], base: number) => {
+    let bal = base;
+    const out = rows.map((t) => {
+      bal += (Number(t.deposit) || 0) - (Number(t.withdrawal) || 0);
+      return { ...t, balance: bal };
+    });
+    setTransactions(out);
+    setSaldoFinal(bal);
+  }, []);
+
   const fetchTransactions = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/cashflow/accounts/${account.id}/transactions`);
+      const res = await fetch(`/api/cashflow/accounts/${account.id}/transactions?mes=${mes}`);
       const data = await res.json();
-      if (data.transactions) setTransactions(data.transactions);
+      setTransactions(data.transactions ?? []);
+      setSaldoInicial(data.saldoInicial ?? account.openingBalance);
+      setSaldoFinal(data.saldoFinal ?? account.openingBalance);
+      onSettings(data.closedThroughMes ?? null);
     } finally {
       setLoading(false);
     }
-  }, [account.id]);
+  }, [account.id, account.openingBalance, mes, onSettings]);
 
   useEffect(() => {
     fetchTransactions();
   }, [fetchTransactions]);
 
   const addRow = async () => {
+    // New rows land in the selected month (mid-month, MX noon) so they belong to it.
+    const iso = new Date(`${mes}-15T18:00:00.000Z`).toISOString();
     try {
       const res = await fetch(`/api/cashflow/accounts/${account.id}/transactions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date: new Date().toISOString() }),
+        body: JSON.stringify({ date: iso }),
       });
-      const data = await res.json();
-      if (data.transaction) {
+      if (res.ok) {
         await fetchTransactions();
       }
     } catch {}
@@ -291,7 +422,6 @@ function AccountLedger({ account, categories }: AccountLedgerProps) {
 
   const handleUpdate = useCallback(
     (id: string, field: string, value: unknown) => {
-      // Normalize numeric fields: strip thousands separators / currency chars
       let normalized: unknown = value;
       if (field === "deposit" || field === "withdrawal" || field === "taxRate") {
         if (value === "" || value === null || value === undefined) {
@@ -308,11 +438,13 @@ function AccountLedger({ account, categories }: AccountLedgerProps) {
         if (idx === -1) return prev;
         const updated = [...prev];
         updated[idx] = { ...updated[idx], [field]: normalized };
-        let bal = account.openingBalance;
-        return updated.map((t) => {
+        let bal = saldoInicial;
+        const out = updated.map((t) => {
           bal += (Number(t.deposit) || 0) - (Number(t.withdrawal) || 0);
           return { ...t, balance: bal };
         });
+        setSaldoFinal(bal);
+        return out;
       });
 
       if (debounceRefs.current[id]) clearTimeout(debounceRefs.current[id]);
@@ -329,17 +461,19 @@ function AccountLedger({ account, categories }: AccountLedgerProps) {
         }
       }, 500);
     },
-    [account.openingBalance]
+    [saldoInicial]
   );
 
   const handleDelete = async (id: string) => {
     setTransactions((prev) => {
       const filtered = prev.filter((t) => t.id !== id);
-      let bal = account.openingBalance;
-      return filtered.map((t) => {
+      let bal = saldoInicial;
+      const out = filtered.map((t) => {
         bal += (Number(t.deposit) || 0) - (Number(t.withdrawal) || 0);
         return { ...t, balance: bal };
       });
+      setSaldoFinal(bal);
+      return out;
     });
     await fetch(`/api/cashflow/transactions/${id}`, { method: "DELETE" });
   };
@@ -347,26 +481,45 @@ function AccountLedger({ account, categories }: AccountLedgerProps) {
   const incCats = categories.filter((c) => c.type === "income" || c.type === "both");
   const expCats = categories.filter((c) => c.type === "expense" || c.type === "both");
 
-  const currentBalance = transactions[transactions.length - 1]?.balance ?? account.openingBalance;
+  const totalDeposits = transactions.reduce((s, t) => s + (Number(t.deposit) || 0), 0);
+  const totalWithdrawals = transactions.reduce((s, t) => s + (Number(t.withdrawal) || 0), 0);
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center gap-6 px-4 py-3 border-b border-border/50">
+      {/* Saldo band */}
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 border-b border-border/50">
         <div>
-          <p className="text-xs text-muted-foreground uppercase tracking-widest">Banco</p>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Banco</p>
           <p className="text-sm font-medium">{account.bankName || "—"}</p>
         </div>
         <div>
-          <p className="text-xs text-muted-foreground uppercase tracking-widest">Cuenta</p>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Cuenta</p>
           <p className="text-sm font-medium">{account.accountNumber || "—"}</p>
         </div>
         <div>
-          <p className="text-xs text-muted-foreground uppercase tracking-widest">Saldo Inicial</p>
-          <p className="text-sm font-medium">{fmx(account.openingBalance)}</p>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Saldo inicial</p>
+          <p className="text-sm font-medium tabular-nums whitespace-nowrap">{fmx(saldoInicial)}</p>
         </div>
-        <div className="ml-auto">
-          <p className="text-xs text-muted-foreground uppercase tracking-widest">Saldo Actual</p>
-          <p className={`text-base font-bold ${currentBalance >= 0 ? "text-[#00E87B]" : "text-[#FF4444]"}`}>{fmx(currentBalance)}</p>
+        <div>
+          <p className="text-[10px] text-[#00E87B] uppercase tracking-widest">Depósitos</p>
+          <p className="text-sm font-medium tabular-nums whitespace-nowrap text-[#00E87B]">{fmx(totalDeposits)}</p>
+        </div>
+        <div>
+          <p className="text-[10px] text-[#FF4444] uppercase tracking-widest">Retiros</p>
+          <p className="text-sm font-medium tabular-nums whitespace-nowrap text-[#FF4444]">{fmx(totalWithdrawals)}</p>
+        </div>
+        <div className="sm:ml-auto">
+          <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Saldo final</p>
+          <p className={`text-base font-bold tabular-nums whitespace-nowrap ${saldoFinal >= 0 ? "text-[#00E87B]" : "text-[#FF4444]"}`}>{fmx(saldoFinal)}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <a
+            href={`/api/cashflow/export?mes=${mes}&accountId=${account.id}`}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 border border-border text-xs text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap"
+          >
+            <Download size={13} />
+            Descargar mes
+          </a>
         </div>
         {saving && (
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -383,67 +536,93 @@ function AccountLedger({ account, categories }: AccountLedgerProps) {
             Cargando...
           </div>
         ) : (
-          <table className="w-full border-collapse text-xs min-w-max">
-            <thead className="sticky top-0 z-10 bg-background border-b border-border">
-              <tr>
-                <th className="px-2 py-2 text-center text-muted-foreground uppercase tracking-widest text-[10px] w-8">#</th>
-                <th className="px-1 py-2 text-left text-muted-foreground uppercase tracking-widest text-[10px]">Fecha</th>
-                <th className="px-1 py-2 text-left text-muted-foreground uppercase tracking-widest text-[10px]">Ref. Bancaria</th>
-                <th className="px-1 py-2 text-left text-muted-foreground uppercase tracking-widest text-[10px]">Tipo Movimiento</th>
-                <th className="px-1 py-2 text-right text-[#00E87B] uppercase tracking-widest text-[10px]">Deposito</th>
-                <th className="px-1 py-2 text-right text-[#FF4444] uppercase tracking-widest text-[10px]">Retiro</th>
-                <th className="px-1 py-2 text-right text-muted-foreground uppercase tracking-widest text-[10px]">Saldo</th>
-                <th className="px-1 py-2 text-left text-muted-foreground uppercase tracking-widest text-[10px]">Concepto</th>
-                <th className="px-1 py-2 text-left text-muted-foreground uppercase tracking-widest text-[10px]">Proveedor</th>
-                <th className="px-1 py-2 text-left text-muted-foreground uppercase tracking-widest text-[10px]">Referencia</th>
-                <th className="px-1 py-2 text-left text-muted-foreground uppercase tracking-widest text-[10px]">Folio/UUID</th>
-                <th className="px-1 py-2 text-right text-muted-foreground uppercase tracking-widest text-[10px]">Impuesto</th>
-                <th className="px-1 py-2 text-left text-muted-foreground uppercase tracking-widest text-[10px]">Ventas</th>
-                {incCats.map((cat) => (
-                  <th key={cat.id} className="px-1 py-2 text-right text-[#00E87B] uppercase tracking-widest text-[10px]">
-                    {cat.code}
-                  </th>
-                ))}
-                {expCats.map((cat) => (
-                  <th key={cat.id} className="px-1 py-2 text-right text-[#FF4444] uppercase tracking-widest text-[10px]">
-                    {cat.code}
-                  </th>
-                ))}
-                <th className="w-8" />
-              </tr>
-            </thead>
-            <tbody>
+          <>
+            {/* Mobile: stacked cards */}
+            <div className="sm:hidden p-3 space-y-3">
               {transactions.map((tx, i) => (
-                <TxRow
-                  key={tx.id}
-                  index={i}
-                  tx={tx}
-                  categories={categories}
-                  onUpdate={handleUpdate}
-                  onDelete={handleDelete}
-                />
+                <TxCard key={tx.id} index={i} tx={tx} readOnly={readOnly} onUpdate={handleUpdate} onDelete={handleDelete} />
               ))}
               {transactions.length === 0 && (
-                <tr>
-                  <td colSpan={13 + incCats.length + expCats.length} className="px-4 py-12 text-center text-muted-foreground text-sm">
-                    Sin movimientos. Haz clic en "Agregar fila" para comenzar.
-                  </td>
-                </tr>
+                <p className="px-2 py-10 text-center text-muted-foreground text-sm">
+                  Sin movimientos en {mesLabel(mes)}.
+                </p>
               )}
-            </tbody>
-          </table>
+            </div>
+
+            {/* Desktop: table */}
+            <table className="hidden sm:table w-full border-collapse text-xs min-w-max">
+              <thead className="sticky top-0 z-10 bg-background border-b border-border">
+                <tr>
+                  <th className="px-2 py-2 text-center text-muted-foreground uppercase tracking-widest text-[10px] w-8">#</th>
+                  <th className="px-1 py-2 text-left text-muted-foreground uppercase tracking-widest text-[10px]">Fecha</th>
+                  <th className="px-1 py-2 text-left text-muted-foreground uppercase tracking-widest text-[10px]">Ref. Bancaria</th>
+                  <th className="px-1 py-2 text-left text-muted-foreground uppercase tracking-widest text-[10px]">Tipo Movimiento</th>
+                  <th className="px-1 py-2 text-right text-[#00E87B] uppercase tracking-widest text-[10px]">Deposito</th>
+                  <th className="px-1 py-2 text-right text-[#FF4444] uppercase tracking-widest text-[10px]">Retiro</th>
+                  <th className="px-1 py-2 text-right text-muted-foreground uppercase tracking-widest text-[10px]">Saldo</th>
+                  <th className="px-1 py-2 text-left text-muted-foreground uppercase tracking-widest text-[10px]">Concepto</th>
+                  <th className="px-1 py-2 text-left text-muted-foreground uppercase tracking-widest text-[10px]">Proveedor</th>
+                  <th className="px-1 py-2 text-left text-muted-foreground uppercase tracking-widest text-[10px]">Referencia</th>
+                  <th className="px-1 py-2 text-left text-muted-foreground uppercase tracking-widest text-[10px]">Folio/UUID</th>
+                  <th className="px-1 py-2 text-right text-muted-foreground uppercase tracking-widest text-[10px]">Impuesto</th>
+                  <th className="px-1 py-2 text-left text-muted-foreground uppercase tracking-widest text-[10px]">Ventas</th>
+                  {incCats.map((cat) => (
+                    <th key={cat.id} className="px-1 py-2 text-right text-[#00E87B] uppercase tracking-widest text-[10px]">
+                      {cat.code}
+                    </th>
+                  ))}
+                  {expCats.map((cat) => (
+                    <th key={cat.id} className="px-1 py-2 text-right text-[#FF4444] uppercase tracking-widest text-[10px]">
+                      {cat.code}
+                    </th>
+                  ))}
+                  <th className="w-8" />
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b border-border/50 bg-white/[0.02]">
+                  <td />
+                  <td colSpan={5} className="px-2 py-1.5 text-[10px] uppercase tracking-widest text-muted-foreground">
+                    Saldo inicial — {mesLabel(mes)}
+                  </td>
+                  <td className="px-1 py-1.5 text-right text-xs font-semibold tabular-nums whitespace-nowrap">{fmx(saldoInicial)}</td>
+                  <td colSpan={100} />
+                </tr>
+                {transactions.map((tx, i) => (
+                  <TxRow
+                    key={tx.id}
+                    index={i}
+                    tx={tx}
+                    categories={categories}
+                    readOnly={readOnly}
+                    onUpdate={handleUpdate}
+                    onDelete={handleDelete}
+                  />
+                ))}
+                {transactions.length === 0 && (
+                  <tr>
+                    <td colSpan={13 + incCats.length + expCats.length} className="px-4 py-12 text-center text-muted-foreground text-sm">
+                      {readOnly ? `Sin movimientos en ${mesLabel(mes)}.` : 'Sin movimientos. Haz clic en "Agregar fila" para comenzar.'}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </>
         )}
       </div>
 
-      <div className="px-4 py-3 border-t border-border/50">
-        <button
-          onClick={addRow}
-          className="flex items-center gap-2 text-xs text-[#3D7FFF] hover:text-[#3D7FFF]/80 transition-colors"
-        >
-          <Plus size={14} />
-          Agregar fila
-        </button>
-      </div>
+      {!readOnly && (
+        <div className="px-4 py-3 border-t border-border/50">
+          <button
+            onClick={addRow}
+            className="flex items-center gap-2 text-xs text-[#3D7FFF] hover:text-[#3D7FFF]/80 transition-colors"
+          >
+            <Plus size={14} />
+            Agregar fila
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -469,6 +648,7 @@ interface ReportData {
     totalBalance: number;
     categoryTotals: Record<string, number>;
   };
+  closedThroughMes?: string | null;
 }
 
 interface CategoryPanelProps {
@@ -509,7 +689,7 @@ function CategoryPanel({ categories, onClose, onRefresh }: CategoryPanelProps) {
   const expCats = categories.filter((c) => c.type === "expense" || c.type === "both");
 
   return (
-    <div className="fixed inset-y-0 right-0 w-80 bg-card border-l border-border shadow-2xl z-50 flex flex-col">
+    <div className="fixed inset-y-0 right-0 w-80 max-w-full bg-card border-l border-border shadow-2xl z-50 flex flex-col">
       <div className="flex items-center justify-between px-4 py-4 border-b border-border">
         <h3 className="font-semibold text-sm">Categorias</h3>
         <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
@@ -593,7 +773,7 @@ function CategoryPanel({ categories, onClose, onRefresh }: CategoryPanelProps) {
   );
 }
 
-function ReportTab({ onCategoriesUpdated }: { onCategoriesUpdated: () => void }) {
+function ReportTab({ mes, onCategoriesUpdated, onSettings }: { mes: string; onCategoriesUpdated: () => void; onSettings: (c: string | null) => void }) {
   const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showCategories, setShowCategories] = useState(false);
@@ -601,13 +781,14 @@ function ReportTab({ onCategoriesUpdated }: { onCategoriesUpdated: () => void })
   const fetchReport = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/cashflow/report");
+      const res = await fetch(`/api/cashflow/report?mes=${mes}`);
       const d = await res.json();
       setData(d);
+      onSettings(d?.closedThroughMes ?? null);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [mes, onSettings]);
 
   useEffect(() => {
     fetchReport();
@@ -631,7 +812,7 @@ function ReportTab({ onCategoriesUpdated }: { onCategoriesUpdated: () => void })
   return (
     <div className="p-4 space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="font-semibold text-base">Reporte de Flujo de Efectivo</h2>
+        <h2 className="font-semibold text-base">Reporte de Flujo de Efectivo — {mesLabel(mes)}</h2>
         <button
           onClick={() => setShowCategories(true)}
           className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-border text-xs text-muted-foreground hover:text-foreground transition-colors"
@@ -641,18 +822,18 @@ function ReportTab({ onCategoriesUpdated }: { onCategoriesUpdated: () => void })
         </button>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="rounded-2xl border border-border bg-card p-4">
           <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Total Depositos</p>
-          <p className="text-xl font-bold text-[#00E87B]">{fmx(data.totals.totalDeposits)}</p>
+          <p className="text-xl font-bold text-[#00E87B] tabular-nums whitespace-nowrap">{fmx(data.totals.totalDeposits)}</p>
         </div>
         <div className="rounded-2xl border border-border bg-card p-4">
           <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Total Retiros</p>
-          <p className="text-xl font-bold text-[#FF4444]">{fmx(data.totals.totalWithdrawals)}</p>
+          <p className="text-xl font-bold text-[#FF4444] tabular-nums whitespace-nowrap">{fmx(data.totals.totalWithdrawals)}</p>
         </div>
         <div className="rounded-2xl border border-border bg-card p-4">
           <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Saldo Total</p>
-          <p className={`text-xl font-bold ${data.totals.totalBalance >= 0 ? "text-[#00E87B]" : "text-[#FF4444]"}`}>
+          <p className={`text-xl font-bold tabular-nums whitespace-nowrap ${data.totals.totalBalance >= 0 ? "text-[#00E87B]" : "text-[#FF4444]"}`}>
             {fmx(data.totals.totalBalance)}
           </p>
         </div>
@@ -662,45 +843,47 @@ function ReportTab({ onCategoriesUpdated }: { onCategoriesUpdated: () => void })
         <div className="px-4 py-3 border-b border-border/50">
           <p className="text-xs text-muted-foreground uppercase tracking-widest">Cuentas Bancarias</p>
         </div>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border/30">
-              <th className="px-4 py-2 text-left text-muted-foreground text-xs uppercase tracking-widest">Cuenta</th>
-              <th className="px-4 py-2 text-left text-muted-foreground text-xs uppercase tracking-widest">Banco</th>
-              <th className="px-4 py-2 text-right text-muted-foreground text-xs uppercase tracking-widest">Saldo Inicial</th>
-              <th className="px-4 py-2 text-right text-[#00E87B] text-xs uppercase tracking-widest">Depositos</th>
-              <th className="px-4 py-2 text-right text-[#FF4444] text-xs uppercase tracking-widest">Retiros</th>
-              <th className="px-4 py-2 text-right text-muted-foreground text-xs uppercase tracking-widest">Saldo Actual</th>
-              <th className="px-4 py-2 text-right text-muted-foreground text-xs uppercase tracking-widest">Movimientos</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.accounts.map((acc) => (
-              <tr key={acc.id} className="border-b border-border/20 hover:bg-white/[0.02]">
-                <td className="px-4 py-2 font-medium text-sm">{acc.name}</td>
-                <td className="px-4 py-2 text-muted-foreground text-sm">{acc.bankName || "—"}</td>
-                <td className="px-4 py-2 text-right text-sm">{fmx(acc.openingBalance)}</td>
-                <td className="px-4 py-2 text-right text-[#00E87B] text-sm">{fmx(acc.totalDeposits)}</td>
-                <td className="px-4 py-2 text-right text-[#FF4444] text-sm">{fmx(acc.totalWithdrawals)}</td>
-                <td className={`px-4 py-2 text-right font-semibold text-sm ${acc.currentBalance >= 0 ? "text-[#00E87B]" : "text-[#FF4444]"}`}>
-                  {fmx(acc.currentBalance)}
-                </td>
-                <td className="px-4 py-2 text-right text-muted-foreground text-sm">{acc.transactionCount}</td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[640px]">
+            <thead>
+              <tr className="border-b border-border/30">
+                <th className="px-4 py-2 text-left text-muted-foreground text-xs uppercase tracking-widest">Cuenta</th>
+                <th className="px-4 py-2 text-left text-muted-foreground text-xs uppercase tracking-widest">Banco</th>
+                <th className="px-4 py-2 text-right text-muted-foreground text-xs uppercase tracking-widest">Saldo Inicial</th>
+                <th className="px-4 py-2 text-right text-[#00E87B] text-xs uppercase tracking-widest">Depositos</th>
+                <th className="px-4 py-2 text-right text-[#FF4444] text-xs uppercase tracking-widest">Retiros</th>
+                <th className="px-4 py-2 text-right text-muted-foreground text-xs uppercase tracking-widest">Saldo Final</th>
+                <th className="px-4 py-2 text-right text-muted-foreground text-xs uppercase tracking-widest">Movimientos</th>
               </tr>
-            ))}
-            {data.accounts.length === 0 && (
-              <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground text-sm">
-                  Sin cuentas bancarias. Agrega una cuenta para comenzar.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {data.accounts.map((acc) => (
+                <tr key={acc.id} className="border-b border-border/20 hover:bg-white/[0.02]">
+                  <td className="px-4 py-2 font-medium text-sm">{acc.name}</td>
+                  <td className="px-4 py-2 text-muted-foreground text-sm">{acc.bankName || "—"}</td>
+                  <td className="px-4 py-2 text-right text-sm tabular-nums whitespace-nowrap">{fmx(acc.openingBalance)}</td>
+                  <td className="px-4 py-2 text-right text-[#00E87B] text-sm tabular-nums whitespace-nowrap">{fmx(acc.totalDeposits)}</td>
+                  <td className="px-4 py-2 text-right text-[#FF4444] text-sm tabular-nums whitespace-nowrap">{fmx(acc.totalWithdrawals)}</td>
+                  <td className={`px-4 py-2 text-right font-semibold text-sm tabular-nums whitespace-nowrap ${acc.currentBalance >= 0 ? "text-[#00E87B]" : "text-[#FF4444]"}`}>
+                    {fmx(acc.currentBalance)}
+                  </td>
+                  <td className="px-4 py-2 text-right text-muted-foreground text-sm">{acc.transactionCount}</td>
+                </tr>
+              ))}
+              {data.accounts.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground text-sm">
+                    Sin cuentas bancarias. Agrega una cuenta para comenzar.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {(incCats.length > 0 || expCats.length > 0) && (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {incCats.length > 0 && (
             <div className="rounded-2xl border border-border bg-card overflow-hidden">
               <div className="px-4 py-3 border-b border-border/50">
@@ -716,7 +899,7 @@ function ReportTab({ onCategoriesUpdated }: { onCategoriesUpdated: () => void })
                           <span className="font-mono text-xs bg-[#00E87B]/10 text-[#00E87B] px-1.5 py-0.5 rounded">{cat.code}</span>
                         </td>
                         <td className="px-4 py-2 text-muted-foreground text-xs">{cat.name}</td>
-                        <td className="px-4 py-2 text-right text-[#00E87B] font-medium">{fmx(amount)}</td>
+                        <td className="px-4 py-2 text-right text-[#00E87B] font-medium tabular-nums whitespace-nowrap">{fmx(amount)}</td>
                       </tr>
                     );
                   })}
@@ -739,7 +922,7 @@ function ReportTab({ onCategoriesUpdated }: { onCategoriesUpdated: () => void })
                           <span className="font-mono text-xs bg-[#FF4444]/10 text-[#FF4444] px-1.5 py-0.5 rounded">{cat.code}</span>
                         </td>
                         <td className="px-4 py-2 text-muted-foreground text-xs">{cat.name}</td>
-                        <td className="px-4 py-2 text-right text-[#FF4444] font-medium">{fmx(amount)}</td>
+                        <td className="px-4 py-2 text-right text-[#FF4444] font-medium tabular-nums whitespace-nowrap">{fmx(amount)}</td>
                       </tr>
                     );
                   })}
@@ -876,12 +1059,40 @@ function AddAccountModal({ onClose, onCreated }: AddAccountModalProps) {
 
 // ─── Main Page ───────────────────────────────────────────────────────
 
+const MES_STORAGE_KEY = "cashflow.mes";
+
 export default function CashFlowPage() {
   const [accounts, setAccounts] = useState<CashFlowAccount[]>([]);
   const [categories, setCategories] = useState<CashFlowCategory[]>([]);
   const [activeTab, setActiveTab] = useState<"report" | string>("report");
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
+  const [mes, setMes] = useState<string>(currentMonthMX());
+  const [closedThroughMes, setClosedThroughMes] = useState<string | null>(null);
+  const [jobRole, setJobRole] = useState<string | null>(null);
+  const [closing, setClosing] = useState(false);
+
+  const options = useMemo(() => monthOptions(), []);
+
+  // Restore persisted month (client only).
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(MES_STORAGE_KEY);
+      if (saved && /^\d{4}-\d{2}$/.test(saved)) setMes(saved);
+    } catch {}
+  }, []);
+
+  const changeMes = useCallback((next: string) => {
+    setMes(next);
+    try { localStorage.setItem(MES_STORAGE_KEY, next); } catch {}
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/user")
+      .then((r) => r.json())
+      .then((d) => setJobRole(d.jobRole ?? null))
+      .catch(() => {});
+  }, []);
 
   const fetchAccounts = useCallback(async () => {
     setLoadingAccounts(true);
@@ -907,6 +1118,8 @@ export default function CashFlowPage() {
 
   const activeAccount = accounts.find((a) => a.id === activeTab);
 
+  const monthClosed = !!closedThroughMes && mes <= closedThroughMes;
+
   const deleteActiveAccount = async () => {
     if (!activeAccount) return;
     if (!confirm(`¿Eliminar el banco "${activeAccount.name}"? Se ocultará junto con sus movimientos.`)) return;
@@ -915,16 +1128,99 @@ export default function CashFlowPage() {
     setActiveTab("report");
   };
 
+  const closeMonth = async () => {
+    if (!confirm(`¿Cerrar ${mesLabel(mes)}? Ya no se podrán editar sus movimientos.`)) return;
+    setClosing(true);
+    try {
+      const res = await fetch("/api/cashflow/close", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mes }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "No se pudo cerrar el mes");
+        return;
+      }
+      setClosedThroughMes(data.closedThroughMes ?? mes);
+      // Move working month forward to the next month.
+      changeMes(shiftMes(mes, 1));
+    } finally {
+      setClosing(false);
+    }
+  };
+
+  const reopenMonth = async () => {
+    if (!confirm(`¿Reabrir ${mesLabel(mes)} y los meses posteriores?`)) return;
+    setClosing(true);
+    try {
+      const res = await fetch("/api/cashflow/reopen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mes }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "No se pudo reabrir el mes");
+        return;
+      }
+      setClosedThroughMes(data.closedThroughMes ?? null);
+    } finally {
+      setClosing(false);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full min-h-[calc(100vh-64px)] bg-background">
       <div className="px-4 pt-4 pb-0 border-b border-border">
-        <div className="flex items-center gap-3 mb-4">
+        <div className="flex flex-wrap items-center gap-3 mb-4">
           <a href="/dashboard/finance" className="text-muted-foreground hover:text-foreground transition-colors">
             <ChevronLeft size={18} />
           </a>
-          <div>
+          <div className="mr-auto">
             <h1 className="text-lg font-bold">Flujo de Efectivo</h1>
             <p className="text-xs text-muted-foreground">Gestion de cuentas bancarias y movimientos</p>
+          </div>
+
+          {/* Month selector + lock controls */}
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={mes}
+              onChange={(e) => changeMes(e.target.value)}
+              className="bg-white/5 border border-border rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#3D7FFF] transition-colors"
+            >
+              {options.map((m) => (
+                <option key={m} value={m}>{mesLabel(m)}</option>
+              ))}
+            </select>
+
+            {monthClosed ? (
+              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#FF4444]/10 border border-[#FF4444]/30 text-xs text-[#FF4444] font-medium whitespace-nowrap">
+                <Lock size={13} />
+                Mes cerrado
+              </span>
+            ) : (
+              <button
+                onClick={closeMonth}
+                disabled={closing}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 border border-border text-xs text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors whitespace-nowrap"
+              >
+                <Lock size={13} />
+                Cerrar mes
+              </button>
+            )}
+
+            {monthClosed && jobRole === "DIRECCION" && (
+              <button
+                onClick={reopenMonth}
+                disabled={closing}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 border border-border text-xs text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors whitespace-nowrap"
+                title="Reabrir este mes (solo Dirección)"
+              >
+                <Unlock size={13} />
+                Reabrir
+              </button>
+            )}
           </div>
         </div>
 
@@ -980,10 +1276,17 @@ export default function CashFlowPage() {
       <div className="flex-1 overflow-hidden">
         {activeTab === "report" ? (
           <div className="h-full overflow-y-auto">
-            <ReportTab onCategoriesUpdated={fetchCategories} />
+            <ReportTab mes={mes} onCategoriesUpdated={fetchCategories} onSettings={setClosedThroughMes} />
           </div>
         ) : activeAccount ? (
-          <AccountLedger account={activeAccount} categories={categories} />
+          <AccountLedger
+            key={activeAccount.id + mes}
+            account={activeAccount}
+            categories={categories}
+            mes={mes}
+            readOnly={monthClosed}
+            onSettings={setClosedThroughMes}
+          />
         ) : null}
       </div>
 

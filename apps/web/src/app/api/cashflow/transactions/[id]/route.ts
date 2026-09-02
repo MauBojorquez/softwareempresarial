@@ -5,6 +5,17 @@ import { syncCashflowMetrics } from "@/lib/cashflow-sync";
 
 export const dynamic = "force-dynamic";
 
+/** "YYYY-MM" (MX month) that a given date falls into. */
+function mesOfDate(date: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Mexico_City",
+    year: "numeric",
+    month: "2-digit",
+  })
+    .format(date)
+    .slice(0, 7);
+}
+
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const access = await requireAccess(req, "flujo");
   if (access instanceof NextResponse) return access;
@@ -35,6 +46,18 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  // Reject edits touching a closed month (the transaction's existing month, or
+  // — when the date is being changed — its new month).
+  const settings = await db.cashFlowSettings.findUnique({ where: { organizationId: orgId } });
+  if (settings?.closedThroughMes) {
+    if (mesOfDate(tx.date) <= settings.closedThroughMes) {
+      return NextResponse.json({ error: "Ese mes está cerrado" }, { status: 403 });
+    }
+    if (body.date !== undefined && mesOfDate(new Date(body.date)) <= settings.closedThroughMes) {
+      return NextResponse.json({ error: "Ese mes está cerrado" }, { status: 403 });
+    }
+  }
+
   const updated = await db.cashFlowTransaction.update({ where: { id: params.id }, data });
   syncCashflowMetrics(orgId).catch(console.error);
   return NextResponse.json({ transaction: updated });
@@ -51,6 +74,12 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   if (!tx || tx.account.organizationId !== orgId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
+
+  const settings = await db.cashFlowSettings.findUnique({ where: { organizationId: orgId } });
+  if (settings?.closedThroughMes && mesOfDate(tx.date) <= settings.closedThroughMes) {
+    return NextResponse.json({ error: "Ese mes está cerrado" }, { status: 403 });
+  }
+
   await db.cashFlowTransaction.delete({ where: { id: params.id } });
   syncCashflowMetrics(orgId).catch(console.error);
   return NextResponse.json({ ok: true });
