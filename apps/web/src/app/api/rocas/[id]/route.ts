@@ -1,21 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { Salud } from "@prisma/client";
 import { db } from "@/server/db";
 import { requireAccess } from "@/lib/access";
 import { notify } from "@/server/services/push/notify";
 import { recomputeRocaProgress } from "@/lib/roca-checklist";
+import { rocaColor } from "@/lib/roca-color";
 
 export const dynamic = "force-dynamic";
 
 const MES_RE = /^\d{4}-\d{2}$/;
-const SALUD = ["VERDE", "AMARILLO", "ROJO"] as const;
 
 async function ownRow(orgId: string, id: string) {
   return db.roca.findFirst({ where: { id, organizationId: orgId } });
 }
 
 // PATCH /api/rocas/[id] — DIRECCION edits all fields; the dueño edits ONLY
-// porcentajeAvance + estatus; everyone else 403. Gated by "rocas".
+// porcentajeAvance (for manual rocas); everyone else 403. estatus (color) is
+// derived on read and never accepted from the client. Gated by "rocas".
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const access = await requireAccess(req, "rocas");
   if (access instanceof NextResponse) return access;
@@ -43,12 +43,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     }
     data.porcentajeAvance = p;
   }
-  if (body.estatus !== undefined) {
-    if (!SALUD.includes(body.estatus)) {
-      return NextResponse.json({ error: "Estatus inválido" }, { status: 400 });
-    }
-    data.estatus = body.estatus as Salud;
-  }
+  // estatus (color) is derived from fechaLimite + porcentajeAvance on read;
+  // any client-sent estatus is ignored.
 
   // Dirección-only fields.
   if (isDireccion) {
@@ -110,9 +106,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     },
   });
 
+  // Derive the color from the (possibly updated) timeline + progress. This is
+  // the source of truth; persist it for storage consistency.
+  const oldColor = rocaColor(existing.createdAt, existing.fechaLimite, existing.porcentajeAvance);
+  const newColor = rocaColor(roca.createdAt, roca.fechaLimite, roca.porcentajeAvance);
+  if (newColor !== roca.estatus) {
+    await db.roca.update({ where: { id: params.id }, data: { estatus: newColor } });
+  }
+
   // Best-effort push: when a roca transitions INTO rojo, alert its dueño and
   // every Dirección member. Never blocks the response.
-  if (data.estatus === "ROJO" && existing.estatus !== "ROJO") {
+  if (newColor === "ROJO" && oldColor !== "ROJO") {
     try {
       const direccion = await db.membership.findMany({
         where: { organizationId: orgId, jobRole: "DIRECCION" },
@@ -142,7 +146,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       titulo: roca.titulo,
       metricaExito: roca.metricaExito,
       fechaLimite: roca.fechaLimite,
-      estatus: roca.estatus,
+      estatus: newColor,
       porcentajeAvance: roca.porcentajeAvance,
       usaChecklist: roca.usaChecklist,
       mes: roca.mes,

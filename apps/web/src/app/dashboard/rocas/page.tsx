@@ -97,7 +97,7 @@ export default function RocasPage() {
 
   const isDireccion = jobRole === "DIRECCION";
 
-  const updateOwn = async (roca: Roca, patch: { porcentajeAvance?: number; estatus?: Salud }) => {
+  const updateOwn = async (roca: Roca, patch: { porcentajeAvance?: number }) => {
     try {
       const res = await fetch(`/api/rocas/${roca.id}`, {
         method: "PATCH",
@@ -191,21 +191,9 @@ export default function RocasPage() {
                     <p className="font-semibold text-foreground">{r.titulo}</p>
                     <p className="text-xs text-muted-foreground">{r.metricaExito}</p>
                   </div>
-                  {canEditOwn ? (
-                    <select
-                      value={r.estatus}
-                      onChange={(e) => updateOwn(r, { estatus: e.target.value as Salud })}
-                      className={cn("min-h-[36px] flex-shrink-0 rounded px-2 py-1 text-xs font-semibold border-0", SALUD_COLOR[r.estatus])}
-                    >
-                      <option value="VERDE">VERDE</option>
-                      <option value="AMARILLO">AMARILLO</option>
-                      <option value="ROJO">ROJO</option>
-                    </select>
-                  ) : (
-                    <span className={cn("inline-block flex-shrink-0 rounded px-2 py-0.5 text-xs font-semibold", SALUD_COLOR[r.estatus])}>
-                      {r.estatus}
-                    </span>
-                  )}
+                  <span className={cn("inline-block flex-shrink-0 rounded px-2 py-0.5 text-xs font-semibold", SALUD_COLOR[r.estatus])}>
+                    {r.estatus}
+                  </span>
                 </div>
                 <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
                   <span>Dueño: {r.duenoNombre ?? "—"}</span>
@@ -288,21 +276,9 @@ export default function RocasPage() {
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">{fmtDate(r.fechaLimite)}</td>
                     <td className="px-4 py-3">
-                      {canEditOwn ? (
-                        <select
-                          value={r.estatus}
-                          onChange={(e) => updateOwn(r, { estatus: e.target.value as Salud })}
-                          className={cn("rounded px-2 py-1 text-xs font-semibold border-0", SALUD_COLOR[r.estatus])}
-                        >
-                          <option value="VERDE">VERDE</option>
-                          <option value="AMARILLO">AMARILLO</option>
-                          <option value="ROJO">ROJO</option>
-                        </select>
-                      ) : (
-                        <span className={cn("inline-block rounded px-2 py-0.5 text-xs font-semibold", SALUD_COLOR[r.estatus])}>
-                          {r.estatus}
-                        </span>
-                      )}
+                      <span className={cn("inline-block rounded px-2 py-0.5 text-xs font-semibold", SALUD_COLOR[r.estatus])}>
+                        {r.estatus}
+                      </span>
                     </td>
                     <td className="px-4 py-3 min-w-[160px]">
                       <div className="flex items-center gap-2">
@@ -435,7 +411,6 @@ function RocaForm({
   const [fechaLimite, setFechaLimite] = useState(roca ? roca.fechaLimite.slice(0, 10) : "");
   const [duenoId, setDuenoId] = useState(roca?.duenoId ?? "");
   const [mes, setMes] = useState(roca?.mes ?? defaultMes);
-  const [estatus, setEstatus] = useState<Salud>(roca?.estatus ?? "VERDE");
   const [porcentajeAvance, setPorcentajeAvance] = useState<string>(String(roca?.porcentajeAvance ?? 0));
   const [usaChecklist, setUsaChecklist] = useState<boolean>(roca?.usaChecklist ?? false);
   const [items, setItems] = useState<{ id?: string; titulo: string }[]>(
@@ -492,7 +467,6 @@ function RocaForm({
         fechaLimite,
         duenoId,
         mes,
-        estatus,
         usaChecklist,
       };
       if (!usaChecklist) body.porcentajeAvance = Number(porcentajeAvance);
@@ -543,14 +517,6 @@ function RocaForm({
             <select value={duenoId} onChange={(e) => setDuenoId(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">
               <option value="">Selecciona…</option>
               {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-foreground">Estatus</label>
-            <select value={estatus} onChange={(e) => setEstatus(e.target.value as Salud)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">
-              <option value="VERDE">VERDE</option>
-              <option value="AMARILLO">AMARILLO</option>
-              <option value="ROJO">ROJO</option>
             </select>
           </div>
           <div>

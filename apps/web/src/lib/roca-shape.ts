@@ -1,4 +1,5 @@
 import { db } from "@/server/db";
+import { rocaColor } from "@/lib/roca-color";
 
 /**
  * Loads a roca by id and returns the API shape used by the rocas UI,
@@ -18,7 +19,7 @@ export async function shapeRocaWithChecklist(id: string) {
     titulo: r.titulo,
     metricaExito: r.metricaExito,
     fechaLimite: r.fechaLimite,
-    estatus: r.estatus,
+    estatus: rocaColor(r.createdAt, r.fechaLimite, r.porcentajeAvance),
     porcentajeAvance: r.porcentajeAvance,
     usaChecklist: r.usaChecklist,
     mes: r.mes,

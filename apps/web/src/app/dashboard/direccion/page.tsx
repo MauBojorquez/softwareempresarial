@@ -29,7 +29,7 @@ interface Cartera {
     riesgo: { count: number; monto: number };
     baja: { count: number; monto: number };
   };
-  saludGrupo: Salud;
+  saludGrupo: Salud | null;
   saludCounts: { verde: number; amarillo: number; rojo: number };
 }
 interface EmbudoRow { etapa: string; count: number; pctOfTotal: number; valor: number; }
@@ -266,7 +266,11 @@ function CarteraBlock({ cartera }: { cartera: Cartera }) {
         <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground"><Users className="h-5 w-5 text-primary" /> Cartera</h2>
         <div className="flex items-center gap-2 text-xs">
           <span className="text-muted-foreground">Salud del grupo:</span>
-          <span className={cn("rounded px-2 py-0.5 font-semibold", SALUD_COLOR[cartera.saludGrupo])}>{cartera.saludGrupo}</span>
+          {cartera.saludGrupo ? (
+            <span className={cn("rounded px-2 py-0.5 font-semibold", SALUD_COLOR[cartera.saludGrupo])}>{cartera.saludGrupo}</span>
+          ) : (
+            <span className="rounded bg-secondary px-2 py-0.5 font-semibold text-muted-foreground">Sin clientes activos</span>
+          )}
           <span className="text-muted-foreground">V {cartera.saludCounts.verde} · A {cartera.saludCounts.amarillo} · R {cartera.saludCounts.rojo}</span>
         </div>
       </div>

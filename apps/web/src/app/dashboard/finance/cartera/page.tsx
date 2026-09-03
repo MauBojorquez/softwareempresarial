@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Plus, Trash2, Loader2, Users, Pencil, X, Check } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/components/toast";
+import { saludGrupoFromCounts } from "@/lib/salud";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -163,7 +164,7 @@ export default function CarteraPage() {
   const verde = noBaja.filter((c) => c.salud === "VERDE").length;
   const amarillo = noBaja.filter((c) => c.salud === "AMARILLO").length;
   const rojo = noBaja.filter((c) => c.salud === "ROJO").length;
-  const grupoSalud: Salud = rojo > 0 ? "ROJO" : amarillo > 0 ? "AMARILLO" : "VERDE";
+  const grupoSalud: Salud | null = saludGrupoFromCounts({ verde, amarillo, rojo });
 
   return (
     <div className="space-y-6">
@@ -197,8 +198,17 @@ export default function CarteraPage() {
         <div className="rounded-2xl border border-border bg-card p-4">
           <p className="text-xs font-medium text-muted-foreground">Salud del grupo</p>
           <div className="mt-1 flex items-center gap-2">
-            <span className={"h-3 w-3 rounded-full " + SALUD_DOT[grupoSalud]} />
-            <span className="text-sm font-semibold">{grupoSalud === "ROJO" ? "En riesgo" : grupoSalud === "AMARILLO" ? "Atención" : "Saludable"}</span>
+            {grupoSalud ? (
+              <>
+                <span className={"h-3 w-3 rounded-full " + SALUD_DOT[grupoSalud]} />
+                <span className="text-sm font-semibold">{grupoSalud === "ROJO" ? "En riesgo" : grupoSalud === "AMARILLO" ? "Atención" : "Saludable"}</span>
+              </>
+            ) : (
+              <>
+                <span className="h-3 w-3 rounded-full bg-secondary" />
+                <span className="text-sm font-semibold text-muted-foreground">Sin clientes activos</span>
+              </>
+            )}
           </div>
           <p className="mt-0.5 text-[11px] text-muted-foreground">{verde} verde / {amarillo} amarillo / {rojo} rojo</p>
         </div>

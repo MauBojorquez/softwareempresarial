@@ -24,7 +24,7 @@ interface HistoryItem {
 }
 interface Computed {
   velocidadDelMes: number;
-  saludGeneral: "VERDE" | "AMARILLO" | "ROJO";
+  saludGeneral: "VERDE" | "AMARILLO" | "ROJO" | null;
   counts: { verde: number; amarillo: number; rojo: number };
 }
 interface OwnData {
@@ -135,8 +135,8 @@ function PayloadView({ role, payload }: { role: JobRole | null; payload: Payload
           <div className="flex flex-col">
             <span className="text-xs text-muted-foreground">Salud general</span>
             <span>
-              <span className={cn("inline-block rounded px-2 py-0.5 text-xs font-semibold", SALUD_COLOR[String(payload.saludGeneral ?? "VERDE")])}>
-                {String(payload.saludGeneral ?? "—")}
+              <span className={cn("inline-block rounded px-2 py-0.5 text-xs font-semibold", payload.saludGeneral ? SALUD_COLOR[String(payload.saludGeneral)] : "bg-secondary text-muted-foreground")}>
+                {payload.saludGeneral ? String(payload.saludGeneral) : "Sin datos"}
               </span>
             </span>
           </div>
@@ -283,8 +283,8 @@ function SubmitterView({ jobRole }: { jobRole: Exclude<JobRole, "DIRECCION"> }) 
             <div className="flex flex-col">
               <span className="text-xs text-muted-foreground">Salud general (solo lectura)</span>
               <div className="mt-0.5 flex items-center gap-2">
-                <span className={cn("inline-block rounded px-2 py-0.5 text-xs font-semibold", SALUD_COLOR[computed.saludGeneral])}>
-                  {computed.saludGeneral}
+                <span className={cn("inline-block rounded px-2 py-0.5 text-xs font-semibold", computed.saludGeneral ? SALUD_COLOR[computed.saludGeneral] : "bg-secondary text-muted-foreground")}>
+                  {computed.saludGeneral ?? "Sin datos"}
                 </span>
                 <span className="text-xs text-muted-foreground">
                   V {computed.counts.verde} · A {computed.counts.amarillo} · R {computed.counts.rojo}

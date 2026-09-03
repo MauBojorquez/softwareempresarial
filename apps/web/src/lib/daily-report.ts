@@ -1,6 +1,7 @@
-import type { JobRole } from "@prisma/client";
+import type { JobRole, Salud } from "@prisma/client";
 import { db } from "@/server/db";
 import { currentMonthMX } from "@/lib/day";
+import { saludGrupoFromCounts } from "@/lib/salud";
 
 /** The four puestos that submit a daily report. DIRECCION does not. */
 export const SUBMITTER_ROLES: JobRole[] = [
@@ -138,7 +139,7 @@ export function validatePayload(
 
 export type OperacionesComputed = {
   velocidadDelMes: number; // tareas completadas/total del mes actual * 100
-  saludGeneral: "VERDE" | "AMARILLO" | "ROJO";
+  saludGeneral: Salud | null;
   counts: { verde: number; amarillo: number; rojo: number };
 };
 
@@ -146,8 +147,8 @@ export type OperacionesComputed = {
  * Computes the read-only OPERACIONES fields for an org:
  *  - velocidadDelMes: (tareas completadas / total del mes actual) * 100, 0 si none.
  *    Reuses the same completadas/total logic as /api/tareas.
- *  - saludGeneral: worst-case among non-BAJA clientes (ROJO > AMARILLO > VERDE),
- *    plus counts of each salud bucket.
+ *  - saludGeneral: AVERAGE color among non-BAJA clientes (VERDE=100, AMARILLO=50,
+ *    ROJO=0), null when there are no non-BAJA clientes, plus counts per bucket.
  */
 export async function computeOperaciones(orgId: string): Promise<OperacionesComputed> {
   const mes = currentMonthMX();
@@ -170,8 +171,7 @@ export async function computeOperaciones(orgId: string): Promise<OperacionesComp
     else if (c.salud === "AMARILLO") counts.amarillo++;
     else counts.verde++;
   }
-  const saludGeneral: OperacionesComputed["saludGeneral"] =
-    counts.rojo > 0 ? "ROJO" : counts.amarillo > 0 ? "AMARILLO" : "VERDE";
+  const saludGeneral = saludGrupoFromCounts(counts);
 
   return { velocidadDelMes, saludGeneral, counts };
 }

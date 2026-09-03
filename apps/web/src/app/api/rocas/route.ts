@@ -1,21 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { Salud } from "@prisma/client";
 import { db } from "@/server/db";
 import { requireAccess } from "@/lib/access";
 import { logActivity } from "@/lib/activity";
 import { currentMonthMX } from "@/lib/day";
+import { rocaColor } from "@/lib/roca-color";
 
 export const dynamic = "force-dynamic";
 
 const MES_RE = /^\d{4}-\d{2}$/;
-const SALUD = ["VERDE", "AMARILLO", "ROJO"] as const;
 
 function shape(r: {
   id: string;
   titulo: string;
   metricaExito: string;
   fechaLimite: Date;
-  estatus: Salud;
+  createdAt: Date;
   porcentajeAvance: number;
   usaChecklist: boolean;
   mes: string;
@@ -28,7 +27,7 @@ function shape(r: {
     titulo: r.titulo,
     metricaExito: r.metricaExito,
     fechaLimite: r.fechaLimite,
-    estatus: r.estatus,
+    estatus: rocaColor(r.createdAt, r.fechaLimite, r.porcentajeAvance),
     porcentajeAvance: r.porcentajeAvance,
     usaChecklist: r.usaChecklist,
     mes: r.mes,
@@ -95,8 +94,8 @@ export async function POST(req: NextRequest) {
   if (!mes) mes = currentMonthMX();
   if (!MES_RE.test(mes)) return NextResponse.json({ error: "El mes debe tener el formato YYYY-MM" }, { status: 400 });
 
-  const estatus: Salud = SALUD.includes(body.estatus) ? body.estatus : "VERDE";
-
+  // estatus is DERIVED from the timeline + progress; any client-sent value is
+  // ignored. It is written on create only for storage consistency.
   const usaChecklist = body.usaChecklist === true;
 
   // Optional initial checklist item titles.
@@ -122,7 +121,7 @@ export async function POST(req: NextRequest) {
       titulo,
       metricaExito,
       fechaLimite: new Date(body.fechaLimite),
-      estatus,
+      estatus: rocaColor(new Date(), new Date(body.fechaLimite), porcentajeAvance),
       porcentajeAvance,
       usaChecklist,
       mes,

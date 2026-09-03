@@ -1,8 +1,10 @@
-import type { JobRole, LeadEtapa, Salud } from "@prisma/client";
+import type { JobRole, LeadEtapa } from "@prisma/client";
 import { db } from "@/server/db";
 import { currentMonthMX, monthRangeMX, monthProgressMX, todayMX } from "@/lib/day";
 import { receivableStatus, saldo as calcSaldo } from "@/lib/cobranza";
 import { SUBMITTER_ROLES } from "@/lib/daily-report";
+import { saludGrupoFromCounts } from "@/lib/salud";
+import { rocaColor } from "@/lib/roca-color";
 
 /**
  * Shared per-block computations for the Dirección dashboard and the
@@ -151,8 +153,7 @@ export async function computeCartera(
       else saludCounts.verde++;
     }
   }
-  const saludGrupo: Salud =
-    saludCounts.rojo > 0 ? "ROJO" : saludCounts.amarillo > 0 ? "AMARILLO" : "VERDE";
+  const saludGrupo = saludGrupoFromCounts(saludCounts);
 
   return {
     clientes: carteraClientes,
@@ -279,7 +280,7 @@ export async function computeRocas(orgId: string, mes: string) {
     titulo: r.titulo,
     metricaExito: r.metricaExito,
     fechaLimite: r.fechaLimite,
-    estatus: r.estatus,
+    estatus: rocaColor(r.createdAt, r.fechaLimite, r.porcentajeAvance),
     porcentajeAvance: r.porcentajeAvance,
     usaChecklist: r.usaChecklist,
     duenoNombre: r.dueno?.name ?? r.dueno?.email ?? null,
