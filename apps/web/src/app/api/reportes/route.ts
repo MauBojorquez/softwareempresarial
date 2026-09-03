@@ -3,6 +3,7 @@ import type { JobRole } from "@prisma/client";
 import { db } from "@/server/db";
 import { requireAccess } from "@/lib/access";
 import { logActivity } from "@/lib/activity";
+import { notify } from "@/server/services/push/notify";
 import { todayMX, isValidDate } from "@/lib/day";
 import {
   SUBMITTER_ROLES,
@@ -191,6 +192,28 @@ export async function POST(req: NextRequest) {
     detail: `${jobRole} ${fecha}`,
     path: "/dashboard/reportes",
   });
+
+  // Notify Dirección that a collaborator submitted their daily report.
+  try {
+    const autor = saved.user?.name ?? saved.user?.email ?? "Un colaborador";
+    const direccion = await db.membership.findMany({
+      where: { organizationId: orgId, jobRole: "DIRECCION" },
+      select: { userId: true },
+    });
+    await Promise.all(
+      direccion.map((m) =>
+        notify({
+          userId: m.userId,
+          title: "Reporte diario enviado",
+          message: `${autor} envió su reporte diario.`,
+          type: "report",
+          url: "/dashboard/reportes",
+        }),
+      ),
+    );
+  } catch {
+    // best-effort; notification failures never block the report submission
+  }
 
   return NextResponse.json({ report: shape(saved) });
 }
