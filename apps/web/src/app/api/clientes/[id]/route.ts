@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { requireAccess } from "@/lib/access";
+import { notify } from "@/server/services/push/notify";
+import { computeOperaciones } from "@/lib/daily-report";
 
 export const dynamic = "force-dynamic";
 
@@ -57,7 +59,43 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
   if (body.notas !== undefined) data.notas = body.notas ? String(body.notas).trim() : null;
 
+  // A change to salud or estatus (BAJA is excluded from the group) can move the
+  // overall Operaciones health. Capture it before and after to detect a
+  // transition into amarillo/rojo.
+  const affectsSalud = data.salud !== undefined || data.estatus !== undefined;
+  const saludAntes = affectsSalud ? (await computeOperaciones(orgId)).saludGeneral : null;
+
   const cliente = await db.cliente.update({ where: { id: params.id }, data });
+
+  if (affectsSalud) {
+    try {
+      const saludDespues = (await computeOperaciones(orgId)).saludGeneral;
+      const empeoro =
+        (saludDespues === "AMARILLO" || saludDespues === "ROJO") &&
+        saludDespues !== saludAntes;
+      if (empeoro) {
+        const label = saludDespues === "ROJO" ? "roja" : "amarilla";
+        const direccion = await db.membership.findMany({
+          where: { organizationId: orgId, jobRole: "DIRECCION" },
+          select: { userId: true },
+        });
+        await Promise.all(
+          direccion.map((m) =>
+            notify({
+              userId: m.userId,
+              title: `Salud de Operaciones ${label}`,
+              message: "La salud general de la cartera cambió; revísala.",
+              type: "operaciones",
+              url: "/dashboard/reportes",
+            }),
+          ),
+        );
+      }
+    } catch (e) {
+      console.error("operaciones salud push notify failed:", e);
+    }
+  }
+
   return NextResponse.json({ cliente });
 }
 

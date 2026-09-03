@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { requireAccess } from "@/lib/access";
-import { notify } from "@/server/services/push/notify";
 import { recomputeRocaProgress } from "@/lib/roca-checklist";
-import { rocaColor } from "@/lib/roca-color";
+import { syncRocaColor } from "@/lib/roca-status";
 
 export const dynamic = "force-dynamic";
 
@@ -98,6 +97,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     await recomputeRocaProgress(params.id);
   }
 
+  // Derive the color from the (possibly updated) timeline + progress, persist
+  // it, and alert Dirección + dueño on a transition into amarillo/rojo.
+  const newColor = (await syncRocaColor(orgId, params.id)) ?? existing.estatus;
+
   const roca = await db.roca.findFirstOrThrow({
     where: { id: params.id },
     include: {
@@ -105,40 +108,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       checklist: { orderBy: [{ order: "asc" }, { createdAt: "asc" }] },
     },
   });
-
-  // Derive the color from the (possibly updated) timeline + progress. This is
-  // the source of truth; persist it for storage consistency.
-  const oldColor = rocaColor(existing.createdAt, existing.fechaLimite, existing.porcentajeAvance);
-  const newColor = rocaColor(roca.createdAt, roca.fechaLimite, roca.porcentajeAvance);
-  if (newColor !== roca.estatus) {
-    await db.roca.update({ where: { id: params.id }, data: { estatus: newColor } });
-  }
-
-  // Best-effort push: when a roca transitions INTO rojo, alert its dueño and
-  // every Dirección member. Never blocks the response.
-  if (newColor === "ROJO" && oldColor !== "ROJO") {
-    try {
-      const direccion = await db.membership.findMany({
-        where: { organizationId: orgId, jobRole: "DIRECCION" },
-        select: { userId: true },
-      });
-      const recipients = new Set<string>(direccion.map((m) => m.userId));
-      if (roca.duenoId) recipients.add(roca.duenoId);
-      await Promise.all(
-        [...recipients].map((uid) =>
-          notify({
-            userId: uid,
-            title: "Roca en rojo",
-            message: roca.titulo,
-            type: "roca",
-            url: "/dashboard/rocas",
-          }),
-        ),
-      );
-    } catch (e) {
-      console.error("roca rojo push notify failed:", e);
-    }
-  }
 
   return NextResponse.json({
     roca: {

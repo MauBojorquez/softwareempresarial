@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { requireAccess } from "@/lib/access";
 import { recomputeRocaProgress } from "@/lib/roca-checklist";
+import { syncRocaColor } from "@/lib/roca-status";
 import { shapeRocaWithChecklist } from "@/lib/roca-shape";
 
 export const dynamic = "force-dynamic";
@@ -46,7 +47,10 @@ export async function PATCH(
 
   await db.rocaChecklistItem.update({ where: { id: item.id }, data });
 
-  if (roca.usaChecklist) await recomputeRocaProgress(roca.id);
+  if (roca.usaChecklist) {
+    await recomputeRocaProgress(roca.id);
+    await syncRocaColor(orgId, roca.id);
+  }
 
   return NextResponse.json({ roca: await shapeRocaWithChecklist(roca.id) });
 }
@@ -72,7 +76,10 @@ export async function DELETE(
 
   await db.rocaChecklistItem.delete({ where: { id: item.id } });
 
-  if (roca.usaChecklist) await recomputeRocaProgress(roca.id);
+  if (roca.usaChecklist) {
+    await recomputeRocaProgress(roca.id);
+    await syncRocaColor(orgId, roca.id);
+  }
 
   return NextResponse.json({ roca: await shapeRocaWithChecklist(roca.id) });
 }

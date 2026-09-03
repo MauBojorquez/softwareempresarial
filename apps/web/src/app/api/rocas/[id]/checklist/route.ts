@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { requireAccess } from "@/lib/access";
 import { recomputeRocaProgress } from "@/lib/roca-checklist";
+import { syncRocaColor } from "@/lib/roca-status";
 import { shapeRocaWithChecklist } from "@/lib/roca-shape";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +32,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     data: { rocaId: roca.id, titulo: titulo.slice(0, 300), order: count },
   });
 
-  if (roca.usaChecklist) await recomputeRocaProgress(roca.id);
+  if (roca.usaChecklist) {
+    await recomputeRocaProgress(roca.id);
+    await syncRocaColor(orgId, roca.id);
+  }
 
   return NextResponse.json({ roca: await shapeRocaWithChecklist(roca.id) }, { status: 201 });
 }
