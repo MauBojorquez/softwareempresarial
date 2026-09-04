@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Loader2, KanbanSquare, X, Check, Trash2, StickyNote } from "lucide-react";
+import { Plus, Loader2, KanbanSquare, X, Check, Trash2, StickyNote, Upload } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/components/toast";
+import { ImportLeadsModal } from "@/components/crm/import-leads-modal";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -139,6 +140,7 @@ export default function CrmPage() {
   const [dragOver, setDragOver] = useState<Etapa | null>(null);
 
   const [showNew, setShowNew] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [detail, setDetail] = useState<Lead | null>(null);
 
   // Modal that must collect data before a move can complete.
@@ -253,12 +255,20 @@ export default function CrmPage() {
             <p className="text-sm text-muted-foreground">Arrastra los leads entre etapas para avanzarlos.</p>
           </div>
         </div>
-        <button
-          onClick={() => setShowNew(true)}
-          className="flex items-center gap-1.5 rounded-lg gradient-bg px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-        >
-          <Plus className="h-4 w-4" /> Nuevo lead
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowImport(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-secondary/60"
+          >
+            <Upload className="h-4 w-4" /> Importar CSV
+          </button>
+          <button
+            onClick={() => setShowNew(true)}
+            className="flex items-center gap-1.5 rounded-lg gradient-bg px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+          >
+            <Plus className="h-4 w-4" /> Nuevo lead
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -352,6 +362,18 @@ export default function CrmPage() {
           onClose={() => setShowNew(false)}
           onSaved={async () => {
             setShowNew(false);
+            await load();
+          }}
+          toast={toast}
+        />
+      )}
+
+      {showImport && (
+        <ImportLeadsModal
+          members={members}
+          onClose={() => setShowImport(false)}
+          onDone={async () => {
+            setShowImport(false);
             await load();
           }}
           toast={toast}
