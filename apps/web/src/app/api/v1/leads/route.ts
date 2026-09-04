@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { LeadOrigen } from "@prisma/client";
 import { db } from "@/server/db";
 import { authenticateApiKey } from "@/lib/api-key-auth";
 import { logActivity } from "@/lib/activity";
 import { notify } from "@/server/services/push/notify";
+import { parseEmail, parsePhone } from "@/lib/lead-contact";
 
 export const dynamic = "force-dynamic";
+
+const ORIGENES = ["META", "ORGANICO", "OUTBOUND", "REFERIDO", "RED_DIRECTA"] as const;
 
 /**
  * Resolves the default owner (dueño) for an ingested Meta lead, in priority order:
@@ -57,6 +61,22 @@ export async function POST(req: NextRequest) {
   const campana = (body.campana ?? body.campaña ?? body.campaign);
   const campanaStr = campana ? String(campana).trim() : null;
 
+  // Origen: lets the same endpoint serve the website and Meta. Any valid value
+  // wins; default META for backward compatibility with the existing Make flow.
+  const rawOrigen = String(body.origen ?? "").trim().toUpperCase().replace(/\s+/g, "_");
+  const origen: LeadOrigen = ORIGENES.includes(rawOrigen as LeadOrigen)
+    ? (rawOrigen as LeadOrigen)
+    : "META";
+
+  // Contact fields are lenient: an invalid phone/email never rejects the lead —
+  // losing an inbound lead is worse than storing it with the field blank.
+  const emailResult = parseEmail(body.email);
+  const email = emailResult.ok ? emailResult.value : null;
+  const telResult = parsePhone(body.telefono);
+  const telefono = telResult.ok ? telResult.value : null;
+
+  const mensaje = body.mensaje ? String(body.mensaje).trim() : body.notas ? String(body.notas).trim() : null;
+
   // Optional qualifying fields from the Meta lead form.
   const participantes = body.participantes ? String(body.participantes).trim() : null;
   const puesto = body.puesto ? String(body.puesto).trim() : null;
@@ -75,11 +95,13 @@ export async function POST(req: NextRequest) {
       nombre,
       empresa,
       contacto,
+      telefono,
+      email,
       campana: campanaStr,
       participantes,
       puesto,
       urgencia,
-      origen: "META",
+      origen,
       etapa: "NUEVO",
       duenoId,
       organizationId,
@@ -87,10 +109,17 @@ export async function POST(req: NextRequest) {
     },
   });
 
+  // A free-text message from a web form is kept as the lead's first note.
+  if (mensaje) {
+    await db.leadNota.create({
+      data: { leadId: lead.id, contenido: mensaje.slice(0, 2000) },
+    }).catch(() => {});
+  }
+
   logActivity({
     userId: duenoId,
     organizationId,
-    action: "lead.ingest.meta",
+    action: origen === "META" ? "lead.ingest.meta" : "lead.ingest.web",
     detail: campanaStr ? `${nombre} · ${campanaStr}` : nombre,
   });
 
@@ -106,8 +135,11 @@ export async function POST(req: NextRequest) {
       participantes && `Participantes: ${participantes}`,
       puesto && `Puesto: ${puesto}`,
       urgencia && `Urgencia: ${urgencia}`,
+      telefono && `Tel: ${telefono}`,
+      email && `Correo: ${email}`,
     ].filter(Boolean);
-    const message = detalles.length > 0 ? detalles.join(" · ") : "Nuevo lead de Meta";
+    const origenLabel = origen === "META" ? "Meta" : "la web";
+    const message = detalles.length > 0 ? detalles.join(" · ") : `Nuevo lead desde ${origenLabel}`;
     const seen = new Set<string>();
     await Promise.all(
       recipients

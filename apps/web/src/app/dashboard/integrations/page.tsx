@@ -385,6 +385,34 @@ export default function IntegrationsPage() {
         </a>
       </div>
 
+      <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
+        <h3 className="font-semibold">API de Leads (Web + Meta)</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Un solo endpoint para recibir prospectos en el CRM: conéctalo desde el formulario de tu sitio web o
+          desde Meta (vía Make). Cada lead entra en la etapa <span className="font-medium">Nuevo</span> y avisa a
+          Dirección y Comercial. Usa <code>origen</code> para distinguir de dónde viene.
+        </p>
+        <div className="mt-4 rounded-lg border border-border bg-slate-900 p-4 font-mono text-xs text-slate-300">
+          <p className="text-blue-400">POST /api/v1/leads</p>
+          <p className="mt-1 text-slate-400">Authorization: Bearer mp_abc...xyz</p>
+          <p className="mt-1 text-slate-400">Content-Type: application/json</p>
+          <p className="mt-2 text-emerald-400">{"{"}</p>
+          <p className="text-emerald-400 pl-4">&quot;nombre&quot;: &quot;Juan Pérez&quot;,</p>
+          <p className="text-emerald-400 pl-4">&quot;empresa&quot;: &quot;Acme&quot;,</p>
+          <p className="text-emerald-400 pl-4">&quot;telefono&quot;: &quot;55 1234 5678&quot;,</p>
+          <p className="text-emerald-400 pl-4">&quot;email&quot;: &quot;juan@acme.com&quot;,</p>
+          <p className="text-emerald-400 pl-4">&quot;origen&quot;: &quot;ORGANICO&quot;,</p>
+          <p className="text-emerald-400 pl-4">&quot;mensaje&quot;: &quot;Quiero información&quot;</p>
+          <p className="text-emerald-400">{"}"}</p>
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Solo <code>nombre</code> es obligatorio. Campos opcionales: <code>empresa</code>, <code>contacto</code>,{" "}
+          <code>telefono</code>, <code>email</code>, <code>mensaje</code>, <code>campana</code>, y desde Meta{" "}
+          <code>participantes</code>, <code>puesto</code>, <code>urgencia</code>. <code>origen</code> acepta META,
+          ORGANICO, OUTBOUND, REFERIDO o RED_DIRECTA (default META).
+        </p>
+      </div>
+
       {/* Integration request form */}
       <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-3">
         <div className="flex items-center gap-2">
