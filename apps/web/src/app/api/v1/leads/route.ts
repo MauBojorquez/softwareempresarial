@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { authenticateApiKey } from "@/lib/api-key-auth";
 import { logActivity } from "@/lib/activity";
+import { notify } from "@/server/services/push/notify";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +57,11 @@ export async function POST(req: NextRequest) {
   const campana = (body.campana ?? body.campaña ?? body.campaign);
   const campanaStr = campana ? String(campana).trim() : null;
 
+  // Optional qualifying fields from the Meta lead form.
+  const participantes = body.participantes ? String(body.participantes).trim() : null;
+  const puesto = body.puesto ? String(body.puesto).trim() : null;
+  const urgencia = body.urgencia ? String(body.urgencia).trim() : null;
+
   const duenoId = await resolveOwner(organizationId, body.duenoEmail);
   if (!duenoId) {
     return NextResponse.json(
@@ -70,6 +76,9 @@ export async function POST(req: NextRequest) {
       empresa,
       contacto,
       campana: campanaStr,
+      participantes,
+      puesto,
+      urgencia,
       origen: "META",
       etapa: "NUEVO",
       duenoId,
@@ -84,6 +93,38 @@ export async function POST(req: NextRequest) {
     action: "lead.ingest.meta",
     detail: campanaStr ? `${nombre} · ${campanaStr}` : nombre,
   });
+
+  // Best-effort push: alert Dirección + Comercial about the new lead so it can
+  // be worked within the minute. Never blocks the ingest response.
+  try {
+    const recipients = await db.membership.findMany({
+      where: { organizationId, jobRole: { in: ["DIRECCION", "COMERCIAL"] } },
+      select: { userId: true },
+    });
+    const detalles = [
+      empresa && `Empresa: ${empresa}`,
+      participantes && `Participantes: ${participantes}`,
+      puesto && `Puesto: ${puesto}`,
+      urgencia && `Urgencia: ${urgencia}`,
+    ].filter(Boolean);
+    const message = detalles.length > 0 ? detalles.join(" · ") : "Nuevo lead de Meta";
+    const seen = new Set<string>();
+    await Promise.all(
+      recipients
+        .filter((r) => !seen.has(r.userId) && seen.add(r.userId))
+        .map((r) =>
+          notify({
+            userId: r.userId,
+            title: `Nuevo lead: ${nombre}`,
+            message,
+            type: "lead",
+            url: "/dashboard/crm",
+          }),
+        ),
+    );
+  } catch (e) {
+    console.error("meta lead push notify failed:", e);
+  }
 
   return NextResponse.json(
     { ok: true, leadId: lead.id, etapa: lead.etapa, origen: lead.origen, duenoId },

@@ -607,6 +607,9 @@ model Lead {
   telefono                 String?
   email                    String?
   campana                  String?   // campaña de origen (ingesta Meta/Make)
+  participantes            String?   // tamaño del equipo (formulario Meta)
+  puesto                   String?   // puesto del contacto (formulario Meta)
+  urgencia                 String?   // urgencia de compra (formulario Meta)
   origen                   LeadOrigen
   etapa                    LeadEtapa @default(NUEVO)
   valorEstimado            Float?

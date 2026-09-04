@@ -26,6 +26,10 @@ interface Lead {
   contacto?: string | null;
   telefono?: string | null;
   email?: string | null;
+  campana?: string | null;
+  participantes?: string | null;
+  puesto?: string | null;
+  urgencia?: string | null;
   origen: Origen;
   etapa: Etapa;
   valorEstimado?: number | null;
@@ -946,6 +950,10 @@ function DetailPanel({
               <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-sm">
                 <Field label="Etapa" value={ETAPA_LABEL[lead.etapa]} />
                 <Field label="Contacto" value={lead.contacto || "—"} />
+                {lead.participantes && <Field label="Participantes" value={lead.participantes} />}
+                {lead.puesto && <Field label="Puesto" value={lead.puesto} />}
+                {lead.urgencia && <Field label="Urgencia" value={lead.urgencia} />}
+                {lead.campana && <Field label="Campaña" value={lead.campana} />}
                 <Field
                   label="Valor estimado"
                   value={lead.valorEstimado != null ? formatCurrency(lead.valorEstimado) : "—"}
