@@ -40,3 +40,14 @@ export function parsePhone(raw: unknown): ContactResult<string | null> {
 
   return { ok: true, value: (hasPlus ? "+" : "") + digits };
 }
+
+/**
+ * Returns the last 10 digits of a phone (the local core, ignoring country code
+ * and any formatting) for tolerant lookups. Null when fewer than 10 digits.
+ * Used to match a lead by phone regardless of how it was stored.
+ */
+export function phoneCore(raw: unknown): string | null {
+  if (raw == null) return null;
+  const digits = String(raw).replace(/\D/g, "");
+  return digits.length >= 10 ? digits.slice(-10) : null;
+}

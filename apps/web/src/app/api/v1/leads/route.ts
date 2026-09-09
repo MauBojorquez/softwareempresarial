@@ -4,11 +4,50 @@ import { db } from "@/server/db";
 import { authenticateApiKey } from "@/lib/api-key-auth";
 import { logActivity } from "@/lib/activity";
 import { notify } from "@/server/services/push/notify";
-import { parseEmail, parsePhone } from "@/lib/lead-contact";
+import { parseEmail, parsePhone, phoneCore } from "@/lib/lead-contact";
 
 export const dynamic = "force-dynamic";
 
 const ORIGENES = ["META", "ORGANICO", "OUTBOUND", "REFERIDO", "RED_DIRECTA"] as const;
+
+// GET /api/v1/leads?telefono=XXX — find leads by phone number so Make (the
+// WhatsApp bot) can locate a lead before updating it. Same API-key auth.
+export async function GET(req: NextRequest) {
+  const auth = await authenticateApiKey(req, { bucket: "api-leads-read", limit: 240, windowMs: 60_000 });
+  if (auth instanceof NextResponse) return auth;
+  const { organizationId } = auth;
+
+  const telefono = req.nextUrl.searchParams.get("telefono");
+  const core = phoneCore(telefono);
+  if (!core) {
+    return NextResponse.json(
+      { error: "Proporciona 'telefono' con al menos 10 dígitos." },
+      { status: 400 },
+    );
+  }
+
+  const rows = await db.lead.findMany({
+    where: { organizationId, telefono: { contains: core } },
+    orderBy: { fechaUltimoMovimiento: "desc" },
+    include: { dueno: { select: { name: true, email: true } } },
+    take: 20,
+  });
+
+  const leads = rows.map((l) => ({
+    id: l.id,
+    nombre: l.nombre,
+    empresa: l.empresa,
+    telefono: l.telefono,
+    email: l.email,
+    etapa: l.etapa,
+    origen: l.origen,
+    duenoId: l.duenoId,
+    duenoNombre: l.dueno?.name ?? l.dueno?.email ?? null,
+    fechaUltimoMovimiento: l.fechaUltimoMovimiento,
+  }));
+
+  return NextResponse.json({ count: leads.length, leads });
+}
 
 /**
  * Resolves the default owner (dueño) for an ingested Meta lead, in priority order:
