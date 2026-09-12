@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { Plus, Settings, X, ChevronLeft, Trash2, Loader2, Download, Lock, Unlock } from "lucide-react";
+import { Plus, Settings, X, ChevronLeft, Trash2, Loader2, Download, Lock, Unlock, ArrowLeftRight } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -39,6 +39,8 @@ interface CashFlowTransaction {
   incomeCategories?: Record<string, number>;
   expenseCategories?: Record<string, number>;
   notes?: string;
+  isTransfer?: boolean;
+  transferGroupId?: string;
 }
 
 // ─── Month helpers ──────────────────────────────────────────────────
@@ -195,7 +197,7 @@ function TxRow({ index, tx, categories, readOnly, onUpdate, onDelete }: TxRowPro
         <Cell
           value={toDateStr(tx.date)}
           type="date"
-          readOnly={readOnly}
+          readOnly={readOnly || tx.isTransfer}
           onChange={(v) => onUpdate(tx.id, "date", v)}
           placeholder="fecha"
         />
@@ -204,26 +206,26 @@ function TxRow({ index, tx, categories, readOnly, onUpdate, onDelete }: TxRowPro
         <Cell value={tx.bankReference} readOnly={readOnly} onChange={(v) => onUpdate(tx.id, "bankReference", v)} placeholder="referencia bancaria" />
       </td>
       <td className="px-1 py-1 min-w-[110px]">
-        <Cell value={tx.movementType} readOnly={readOnly} onChange={(v) => onUpdate(tx.id, "movementType", v)} placeholder="tipo" />
+        <Cell value={tx.movementType} readOnly={readOnly || tx.isTransfer} onChange={(v) => onUpdate(tx.id, "movementType", v)} placeholder="tipo" className={tx.isTransfer ? "text-[#3D7FFF]" : ""} />
       </td>
       <td className="px-1 py-1 min-w-[100px]">
         <Cell
           value={tx.deposit !== null && tx.deposit !== undefined ? fmxNum(tx.deposit) : ""}
-          readOnly={readOnly}
+          readOnly={readOnly || tx.isTransfer}
           onChange={(v) => onUpdate(tx.id, "deposit", v)}
           placeholder="0.00"
           align="right"
-          className="text-[#00E87B] whitespace-nowrap"
+          className={`${tx.isTransfer ? "text-[#3D7FFF]" : "text-[#00E87B]"} whitespace-nowrap`}
         />
       </td>
       <td className="px-1 py-1 min-w-[100px]">
         <Cell
           value={tx.withdrawal !== null && tx.withdrawal !== undefined ? fmxNum(tx.withdrawal) : ""}
-          readOnly={readOnly}
+          readOnly={readOnly || tx.isTransfer}
           onChange={(v) => onUpdate(tx.id, "withdrawal", v)}
           placeholder="0.00"
           align="right"
-          className="text-[#FF4444] whitespace-nowrap"
+          className={`${tx.isTransfer ? "text-[#3D7FFF]" : "text-[#FF4444]"} whitespace-nowrap`}
         />
       </td>
       <td className="px-1 py-1 min-w-[110px]">
@@ -308,7 +310,7 @@ function TxCard({ index, tx, readOnly, onUpdate, onDelete }: {
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-[10px] text-muted-foreground/50 shrink-0">{index + 1}</span>
           <div className="min-w-0 flex-1">
-            <Cell value={toDateStr(tx.date)} type="date" readOnly={readOnly} onChange={(v) => onUpdate(tx.id, "date", v)} placeholder="fecha" />
+            <Cell value={toDateStr(tx.date)} type="date" readOnly={readOnly || tx.isTransfer} onChange={(v) => onUpdate(tx.id, "date", v)} placeholder="fecha" />
           </div>
         </div>
         {!readOnly && (
@@ -321,31 +323,37 @@ function TxCard({ index, tx, readOnly, onUpdate, onDelete }: {
       <div className="min-w-0">
         <Cell value={tx.concept} readOnly={readOnly} onChange={(v) => onUpdate(tx.id, "concept", v)} placeholder="concepto" className="font-medium" />
       </div>
-      <div className="min-w-0">
-        <Cell value={tx.provider} readOnly={readOnly} onChange={(v) => onUpdate(tx.id, "provider", v)} placeholder="proveedor / referencia" className="text-muted-foreground" />
-      </div>
+      {tx.isTransfer ? (
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-[#3D7FFF]">{tx.movementType || "Transferencia"}</p>
+        </div>
+      ) : (
+        <div className="min-w-0">
+          <Cell value={tx.provider} readOnly={readOnly} onChange={(v) => onUpdate(tx.id, "provider", v)} placeholder="proveedor / referencia" className="text-muted-foreground" />
+        </div>
+      )}
 
       <div className="grid grid-cols-3 gap-2 pt-1 border-t border-border/30">
         <div className="min-w-0">
           <p className="text-[9px] uppercase tracking-widest text-[#00E87B]/70">Depósito</p>
           <Cell
             value={tx.deposit !== null && tx.deposit !== undefined ? fmxNum(tx.deposit) : ""}
-            readOnly={readOnly}
+            readOnly={readOnly || tx.isTransfer}
             onChange={(v) => onUpdate(tx.id, "deposit", v)}
             placeholder="0.00"
             align="right"
-            className="text-[#00E87B] whitespace-nowrap"
+            className={`${tx.isTransfer ? "text-[#3D7FFF]" : "text-[#00E87B]"} whitespace-nowrap`}
           />
         </div>
         <div className="min-w-0">
           <p className="text-[9px] uppercase tracking-widest text-[#FF4444]/70">Retiro</p>
           <Cell
             value={tx.withdrawal !== null && tx.withdrawal !== undefined ? fmxNum(tx.withdrawal) : ""}
-            readOnly={readOnly}
+            readOnly={readOnly || tx.isTransfer}
             onChange={(v) => onUpdate(tx.id, "withdrawal", v)}
             placeholder="0.00"
             align="right"
-            className="text-[#FF4444] whitespace-nowrap"
+            className={`${tx.isTransfer ? "text-[#3D7FFF]" : "text-[#FF4444]"} whitespace-nowrap`}
           />
         </div>
         <div className="min-w-0">
@@ -363,18 +371,20 @@ function TxCard({ index, tx, readOnly, onUpdate, onDelete }: {
 
 interface AccountLedgerProps {
   account: CashFlowAccount;
+  accounts: CashFlowAccount[];
   categories: CashFlowCategory[];
   mes: string;
   readOnly: boolean;
   onSettings: (closedThroughMes: string | null) => void;
 }
 
-function AccountLedger({ account, categories, mes, readOnly, onSettings }: AccountLedgerProps) {
+function AccountLedger({ account, accounts, categories, mes, readOnly, onSettings }: AccountLedgerProps) {
   const [transactions, setTransactions] = useState<CashFlowTransaction[]>([]);
   const [saldoInicial, setSaldoInicial] = useState(0);
   const [saldoFinal, setSaldoFinal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showTransfer, setShowTransfer] = useState(false);
   const debounceRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const recalc = useCallback((rows: CashFlowTransaction[], base: number) => {
@@ -481,8 +491,11 @@ function AccountLedger({ account, categories, mes, readOnly, onSettings }: Accou
   const incCats = categories.filter((c) => c.type === "income" || c.type === "both");
   const expCats = categories.filter((c) => c.type === "expense" || c.type === "both");
 
-  const totalDeposits = transactions.reduce((s, t) => s + (Number(t.deposit) || 0), 0);
-  const totalWithdrawals = transactions.reduce((s, t) => s + (Number(t.withdrawal) || 0), 0);
+  // Transfers move balance between accounts but are not income/expense, so they
+  // are excluded from the Depósitos/Retiros totals (they still affect saldo).
+  const totalDeposits = transactions.reduce((s, t) => s + (t.isTransfer ? 0 : Number(t.deposit) || 0), 0);
+  const totalWithdrawals = transactions.reduce((s, t) => s + (t.isTransfer ? 0 : Number(t.withdrawal) || 0), 0);
+  const otherAccounts = accounts.filter((a) => a.id !== account.id);
 
   return (
     <div className="flex flex-col h-full">
@@ -513,6 +526,15 @@ function AccountLedger({ account, categories, mes, readOnly, onSettings }: Accou
           <p className={`text-base font-bold tabular-nums whitespace-nowrap ${saldoFinal >= 0 ? "text-[#00E87B]" : "text-[#FF4444]"}`}>{fmx(saldoFinal)}</p>
         </div>
         <div className="flex items-center gap-2">
+          {!readOnly && otherAccounts.length > 0 && (
+            <button
+              onClick={() => setShowTransfer(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#3D7FFF]/10 border border-[#3D7FFF]/30 text-xs text-[#3D7FFF] hover:bg-[#3D7FFF]/20 transition-colors whitespace-nowrap"
+            >
+              <ArrowLeftRight size={13} />
+              Transferir
+            </button>
+          )}
           <a
             href={`/api/cashflow/export?mes=${mes}&accountId=${account.id}`}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 border border-border text-xs text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap"
@@ -623,6 +645,161 @@ function AccountLedger({ account, categories, mes, readOnly, onSettings }: Accou
           </button>
         </div>
       )}
+
+      {showTransfer && (
+        <TransferModal
+          fromAccount={account}
+          otherAccounts={otherAccounts}
+          mes={mes}
+          onClose={() => setShowTransfer(false)}
+          onDone={() => {
+            setShowTransfer(false);
+            fetchTransactions();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Transfer modal ──────────────────────────────────────────────────
+
+function TransferModal({
+  fromAccount,
+  otherAccounts,
+  mes,
+  onClose,
+  onDone,
+}: {
+  fromAccount: CashFlowAccount;
+  otherAccounts: CashFlowAccount[];
+  mes: string;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [toAccountId, setToAccountId] = useState("");
+  const [amount, setAmount] = useState("");
+  const [date, setDate] = useState(`${mes}-15`);
+  const [concept, setConcept] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async () => {
+    setError(null);
+    const monto = parseFloat(amount.replace(/[^0-9.\-]/g, ""));
+    if (!toAccountId) {
+      setError("Selecciona la cuenta destino");
+      return;
+    }
+    if (!Number.isFinite(monto) || monto <= 0) {
+      setError("El monto debe ser mayor a 0");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch("/api/cashflow/transfers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fromAccountId: fromAccount.id,
+          toAccountId,
+          amount: monto,
+          date: new Date(`${date}T18:00:00.000Z`).toISOString(),
+          concept: concept.trim() || null,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || "No se pudo transferir");
+        setSaving(false);
+        return;
+      }
+      onDone();
+    } catch {
+      setError("No se pudo transferir");
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl border border-border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-border px-6 py-4">
+          <h3 className="flex items-center gap-2 font-semibold">
+            <ArrowLeftRight size={16} className="text-[#3D7FFF]" />
+            Transferir entre cuentas
+          </h3>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="space-y-3 p-6">
+          <p className="text-xs text-muted-foreground">
+            No cuenta como entrada ni salida del mes; solo mueve el saldo entre cuentas.
+          </p>
+          <div>
+            <label className="text-[11px] uppercase tracking-widest text-muted-foreground">Cuenta origen</label>
+            <div className="mt-1 rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm">{fromAccount.name}</div>
+          </div>
+          <div>
+            <label className="text-[11px] uppercase tracking-widest text-muted-foreground">Cuenta destino *</label>
+            <select
+              className="mt-1 w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
+              value={toAccountId}
+              onChange={(e) => setToAccountId(e.target.value)}
+            >
+              <option value="">Selecciona…</option>
+              {otherAccounts.map((a) => (
+                <option key={a.id} value={a.id}>{a.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11px] uppercase tracking-widest text-muted-foreground">Monto *</label>
+              <input
+                inputMode="decimal"
+                className="mt-1 w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm text-right tabular-nums"
+                placeholder="0.00"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-[11px] uppercase tracking-widest text-muted-foreground">Fecha</label>
+              <input
+                type="date"
+                className="mt-1 w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-[11px] uppercase tracking-widest text-muted-foreground">Concepto (opcional)</label>
+            <input
+              className="mt-1 w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
+              placeholder="Ej. Pago de tarjeta"
+              value={concept}
+              onChange={(e) => setConcept(e.target.value)}
+            />
+          </div>
+          {error && <p className="text-xs text-[#FF4444]">{error}</p>}
+        </div>
+        <div className="flex gap-3 border-t border-border px-6 py-4">
+          <button onClick={onClose} className="flex-1 rounded-lg border border-border py-2 text-sm text-muted-foreground hover:text-foreground">
+            Cancelar
+          </button>
+          <button
+            onClick={save}
+            disabled={saving}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#3D7FFF] py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowLeftRight className="h-4 w-4" />}
+            Transferir
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1282,6 +1459,7 @@ export default function CashFlowPage() {
           <AccountLedger
             key={activeAccount.id + mes}
             account={activeAccount}
+            accounts={accounts}
             categories={categories}
             mes={mes}
             readOnly={monthClosed}

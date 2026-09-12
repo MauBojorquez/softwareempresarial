@@ -46,6 +46,22 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  // Transfer rows are paired across two accounts; editing the amount, date or
+  // type on one side would desync the pair. Those changes go through delete +
+  // re-create instead. Concept/notes stay editable.
+  if (
+    tx.isTransfer &&
+    (body.deposit !== undefined ||
+      body.withdrawal !== undefined ||
+      body.date !== undefined ||
+      body.movementType !== undefined)
+  ) {
+    return NextResponse.json(
+      { error: "Para cambiar una transferencia, bórrala y créala de nuevo." },
+      { status: 400 },
+    );
+  }
+
   // Reject edits touching a closed month (the transaction's existing month, or
   // — when the date is being changed — its new month).
   const settings = await db.cashFlowSettings.findUnique({ where: { organizationId: orgId } });
@@ -80,7 +96,12 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     return NextResponse.json({ error: "Ese mes está cerrado" }, { status: 403 });
   }
 
-  await db.cashFlowTransaction.delete({ where: { id: params.id } });
+  // A transfer deletes both of its linked sides at once.
+  if (tx.isTransfer && tx.transferGroupId) {
+    await db.cashFlowTransaction.deleteMany({ where: { transferGroupId: tx.transferGroupId } });
+  } else {
+    await db.cashFlowTransaction.delete({ where: { id: params.id } });
+  }
   syncCashflowMetrics(orgId).catch(console.error);
   return NextResponse.json({ ok: true });
 }

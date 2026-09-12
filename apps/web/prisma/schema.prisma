@@ -476,6 +476,8 @@ model CashFlowTransaction {
   expenseCategories Json?
   notes           String?  @db.Text
   order           Int      @default(0)
+  isTransfer      Boolean  @default(false) // movimiento de transferencia entre cuentas
+  transferGroupId String?  // liga los dos lados (origen/destino) de una transferencia
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -483,6 +485,7 @@ model CashFlowTransaction {
   account   CashFlowAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@index([accountId, date])
+  @@index([transferGroupId])
 }
 
 model CashFlowSettings {

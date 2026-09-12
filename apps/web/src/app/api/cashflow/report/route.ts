@@ -52,8 +52,13 @@ export async function GET(req: NextRequest) {
         before.reduce((s, t) => s + (t.deposit ?? 0) - (t.withdrawal ?? 0), 0);
 
       const monthTx = acc.transactions.filter((t) => t.date >= start && t.date < end);
-      const totalDeposits = monthTx.reduce((s, t) => s + (t.deposit ?? 0), 0);
-      const totalWithdrawals = monthTx.reduce((s, t) => s + (t.withdrawal ?? 0), 0);
+      // Transfers shift balance between accounts but are NOT income/expense, so
+      // they're excluded from the deposit/withdrawal totals while still counting
+      // toward the balance (via monthNet below).
+      const opTx = monthTx.filter((t) => !t.isTransfer);
+      const totalDeposits = opTx.reduce((s, t) => s + (t.deposit ?? 0), 0);
+      const totalWithdrawals = opTx.reduce((s, t) => s + (t.withdrawal ?? 0), 0);
+      const monthNet = monthTx.reduce((s, t) => s + (t.deposit ?? 0) - (t.withdrawal ?? 0), 0);
       const accCategoryTotals: Record<string, number> = {};
       for (const tx of monthTx) {
         const inc = (tx.incomeCategories ?? {}) as Record<string, number>;
@@ -68,7 +73,7 @@ export async function GET(req: NextRequest) {
         openingBalance: saldoInicial,
         totalDeposits,
         totalWithdrawals,
-        currentBalance: saldoInicial + totalDeposits - totalWithdrawals,
+        currentBalance: saldoInicial + monthNet,
         categoryTotals: accCategoryTotals,
         transactionCount: monthTx.length,
       };
