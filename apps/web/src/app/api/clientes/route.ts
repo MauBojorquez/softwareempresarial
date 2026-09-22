@@ -47,6 +47,15 @@ export async function POST(req: NextRequest) {
     diaDePago = d;
   }
 
+  let diaReporte: number | null = null;
+  if (body.diaReporte !== undefined && body.diaReporte !== null && body.diaReporte !== "") {
+    const d = Number(body.diaReporte);
+    if (!Number.isInteger(d) || d < 1 || d > 31) {
+      return NextResponse.json({ error: "El día de reporte debe ser un entero entre 1 y 31" }, { status: 400 });
+    }
+    diaReporte = d;
+  }
+
   const estatus: ClienteEstatus = ESTATUS.includes(body.estatus) ? body.estatus : "ACTIVO";
   const salud: Salud = SALUD.includes(body.salud) ? body.salud : "VERDE";
 
@@ -57,6 +66,7 @@ export async function POST(req: NextRequest) {
       contacto: body.contacto ? String(body.contacto).trim() : null,
       montoMensual,
       diaDePago,
+      diaReporte,
       estatus,
       salud,
       notas: body.notas ? String(body.notas).trim() : null,

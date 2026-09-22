@@ -17,6 +17,7 @@ interface Cliente {
   contacto?: string | null;
   montoMensual: number;
   diaDePago?: number | null;
+  diaReporte?: number | null;
   estatus: Estatus;
   salud: Salud;
   fechaAlta: string;
@@ -51,6 +52,7 @@ const EMPTY_FORM = {
   contacto: "",
   montoMensual: "",
   diaDePago: "",
+  diaReporte: "",
   estatus: "ACTIVO" as Estatus,
   salud: "VERDE" as Salud,
   notas: "",
@@ -89,6 +91,10 @@ export default function CarteraPage() {
       const d = Number(form.diaDePago);
       if (!Number.isInteger(d) || d < 1 || d > 31) e.diaDePago = "Día 1 a 31";
     }
+    if (form.diaReporte !== "") {
+      const d = Number(form.diaReporte);
+      if (!Number.isInteger(d) || d < 1 || d > 31) e.diaReporte = "Día 1 a 31";
+    }
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -105,6 +111,7 @@ export default function CarteraPage() {
           contacto: form.contacto || null,
           montoMensual: Number(form.montoMensual) || 0,
           diaDePago: form.diaDePago === "" ? null : Number(form.diaDePago),
+          diaReporte: form.diaReporte === "" ? null : Number(form.diaReporte),
           estatus: form.estatus,
           salud: form.salud,
           notas: form.notas || null,
@@ -260,6 +267,17 @@ export default function CarteraPage() {
             />
             {errors.diaDePago && <p className="mt-1 text-[11px] text-red-500">{errors.diaDePago}</p>}
           </div>
+          <div>
+            <input
+              type="number"
+              inputMode="numeric"
+              className="min-h-[40px] w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
+              placeholder="Día de reporte (1-31)"
+              value={form.diaReporte}
+              onChange={(e) => setForm((f) => ({ ...f, diaReporte: e.target.value }))}
+            />
+            {errors.diaReporte && <p className="mt-1 text-[11px] text-red-500">{errors.diaReporte}</p>}
+          </div>
           <select
             className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
             value={form.estatus}
@@ -309,7 +327,7 @@ export default function CarteraPage() {
               </div>
               <div className="mt-3 flex items-center justify-between text-sm">
                 <span className="font-semibold">{formatCurrency(c.montoMensual)}</span>
-                <span className="text-xs text-muted-foreground">Día pago: {c.diaDePago ?? "—"}</span>
+                <span className="text-xs text-muted-foreground">Pago: {c.diaDePago ?? "—"} · Reporte: {c.diaReporte ?? "—"}</span>
               </div>
               <div className="mt-3 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
@@ -353,6 +371,7 @@ export default function CarteraPage() {
               <th className="px-4 py-3 font-medium">Contacto</th>
               <th className="px-4 py-3 text-right font-medium">Monto mensual</th>
               <th className="px-4 py-3 font-medium">Día pago</th>
+              <th className="px-4 py-3 font-medium">Día reporte</th>
               <th className="px-4 py-3 font-medium">Estatus</th>
               <th className="px-4 py-3 font-medium">Salud</th>
               <th className="px-4 py-3 text-right font-medium">Acciones</th>
@@ -360,9 +379,9 @@ export default function CarteraPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} className="px-4 py-10 text-center text-muted-foreground"><Loader2 className="mx-auto h-5 w-5 animate-spin" /></td></tr>
+              <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground"><Loader2 className="mx-auto h-5 w-5 animate-spin" /></td></tr>
             ) : clientes.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">Sin clientes todavía. Da de alta el primero arriba.</td></tr>
+              <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">Sin clientes todavía. Da de alta el primero arriba.</td></tr>
             ) : (
               clientes.map((c) => (
                 <tr key={c.id} className="border-b border-border last:border-0 hover:bg-secondary/30">
@@ -370,6 +389,7 @@ export default function CarteraPage() {
                   <td className="px-4 py-3 text-muted-foreground">{c.contacto || "—"}</td>
                   <td className="px-4 py-3 text-right font-semibold">{formatCurrency(c.montoMensual)}</td>
                   <td className="px-4 py-3 text-muted-foreground">{c.diaDePago ?? "—"}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{c.diaReporte ?? "—"}</td>
                   <td className="px-4 py-3">
                     <span className={"inline-block rounded-full px-2.5 py-1 text-[11px] font-semibold " + ESTATUS_STYLE[c.estatus]}>
                       {ESTATUS_LABEL[c.estatus]}
@@ -439,6 +459,7 @@ function EditModal({
   const [contacto, setContacto] = useState(cliente.contacto ?? "");
   const [montoMensual, setMontoMensual] = useState(String(cliente.montoMensual));
   const [diaDePago, setDiaDePago] = useState(cliente.diaDePago != null ? String(cliente.diaDePago) : "");
+  const [diaReporte, setDiaReporte] = useState(cliente.diaReporte != null ? String(cliente.diaReporte) : "");
   const [estatus, setEstatus] = useState<Estatus>(cliente.estatus);
   const [notas, setNotas] = useState(cliente.notas ?? "");
 
@@ -449,6 +470,7 @@ function EditModal({
       contacto: contacto.trim() || null,
       montoMensual: Number(montoMensual) || 0,
       diaDePago: diaDePago === "" ? null : Number(diaDePago),
+      diaReporte: diaReporte === "" ? null : Number(diaReporte),
       estatus,
       notas: notas.trim() || null,
     });
@@ -468,6 +490,8 @@ function EditModal({
             <input type="number" className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm" placeholder="Monto mensual" value={montoMensual} onChange={(e) => setMontoMensual(e.target.value)} />
             <input type="number" className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm" placeholder="Día pago" value={diaDePago} onChange={(e) => setDiaDePago(e.target.value)} />
           </div>
+          <input type="number" className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm" placeholder="Día de reporte (1-31)" value={diaReporte} onChange={(e) => setDiaReporte(e.target.value)} />
+          {/* Día de reporte: día del mes en que se entrega el reporte al cliente */}
           <select className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm" value={estatus} onChange={(e) => setEstatus(e.target.value as Estatus)}>
             {ESTATUS_OPTS.map((e) => <option key={e} value={e}>{ESTATUS_LABEL[e]}</option>)}
           </select>

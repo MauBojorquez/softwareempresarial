@@ -49,6 +49,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       data.diaDePago = d;
     }
   }
+  if (body.diaReporte !== undefined) {
+    if (body.diaReporte === null || body.diaReporte === "") {
+      data.diaReporte = null;
+    } else {
+      const d = Number(body.diaReporte);
+      if (!Number.isInteger(d) || d < 1 || d > 31) {
+        return NextResponse.json({ error: "El día de reporte debe ser un entero entre 1 y 31" }, { status: 400 });
+      }
+      data.diaReporte = d;
+    }
+  }
   if (body.estatus !== undefined) {
     if (!ESTATUS.includes(body.estatus)) return NextResponse.json({ error: "Estatus inválido" }, { status: 400 });
     data.estatus = body.estatus;

@@ -503,6 +503,7 @@ model Cliente {
   contacto     String?
   montoMensual Float          @default(0)
   diaDePago    Int?           // 1..31
+  diaReporte   Int?           // 1..31 — día del mes en que se reporta al cliente
   estatus      ClienteEstatus @default(ACTIVO)
   salud        Salud          @default(VERDE)
   fechaAlta    DateTime       @default(now())
@@ -524,6 +525,7 @@ model Tarea {
   id              String       @id @default(cuid())
   descripcion     String
   mes             String       // "YYYY-MM"
+  fechaLimite     DateTime?    // fecha límite exacta (opcional)
   estatus         TareaEstatus @default(PENDIENTE)
   fechaCompletada DateTime?
   createdAt       DateTime     @default(now())

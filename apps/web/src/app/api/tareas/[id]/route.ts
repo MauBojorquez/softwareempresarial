@@ -33,6 +33,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (!MES_RE.test(mes)) return NextResponse.json({ error: "El mes debe tener el formato YYYY-MM" }, { status: 400 });
     data.mes = mes;
   }
+  if (body.fechaLimite !== undefined) {
+    if (body.fechaLimite === null || body.fechaLimite === "") {
+      data.fechaLimite = null;
+    } else {
+      const d = new Date(body.fechaLimite);
+      if (Number.isNaN(d.getTime())) return NextResponse.json({ error: "Fecha límite inválida" }, { status: 400 });
+      data.fechaLimite = d;
+    }
+  }
   if (body.responsableId !== undefined) {
     if (!body.responsableId) {
       data.responsableId = null;

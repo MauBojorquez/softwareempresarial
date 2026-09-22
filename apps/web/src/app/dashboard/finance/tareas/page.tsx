@@ -10,6 +10,7 @@ interface Tarea {
   id: string;
   descripcion: string;
   mes: string;
+  fechaLimite?: string | null;
   estatus: "PENDIENTE" | "COMPLETADA";
   fechaCompletada?: string | null;
   clienteId: string;
@@ -36,7 +37,7 @@ export default function TareasPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const [form, setForm] = useState({ descripcion: "", clienteId: "", responsableId: "" });
+  const [form, setForm] = useState({ descripcion: "", clienteId: "", responsableId: "", fechaLimite: "" });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -73,11 +74,12 @@ export default function TareasPage() {
           descripcion: form.descripcion,
           clienteId: form.clienteId,
           responsableId: form.responsableId || null,
+          fechaLimite: form.fechaLimite || null,
           mes,
         }),
       });
       if (!res.ok) throw new Error();
-      setForm({ descripcion: "", clienteId: "", responsableId: "" });
+      setForm({ descripcion: "", clienteId: "", responsableId: "", fechaLimite: "" });
       toast("Tarea creada", "success");
       await load();
     } catch {
@@ -173,6 +175,15 @@ export default function TareasPage() {
             <option value="">Responsable (opcional)</option>
             {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
+          <div className="flex flex-col">
+            <label className="mb-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">Fecha límite (opcional)</label>
+            <input
+              type="date"
+              className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
+              value={form.fechaLimite}
+              onChange={(e) => setForm((f) => ({ ...f, fechaLimite: e.target.value }))}
+            />
+          </div>
         </div>
         <button
           onClick={add}
@@ -212,6 +223,9 @@ export default function TareasPage() {
                 <span>Cliente: {t.clienteNombre || "—"}</span>
                 <span>Resp.: {t.responsableNombre || "—"}</span>
               </div>
+              {t.fechaLimite && (
+                <div className="mt-1 text-xs text-muted-foreground">Fecha límite: {t.fechaLimite.slice(0, 10)}</div>
+              )}
               <div className="mt-3 flex justify-end gap-1">
                 <button
                   onClick={() => toggle(t)}
@@ -241,21 +255,23 @@ export default function TareasPage() {
               <th className="px-4 py-3 font-medium">Descripción</th>
               <th className="px-4 py-3 font-medium">Cliente</th>
               <th className="px-4 py-3 font-medium">Responsable</th>
+              <th className="px-4 py-3 font-medium">Fecha límite</th>
               <th className="px-4 py-3 font-medium">Estatus</th>
               <th className="px-4 py-3 text-right font-medium">Acciones</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={5} className="px-4 py-10 text-center text-muted-foreground"><Loader2 className="mx-auto h-5 w-5 animate-spin" /></td></tr>
+              <tr><td colSpan={6} className="px-4 py-10 text-center text-muted-foreground"><Loader2 className="mx-auto h-5 w-5 animate-spin" /></td></tr>
             ) : tareas.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-10 text-center text-muted-foreground">Sin tareas para este mes.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">Sin tareas para este mes.</td></tr>
             ) : (
               tareas.map((t) => (
                 <tr key={t.id} className="border-b border-border last:border-0 hover:bg-secondary/30">
                   <td className="px-4 py-3 font-medium">{t.descripcion}</td>
                   <td className="px-4 py-3 text-muted-foreground">{t.clienteNombre || "—"}</td>
                   <td className="px-4 py-3 text-muted-foreground">{t.responsableNombre || "—"}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{t.fechaLimite ? t.fechaLimite.slice(0, 10) : "—"}</td>
                   <td className="px-4 py-3">
                     <span className={
                       "inline-block rounded-full px-2.5 py-1 text-[11px] font-semibold " +

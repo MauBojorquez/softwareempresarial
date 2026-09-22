@@ -30,6 +30,7 @@ export async function GET(req: NextRequest) {
     id: t.id,
     descripcion: t.descripcion,
     mes: t.mes,
+    fechaLimite: t.fechaLimite,
     estatus: t.estatus,
     fechaCompletada: t.fechaCompletada,
     clienteId: t.clienteId,
@@ -78,8 +79,15 @@ export async function POST(req: NextRequest) {
   const cliente = await db.cliente.findFirst({ where: { id: clienteId, organizationId: orgId } });
   if (!cliente) return NextResponse.json({ error: "Cliente no encontrado" }, { status: 400 });
 
+  let fechaLimite: Date | null = null;
+  if (body.fechaLimite !== undefined && body.fechaLimite !== null && body.fechaLimite !== "") {
+    const d = new Date(body.fechaLimite);
+    if (Number.isNaN(d.getTime())) return NextResponse.json({ error: "Fecha límite inválida" }, { status: 400 });
+    fechaLimite = d;
+  }
+
   let mes = (body.mes ?? "").toString().trim();
-  if (!mes) mes = new Date().toISOString().slice(0, 7);
+  if (!mes) mes = (fechaLimite ?? new Date()).toISOString().slice(0, 7);
   if (!MES_RE.test(mes)) return NextResponse.json({ error: "El mes debe tener el formato YYYY-MM" }, { status: 400 });
 
   let responsableId: string | null = null;
@@ -97,6 +105,7 @@ export async function POST(req: NextRequest) {
       clienteId,
       descripcion,
       mes,
+      fechaLimite,
       responsableId,
     },
   });
