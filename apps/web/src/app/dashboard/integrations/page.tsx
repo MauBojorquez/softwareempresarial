@@ -413,6 +413,36 @@ export default function IntegrationsPage() {
         </p>
       </div>
 
+      <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
+        <h3 className="font-semibold">API de Rocas</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Lee y crea las rocas del mes desde tus automatizaciones. El color (<code>estatus</code>) siempre se calcula
+          a partir de la fecha límite y el avance; no se puede mandar.
+        </p>
+        <div className="mt-4 rounded-lg border border-border bg-slate-900 p-4 font-mono text-xs text-slate-300">
+          <p className="text-blue-400">GET /api/v1/rocas?mes=2026-10&amp;duenoEmail=ana@empresa.com</p>
+          <p className="mt-1 text-slate-400">Authorization: Bearer mp_abc...xyz</p>
+          <p className="mt-4 text-blue-400">POST /api/v1/rocas</p>
+          <p className="mt-1 text-slate-400">Authorization: Bearer mp_abc...xyz</p>
+          <p className="mt-1 text-slate-400">Content-Type: application/json</p>
+          <p className="mt-2 text-emerald-400">{"{"}</p>
+          <p className="text-emerald-400 pl-4">&quot;titulo&quot;: &quot;Cerrar 5 clientes nuevos&quot;,</p>
+          <p className="text-emerald-400 pl-4">&quot;metricaExito&quot;: &quot;5 contratos firmados&quot;,</p>
+          <p className="text-emerald-400 pl-4">&quot;fechaLimite&quot;: &quot;2026-10-31&quot;,</p>
+          <p className="text-emerald-400 pl-4">&quot;duenoEmail&quot;: &quot;ana@empresa.com&quot;,</p>
+          <p className="text-emerald-400 pl-4">&quot;usaChecklist&quot;: true,</p>
+          <p className="text-emerald-400 pl-4">&quot;items&quot;: [&quot;Lista de prospectos&quot;, &quot;Enviar propuestas&quot;]</p>
+          <p className="text-emerald-400">{"}"}</p>
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">
+          GET: filtros opcionales <code>mes</code> (YYYY-MM, por defecto el mes actual), <code>duenoId</code> o{" "}
+          <code>duenoEmail</code>. POST: obligatorios <code>titulo</code>, <code>metricaExito</code>,{" "}
+          <code>fechaLimite</code> y el responsable (<code>duenoId</code> o <code>duenoEmail</code>, debe ser miembro).
+          Opcionales: <code>mes</code> (por defecto el de la fecha límite), <code>usaChecklist</code>,{" "}
+          <code>items</code> y <code>porcentajeAvance</code> (0 a 100, solo sin checklist).
+        </p>
+      </div>
+
       {/* Integration request form */}
       <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-3">
         <div className="flex items-center gap-2">
