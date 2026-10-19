@@ -45,6 +45,7 @@ model User {
   leadNotas           LeadNota[]   @relation("LeadNotaAutor")
   ventas              Venta[]      @relation("VentaVendedor")
   dailyReports        DailyReport[] @relation("DailyReportUser")
+  googleConnection    GoogleConnection?
   rocas               Roca[]        @relation("RocaDueno")
   vendorTargets       VendorTarget[] @relation("VendorTargetUser")
   dashboardPreferences DashboardPreference[] @relation("DashboardPrefUser")
@@ -749,4 +750,20 @@ model VendorTarget {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, mes, userId])
+}
+
+// ─── Conexión Google por usuario (Gmail + Drive, solo lectura) ──────
+// El refresh token se guarda cifrado (AES-256-GCM). Los correos y documentos
+// NUNCA se guardan: se leen al momento para armar los pendientes.
+model GoogleConnection {
+  id              String    @id @default(cuid())
+  googleEmail     String
+  refreshTokenEnc String    @db.Text
+  scopes          String    @db.Text
+  connectedAt     DateTime  @default(now())
+  lastUsedAt      DateTime?
+  lastError       String?
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

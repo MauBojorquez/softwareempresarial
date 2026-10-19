@@ -12,6 +12,7 @@ import {
   Palette, Camera, ImagePlus, BellRing, MessageCircle, Phone,
 } from "lucide-react";
 import { PhoneInput } from "@/components/settings/phone-input";
+import { GoogleConnectCard } from "@/components/settings/google-connect";
 
 const NOTIF_STORAGE_KEY = "metrixpro-notifications-prefs";
 
@@ -805,6 +806,9 @@ export default function SettingsPage() {
         </div>
         <p className="text-xs text-muted-foreground">El tema se sincroniza con tu cuenta en todos los dispositivos.</p>
       </div>
+
+      {/* ── Google: correo y reuniones para los pendientes ── */}
+      <GoogleConnectCard />
 
       {/* ── Notificaciones ── */}
       <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
