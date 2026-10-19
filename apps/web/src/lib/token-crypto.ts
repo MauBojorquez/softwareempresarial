@@ -22,3 +22,40 @@ export function decryptToken(payload: string): string {
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(enc), decipher.final()]).toString("utf8");
 }
+
+// ─── Signed OAuth state ─────────────────────────────────────────────
+// The state carries the userId, an expiry and a nonce, HMAC-signed with
+// NEXTAUTH_SECRET. It does not depend on cookies, so the flow survives the
+// mobile case where Google returns to a different browser than the one that
+// started it (installed app → Safari).
+
+function stateKey(): string {
+  const s = process.env.NEXTAUTH_SECRET;
+  if (!s) throw new Error("NEXTAUTH_SECRET no está configurada");
+  return s;
+}
+
+export function signState(userId: string, ttlMs = 15 * 60_000): string {
+  const payload = Buffer.from(
+    JSON.stringify({ u: userId, e: Date.now() + ttlMs, n: crypto.randomBytes(8).toString("hex") }),
+  ).toString("base64url");
+  const sig = crypto.createHmac("sha256", stateKey()).update(payload).digest("base64url");
+  return `${payload}.${sig}`;
+}
+
+/** Returns the userId when the state is authentic and not expired, else null. */
+export function verifyState(state: string): string | null {
+  const [payload, sig] = state.split(".");
+  if (!payload || !sig) return null;
+  const expected = crypto.createHmac("sha256", stateKey()).update(payload).digest("base64url");
+  const a = Buffer.from(sig);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  try {
+    const data = JSON.parse(Buffer.from(payload, "base64url").toString()) as { u?: string; e?: number };
+    if (!data.u || !data.e || Date.now() > data.e) return null;
+    return data.u;
+  } catch {
+    return null;
+  }
+}

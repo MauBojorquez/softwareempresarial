@@ -10,6 +10,11 @@ export const GOOGLE_SCOPES = [
 ];
 export const REQUIRED_SCOPES = GOOGLE_SCOPES.slice(2);
 
+/** Public base URL of the app, without trailing slash. */
+export function appBase(): string {
+  return (process.env.NEXTAUTH_URL ?? "").trim().replace(/\/+$/, "");
+}
+
 // A dedicated OAuth client can be used for Workspace data; otherwise the login
 // client ("Iniciar con Google") is reused.
 export function googleClient() {
@@ -18,8 +23,7 @@ export function googleClient() {
   if (!clientId || !clientSecret) throw new Error("Faltan las credenciales de Google (GOOGLE_CLIENT_ID/SECRET)");
   // Trailing slashes in NEXTAUTH_URL would produce "//api/..." and break the
   // exact redirect_uri match Google requires.
-  const base = (process.env.NEXTAUTH_URL ?? "").trim().replace(/\/+$/, "");
-  return { clientId, clientSecret, redirectUri: `${base}/api/google/callback` };
+  return { clientId, clientSecret, redirectUri: `${appBase()}/api/google/callback` };
 }
 
 /**

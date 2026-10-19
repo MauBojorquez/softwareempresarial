@@ -38,8 +38,10 @@ export function GoogleConnectCard() {
     const params = new URLSearchParams(window.location.search);
     const result = params.get("google");
     if (result && RESULT_MSG[result]) {
-      toast(RESULT_MSG[result].text, RESULT_MSG[result].type);
+      const detalle = params.get("detalle");
+      toast(RESULT_MSG[result].text + (detalle ? ` (código: ${detalle})` : ""), RESULT_MSG[result].type);
       params.delete("google");
+      params.delete("detalle");
       const qs = params.toString();
       window.history.replaceState(null, "", window.location.pathname + (qs ? `?${qs}` : ""));
     }
