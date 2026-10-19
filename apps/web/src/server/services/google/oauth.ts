@@ -16,7 +16,10 @@ export function googleClient() {
   const clientId = process.env.GOOGLE_WORKSPACE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_WORKSPACE_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET;
   if (!clientId || !clientSecret) throw new Error("Faltan las credenciales de Google (GOOGLE_CLIENT_ID/SECRET)");
-  return { clientId, clientSecret, redirectUri: `${process.env.NEXTAUTH_URL}/api/google/callback` };
+  // Trailing slashes in NEXTAUTH_URL would produce "//api/..." and break the
+  // exact redirect_uri match Google requires.
+  const base = (process.env.NEXTAUTH_URL ?? "").trim().replace(/\/+$/, "");
+  return { clientId, clientSecret, redirectUri: `${base}/api/google/callback` };
 }
 
 /**
