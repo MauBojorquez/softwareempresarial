@@ -99,3 +99,61 @@ function mxOffsetMs(date: Date): number {
   // which is -offset. Return -(local-utc).
   return -(asUTC - date.getTime());
 }
+
+/** UTC bounds [start, end) of the given "YYYY-MM-DD" day in America/Mexico_City. */
+export function dayRangeMX(fecha: string): { start: Date; end: Date } {
+  const [y, m, d] = fecha.split("-").map(Number);
+  const start = mxLocalMidnightToUTC(y, m, d);
+  const next = new Date(Date.UTC(y, m - 1, d + 1));
+  const end = mxLocalMidnightToUTC(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate());
+  return { start, end };
+}
+
+/** "YYYY-MM-DD" shifted by `delta` calendar days (pure date math, no timezone). */
+export function shiftDate(fecha: string, delta: number): string {
+  const [y, m, d] = fecha.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + delta)).toISOString().slice(0, 10);
+}
+
+/** Day of week of a "YYYY-MM-DD" date: 0 = domingo … 6 = sábado. */
+export function weekdayOf(fecha: string): number {
+  const [y, m, d] = fecha.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+}
+
+/**
+ * Days covered by a morning digest sent on `today` (MX): from the previous
+ * business day through yesterday. Tuesday → [lunes]; Monday → [viernes, sábado,
+ * domingo]. Returned oldest first.
+ */
+export function previousBusinessSpanMX(today: string = todayMX()): string[] {
+  let back = 1;
+  while ([0, 6].includes(weekdayOf(shiftDate(today, -back)))) back++;
+  const days: string[] = [];
+  for (let i = back; i >= 1; i--) days.push(shiftDate(today, -i));
+  return days;
+}
+
+/** "2026-10-19" → "lunes 19 de octubre de 2026". */
+export function fechaLargaMX(fecha: string): string {
+  const [y, m, d] = fecha.split("-").map(Number);
+  return new Intl.DateTimeFormat("es-MX", {
+    timeZone: "UTC",
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  })
+    .format(new Date(Date.UTC(y, m - 1, d)))
+    .replace(",", "");
+}
+
+/** Human label for a span of days: one day, or "viernes 16 al domingo 18 de octubre de 2026". */
+export function periodoTextoMX(days: string[]): string {
+  if (days.length === 0) return "";
+  if (days.length === 1) return fechaLargaMX(days[0]);
+  const last = days[days.length - 1];
+  let first = fechaLargaMX(days[0]).replace(/ de \d{4}$/, "");
+  if (days[0].slice(0, 7) === last.slice(0, 7)) first = first.replace(/ de [a-záéíóú]+$/, "");
+  return `${first} al ${fechaLargaMX(last)}`;
+}

@@ -136,4 +136,4 @@ export function digestEmail(
   };
 }
 
-export { fmtMoney as fmtMoneyForEmail };
+export { fmtMoney as fmtMoneyForEmail, base as emailBase, esc as escHtml };
