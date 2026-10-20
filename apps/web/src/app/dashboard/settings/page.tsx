@@ -7,14 +7,13 @@ import { useTheme } from "@/components/theme-provider";
 import { useToast } from "@/components/toast";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import {
-  Sun, Moon, Monitor, Bell, User, Building2, Download, Trash2,
+  Sun, Moon, Monitor, User, Building2, Download, Trash2,
   AlertTriangle, Key, Plus, Copy, Eye, EyeOff, Loader2, Save, Lock, Users, Mail, X,
   Palette, Camera, ImagePlus, BellRing, MessageCircle, Phone,
 } from "lucide-react";
 import { PhoneInput } from "@/components/settings/phone-input";
 import { GoogleConnectCard } from "@/components/settings/google-connect";
 
-const NOTIF_STORAGE_KEY = "metrixpro-notifications-prefs";
 
 function Toggle({ enabled, onChange, label }: { enabled: boolean; onChange: (v: boolean) => void; label?: string }) {
   return (
@@ -115,7 +114,6 @@ export default function SettingsPage() {
   const [savingPassword, setSavingPassword] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const [notifications, setNotifications] = useState({ metrics: false, reports: false, goals: false });
 
   const [contact, setContact] = useState({ phone: "", notifyEmail: true, notifyWhatsapp: false });
   const [savingContact, setSavingContact] = useState(false);
@@ -184,11 +182,6 @@ export default function SettingsPage() {
       .then((r) => { if (!r.ok) throw new Error("fetch failed"); return r.json(); })
       .then((data) => setApiKeys(Array.isArray(data.keys) ? data.keys : []))
       .catch(() => {});
-
-    try {
-      const saved = localStorage.getItem(NOTIF_STORAGE_KEY);
-      if (saved) setNotifications(JSON.parse(saved));
-    } catch {}
 
     fetch("/api/invitations")
       .then((r) => r.json())
@@ -326,16 +319,6 @@ export default function SettingsPage() {
       toast("Error de conexión", "error");
     }
     setSavingContact(false);
-  };
-
-  const handleNotificationToggle = async (key: keyof typeof notifications, value: boolean) => {
-    if (value && typeof Notification !== "undefined" && Notification.permission !== "granted") {
-      const permission = await Notification.requestPermission();
-      if (permission !== "granted") return;
-    }
-    const updated = { ...notifications, [key]: value };
-    setNotifications(updated);
-    localStorage.setItem(NOTIF_STORAGE_KEY, JSON.stringify(updated));
   };
 
   const handleCreateKey = async () => {
@@ -809,29 +792,6 @@ export default function SettingsPage() {
 
       {/* ── Google: correo y reuniones para los pendientes ── */}
       <GoogleConnectCard />
-
-      {/* ── Notificaciones ── */}
-      <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
-        <div className="flex items-center gap-3">
-          <Bell className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-semibold text-foreground">Notificaciones</h2>
-        </div>
-        <div className="space-y-4">
-          {[
-            { key: "metrics" as const, title: "Actualización de métricas", desc: "Alertas cuando tus métricas cambien significativamente" },
-            { key: "reports" as const, title: "Reporte listo", desc: "Notificación cuando un reporte IA esté generado" },
-            { key: "goals" as const, title: "Meta alcanzada", desc: "Aviso cuando se cumpla un objetivo configurado" },
-          ].map((item) => (
-            <div key={item.key} className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-foreground">{item.title}</p>
-                <p className="text-xs text-muted-foreground">{item.desc}</p>
-              </div>
-              <Toggle label={item.title} enabled={notifications[item.key]} onChange={(v) => handleNotificationToggle(item.key, v)} />
-            </div>
-          ))}
-        </div>
-      </div>
 
       {/* ── Cómo recibir reportes ── */}
       <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
