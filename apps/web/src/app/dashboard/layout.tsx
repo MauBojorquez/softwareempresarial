@@ -14,20 +14,8 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { BrandProvider } from "@/components/brand-provider";
 import { ToastProvider } from "@/components/toast";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { routeFor } from "@/lib/nav";
 
-const PAGE_TITLES: Record<string, string> = {
-  "/dashboard/overview": "Dashboard",
-  "/dashboard/goals": "Metas",
-  "/dashboard/finance": "Finanzas",
-  "/dashboard/sales": "Ventas",
-  "/dashboard/operations": "Operaciones",
-  "/dashboard/hr": "RRHH",
-  "/dashboard/marketing": "Marketing",
-  "/dashboard/reports": "Reportes IA",
-  "/dashboard/team": "Equipo",
-  "/dashboard/integrations": "Integraciones",
-  "/dashboard/settings": "Configuración",
-};
 
 const AUTO_SYNC_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 
@@ -37,8 +25,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useKeyboardShortcuts();
 
   useEffect(() => {
-    const match = Object.entries(PAGE_TITLES).find(([k]) => pathname.startsWith(k));
-    document.title = match ? `${match[1]} | StratiuMetrics` : "StratiuMetrics";
+    const route = routeFor(pathname);
+    document.title = route ? `${route.name} · StratiuMetrics` : "StratiuMetrics";
   }, [pathname]);
 
   useEffect(() => {

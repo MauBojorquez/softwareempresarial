@@ -1,78 +1,66 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { db } from "@/server/db";
+import { can, resolveMember } from "@/lib/access";
 
+export const dynamic = "force-dynamic";
+
+type Result = { type: "cliente" | "lead" | "tarea" | "roca"; id: string; title: string; subtitle: string; href: string };
+
+// GET /api/search?q= — global search over the things the team actually works
+// with (clientes, leads, tareas, rocas). Each source is only searched when the
+// caller's puesto may read it (same RBAC matrix as the pages).
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const member = await resolveMember(req);
+  if (member instanceof NextResponse) return member;
+  const { orgId, jobRole, userId } = member;
 
-  const q = req.nextUrl.searchParams.get("q")?.trim();
-  if (!q || q.length < 2) {
-    return NextResponse.json({ results: [] });
-  }
+  const q = req.nextUrl.searchParams.get("q")?.trim() ?? "";
+  if (q.length < 2) return NextResponse.json({ results: [] });
+  const has = { contains: q, mode: "insensitive" as const };
 
-  const membership = await db.membership.findFirst({
-    where: { userId: session.user.id },
-  });
-
-  if (!membership) {
-    return NextResponse.json({ results: [] });
-  }
-
-  const orgId = membership.organizationId;
-
-  const [metrics, reports] = await Promise.all([
-    db.metric.findMany({
-      where: {
-        organizationId: orgId,
-        name: { contains: q, mode: "insensitive" },
-      },
-      orderBy: { period: "desc" },
-      take: 8,
-      select: { id: true, name: true, value: true, unit: true, category: true, period: true },
-    }),
-    db.aIReport.findMany({
-      where: {
-        organizationId: orgId,
-        OR: [
-          { title: { contains: q, mode: "insensitive" } },
-          { summary: { contains: q, mode: "insensitive" } },
-        ],
-      },
-      orderBy: { createdAt: "desc" },
-      take: 4,
-      select: { id: true, title: true, createdAt: true },
-    }),
+  const [clientes, leads, tareas, rocas] = await Promise.all([
+    can(jobRole, "cartera")
+      ? db.cliente.findMany({
+          where: { organizationId: orgId, OR: [{ nombre: has }, { contacto: has }] },
+          take: 5,
+          select: { id: true, nombre: true, estatus: true },
+        })
+      : [],
+    can(jobRole, "crm")
+      ? db.lead.findMany({
+          where: {
+            organizationId: orgId,
+            ...(jobRole === "MARKETING" ? { duenoId: userId } : {}),
+            OR: [{ nombre: has }, { empresa: has }, { email: has }, { telefono: has }],
+          },
+          take: 5,
+          orderBy: { fechaUltimoMovimiento: "desc" },
+          select: { id: true, nombre: true, empresa: true, etapa: true },
+        })
+      : [],
+    can(jobRole, "tareas")
+      ? db.tarea.findMany({
+          where: { organizationId: orgId, descripcion: has },
+          take: 5,
+          orderBy: { createdAt: "desc" },
+          select: { id: true, descripcion: true, estatus: true, cliente: { select: { nombre: true } } },
+        })
+      : [],
+    can(jobRole, "rocas")
+      ? db.roca.findMany({
+          where: { organizationId: orgId, titulo: has },
+          take: 5,
+          orderBy: { createdAt: "desc" },
+          select: { id: true, titulo: true, mes: true, porcentajeAvance: true },
+        })
+      : [],
   ]);
 
-  const categoryMap: Record<string, string> = {
-    FINANCE: "/dashboard/finance",
-    SALES: "/dashboard/sales",
-    OPERATIONS: "/dashboard/operations",
-    HR: "/dashboard/hr",
-    MARKETING: "/dashboard/marketing",
-  };
-
-  const results = [
-    ...metrics.map((m) => ({
-      type: "metric" as const,
-      id: m.id,
-      title: m.name,
-      subtitle: `${m.value} ${m.unit || ""} — ${new Date(m.period).toLocaleDateString("es-MX")}`,
-      href: categoryMap[m.category] || "/dashboard/overview",
-      category: m.category,
-    })),
-    ...reports.map((r) => ({
-      type: "report" as const,
-      id: r.id,
-      title: r.title,
-      subtitle: new Date(r.createdAt).toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" }),
-      href: "/dashboard/reports",
-      category: "REPORTS",
-    })),
+  const results: Result[] = [
+    ...clientes.map((c) => ({ type: "cliente" as const, id: c.id, title: c.nombre, subtitle: `Cliente · ${c.estatus.toLowerCase()}`, href: "/dashboard/finance/cartera" })),
+    ...leads.map((l) => ({ type: "lead" as const, id: l.id, title: l.nombre, subtitle: `Lead${l.empresa ? ` · ${l.empresa}` : ""}`, href: "/dashboard/crm" })),
+    ...tareas.map((t) => ({ type: "tarea" as const, id: t.id, title: t.descripcion, subtitle: `Tarea · ${t.cliente.nombre} · ${t.estatus === "COMPLETADA" ? "completada" : "pendiente"}`, href: "/dashboard/finance/tareas" })),
+    ...rocas.map((r) => ({ type: "roca" as const, id: r.id, title: r.titulo, subtitle: `Roca · ${r.mes} · ${r.porcentajeAvance}%`, href: "/dashboard/rocas" })),
   ];
 
   return NextResponse.json({ results });

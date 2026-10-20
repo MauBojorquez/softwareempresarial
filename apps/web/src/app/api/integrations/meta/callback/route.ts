@@ -16,11 +16,11 @@ export async function GET(req: NextRequest) {
   const storedState = req.cookies.get("meta_oauth_state")?.value;
 
   if (!code) {
-    return NextResponse.redirect(new URL("/dashboard/integrations?error=missing_code", req.url));
+    return NextResponse.redirect(new URL("/dashboard/marketing?meta_error=missing_code", req.url));
   }
 
   if (!state || state !== storedState) {
-    return NextResponse.redirect(new URL("/dashboard/integrations?error=invalid_state", req.url));
+    return NextResponse.redirect(new URL("/dashboard/marketing?meta_error=invalid_state", req.url));
   }
 
   try {
@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
     );
 
     if (!tokenResponse.ok) {
-      return NextResponse.redirect(new URL("/dashboard/integrations?error=meta_token_exchange", req.url));
+      return NextResponse.redirect(new URL("/dashboard/marketing?meta_error=meta_token_exchange", req.url));
     }
 
     const tokens = await tokenResponse.json();
@@ -90,8 +90,8 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    return NextResponse.redirect(new URL("/dashboard/integrations?success=meta", req.url));
+    return NextResponse.redirect(new URL("/dashboard/marketing?meta=conectado", req.url));
   } catch {
-    return NextResponse.redirect(new URL("/dashboard/integrations?error=meta_failed", req.url));
+    return NextResponse.redirect(new URL("/dashboard/marketing?meta_error=meta_failed", req.url));
   }
 }

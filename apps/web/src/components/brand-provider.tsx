@@ -1,5 +1,7 @@
 "use client";
 
+import { loadMe } from "@/hooks/use-me";
+
 import { useEffect } from "react";
 
 /** Converts #RRGGBB to {h, s, l} (s, l in 0-100). */
@@ -38,11 +40,10 @@ function hexToHsl(hex: string): { h: number; s: number; l: number } | null {
 export function BrandProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/user")
-      .then((r) => r.json())
+    loadMe()
       .then((data) => {
         if (cancelled) return;
-        const hex: string | undefined = data?.organization?.brandColor;
+        const hex: string | undefined = data?.organization?.brandColor ?? undefined;
         const root = document.documentElement;
         if (!hex) {
           document.body.classList.remove("has-brand");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -24,6 +24,20 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+
+  // Errors NextAuth reports via ?error= (e.g. Google sign-in of someone who is
+  // not on the team and has no invitation).
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get("error");
+    if (!code) return;
+    setError(
+      code === "AccessDenied"
+        ? "Esta cuenta no tiene acceso. Pide una invitación a Dirección."
+        : code === "session_expired"
+          ? "Tu sesión expiró. Vuelve a entrar."
+          : "No se pudo iniciar sesión. Inténtalo de nuevo.",
+    );
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -112,11 +126,8 @@ export default function LoginPage() {
           Continuar con Google
         </button>
 
-        <p className="text-center text-sm text-muted-foreground anim-d5">
-          ¿No tienes cuenta?{" "}
-          <Link href="/register" className="font-medium text-primary hover:underline transition-colors">
-            Regístrate
-          </Link>
+        <p className="text-center text-xs text-muted-foreground anim-d5">
+          Acceso solo para el equipo. Si no tienes cuenta, pide una invitación a Dirección.
         </p>
       </div>
     </div>

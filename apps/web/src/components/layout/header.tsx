@@ -1,7 +1,9 @@
 "use client";
 
+import { useMe } from "@/hooks/use-me";
+
 import { useState, useEffect, useRef } from "react";
-import { Search, Menu, FileText, BarChart3, Moon, Sun, Command } from "lucide-react";
+import { Search, Menu, Users, KanbanSquare, ListChecks, Mountain, Moon, Sun, Command } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
@@ -9,13 +11,14 @@ import { NotificationBell } from "@/components/notifications";
 import { InstallButton } from "@/components/install-button";
 
 type SearchResult = {
-  type: "metric" | "report";
+  type: "cliente" | "lead" | "tarea" | "roca";
   id: string;
   title: string;
   subtitle: string;
   href: string;
-  category: string;
 };
+
+const RESULT_ICON = { cliente: Users, lead: KanbanSquare, tarea: ListChecks, roca: Mountain };
 
 export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const { data: session } = useSession();
@@ -30,11 +33,10 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<NodeJS.Timeout>();
 
+  const me = useMe();
   useEffect(() => {
-    fetch("/api/user").then((r) => r.json()).then((d) => {
-      if (d.user?.avatar) setUserAvatar(d.user.avatar);
-    }).catch(() => {});
-  }, []);
+    if (me?.user?.avatar) setUserAvatar(me.user.avatar);
+  }, [me]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -66,9 +68,6 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
     router.push(href);
   };
 
-  const categoryLabel: Record<string, string> = {
-    FINANCE: "Finanzas", SALES: "Ventas", OPERATIONS: "Operaciones", HR: "RRHH", MARKETING: "Marketing", REPORTS: "Reportes",
-  };
 
   return (
     <header className="relative z-30 flex h-14 items-center justify-between border-b border-border bg-card/70 backdrop-blur-md px-4 sm:h-16 sm:px-6">
@@ -81,8 +80,8 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
-            aria-label="Buscar métricas y reportes"
-            placeholder="Buscar métricas, reportes..."
+            aria-label="Buscar clientes, leads, tareas y rocas"
+            placeholder="Buscar clientes, leads, tareas…"
             value={query}
             onChange={(e) => handleSearch(e.target.value)}
             onFocus={() => results.length > 0 && setShowResults(true)}
@@ -102,13 +101,12 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                     className="w-full text-left flex items-start gap-3 px-3 py-2.5 hover:bg-secondary/50 transition-colors border-b border-border last:border-0"
                   >
                     <div className="mt-0.5 rounded-md bg-secondary p-1.5">
-                      {r.type === "report" ? <FileText className="h-3.5 w-3.5 text-primary" /> : <BarChart3 className="h-3.5 w-3.5 text-muted-foreground" />}
+                      {(() => { const Icon = RESULT_ICON[r.type]; return <Icon className="h-3.5 w-3.5 text-primary" />; })()}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{r.title}</p>
-                      <p className="text-[11px] text-muted-foreground truncate">{r.subtitle}</p>
+                      <p className="text-xs text-muted-foreground truncate">{r.subtitle}</p>
                     </div>
-                    <span className="text-[10px] text-muted-foreground shrink-0 mt-0.5">{categoryLabel[r.category] || r.category}</span>
                   </button>
                 ))
               )}

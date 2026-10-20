@@ -6,69 +6,16 @@ import { useSession, signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/logo";
 import { useEffect, useState, useRef } from "react";
-import type { JobRole } from "@prisma/client";
-import {
-  LayoutDashboard, DollarSign, LogOut, X, Settings,
-  Building2, ChevronDown, Plus, Check, UsersRound, Wallet, BarChart3, Receipt,
-  Users, ListChecks, KanbanSquare, TrendingUp, ClipboardList,
-  Mountain, Gauge, Megaphone, ClipboardCheck, Briefcase,
-} from "lucide-react";
-
-type NavChild = { name: string; href: string; icon: typeof LayoutDashboard; roles: JobRole[] };
-type NavItem = { name: string; href: string; icon: typeof LayoutDashboard; roles: JobRole[]; children?: NavChild[] };
-
-const ALL_ROLES: JobRole[] = ["DIRECCION", "OPERACIONES", "COMERCIAL", "MARKETING", "ADMINISTRACION"];
-
-// Role-aware navigation. Each item (and child) carries a `roles` allow-list;
-// backend RBAC is the real gate — this only tailors what each puesto sees.
-// A member with a null jobRole falls back to Resumen + Configuración only.
-const navigation: NavItem[] = [
-  { name: "Resumen", href: "/dashboard/overview", icon: LayoutDashboard, roles: ALL_ROLES },
-  {
-    name: "Finanzas",
-    href: "/dashboard/finance",
-    icon: DollarSign,
-    roles: ["DIRECCION", "ADMINISTRACION"],
-    children: [
-      { name: "Dashboard", href: "/dashboard/finance", icon: BarChart3, roles: ["DIRECCION"] },
-      { name: "Flujo de Efectivo", href: "/dashboard/finance/cashflow", icon: Wallet, roles: ["DIRECCION", "ADMINISTRACION"] },
-      { name: "Cobranza", href: "/dashboard/finance/cobranza", icon: Receipt, roles: ["DIRECCION", "ADMINISTRACION"] },
-    ],
-  },
-  {
-    name: "Operativo",
-    href: "/dashboard/operativo",
-    icon: ClipboardCheck,
-    roles: ["DIRECCION", "OPERACIONES", "ADMINISTRACION"],
-    children: [
-      { name: "Cartera", href: "/dashboard/finance/cartera", icon: Users, roles: ["DIRECCION", "OPERACIONES", "ADMINISTRACION"] },
-      { name: "Tareas", href: "/dashboard/finance/tareas", icon: ListChecks, roles: ["DIRECCION", "OPERACIONES", "ADMINISTRACION"] },
-    ],
-  },
-  {
-    name: "Comercial",
-    href: "/dashboard/comercial",
-    icon: Briefcase,
-    roles: ["DIRECCION", "COMERCIAL", "MARKETING", "ADMINISTRACION"],
-    children: [
-      { name: "CRM", href: "/dashboard/crm", icon: KanbanSquare, roles: ["DIRECCION", "COMERCIAL", "MARKETING"] },
-      { name: "Ventas", href: "/dashboard/ventas", icon: TrendingUp, roles: ["DIRECCION", "COMERCIAL", "ADMINISTRACION"] },
-      { name: "Marketing", href: "/dashboard/marketing", icon: Megaphone, roles: ["DIRECCION", "MARKETING", "COMERCIAL"] },
-    ],
-  },
-  { name: "Reportes", href: "/dashboard/reportes", icon: ClipboardList, roles: ALL_ROLES },
-  { name: "Rocas", href: "/dashboard/rocas", icon: Mountain, roles: ALL_ROLES },
-  { name: "Dirección", href: "/dashboard/direccion", icon: Gauge, roles: ["DIRECCION"] },
-  { name: "Configuración", href: "/dashboard/settings", icon: Settings, roles: ALL_ROLES },
-];
-
-// Admin-only extra: the owner can still reach Equipo to invite teammates.
-// Gated by the membership role (ADMIN), so it's visible to any jobRole.
-const adminNavigation: NavItem[] = [
-  { name: "Equipo", href: "/dashboard/team", icon: UsersRound, roles: ALL_ROLES },
-];
+import { LogOut, X, Building2, ChevronDown, Plus, Check } from "lucide-react";
+import { NAVIGATION as navigation, ADMIN_NAVIGATION as adminNavigation, routeFor, type NavItem } from "@/lib/nav";
+import { useMe } from "@/hooks/use-me";
 
 type OrgItem = { id: string; name: string; logo?: string | null; brandColor?: string | null; isActive: boolean };
+
+/** The group (by name) that owns the current page, from the single nav map. */
+function activeGroupOf(pathname: string): string | undefined {
+  return routeFor(pathname)?.group;
+}
 
 export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => void }) {
   const pathname = usePathname();
@@ -79,34 +26,26 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
   const [orgs, setOrgs] = useState<OrgItem[]>([]);
   const [avatar, setAvatar] = useState<string | null>(null);
   const [showOrgMenu, setShowOrgMenu] = useState(false);
-  const [jobRole, setJobRole] = useState<JobRole | null>(null);
+  const [jobRole, setJobRole] = useState<NavItem["roles"][number] | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const orgMenuRef = useRef<HTMLDivElement>(null);
 
-  // Auto-expand a parent whose sub-route is active so the submenu is visible.
+  // Auto-expand the group that owns the current page.
   useEffect(() => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      for (const item of navigation) {
-        if (!item.children) continue;
-        const onParent = pathname.startsWith(item.href);
-        const onChild = item.children.some((c) => pathname.startsWith(c.href));
-        if (onParent || onChild) next.add(item.href);
-      }
-      return next;
-    });
+    const group = activeGroupOf(pathname);
+    if (!group) return;
+    setExpanded((prev) => (prev.has(group) ? prev : new Set(prev).add(group)));
   }, [pathname]);
 
+  const me = useMe();
   useEffect(() => {
-    fetch("/api/user")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.organization) setOrgData(data.organization);
-        if (data.user?.avatar) setAvatar(data.user.avatar);
-        if (data.jobRole) setJobRole(data.jobRole);
-      })
-      .catch(() => {});
+    if (!me) return;
+    if (me.organization) setOrgData(me.organization);
+    if (me.user?.avatar) setAvatar(me.user.avatar);
+    setJobRole(me.jobRole);
+  }, [me]);
 
+  useEffect(() => {
     fetch("/api/organizations")
       .then((r) => r.json())
       .then((data) => {
@@ -235,17 +174,17 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
               // Only render the children this role may see.
               const children = jobRole ? item.children.filter((c) => c.roles.includes(jobRole)) : [];
               if (children.length === 0) return null;
-              const isOpen = expanded.has(item.href);
-              const isActive = pathname.startsWith(item.href);
+              const isOpen = expanded.has(item.name);
+              const isActive = activeGroupOf(pathname) === item.name;
               return (
-                <div key={item.href}>
+                <div key={item.name}>
                   <button
                     type="button"
                     onClick={() =>
                       setExpanded((prev) => {
                         const next = new Set(prev);
-                        if (next.has(item.href)) next.delete(item.href);
-                        else next.add(item.href);
+                        if (next.has(item.name)) next.delete(item.name);
+                        else next.add(item.name);
                         return next;
                       })
                     }
@@ -267,12 +206,9 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
                   {isOpen && (
                     <div className="mt-0.5 space-y-0.5 pl-4">
                       {children.map((child) => {
-                        // Exact match for the parent's index route, prefix match otherwise,
-                        // so "Dashboard" isn't highlighted while on the cashflow sub-route.
-                        const childActive =
-                          child.href === item.href
-                            ? pathname === child.href
-                            : pathname.startsWith(child.href);
+                        // Most specific route wins, so "Panel financiero" isn't lit
+                        // while on a deeper /finance/* page.
+                        const childActive = routeFor(pathname)?.href === child.href;
                         return (
                           <Link
                             key={child.href}
@@ -297,12 +233,11 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
               );
             }
 
-            const isActive = pathname.startsWith(item.href);
+            const isActive = routeFor(pathname)?.href === item.href;
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                data-tour={item.href}
                 onClick={onClose}
                 aria-current={isActive ? "page" : undefined}
                 className={cn(

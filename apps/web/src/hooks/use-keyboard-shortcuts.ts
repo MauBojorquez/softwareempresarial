@@ -2,55 +2,31 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { ROUTES } from "@/lib/nav";
+
+// Single-key navigation shortcuts, read from the nav map (lib/nav.ts) so they
+// always point at real pages. Ignored while typing or with modifier keys.
+const BY_KEY = new Map(ROUTES.filter((r) => r.shortcut).map((r) => [r.shortcut as string, r.href]));
 
 export function useKeyboardShortcuts() {
   const router = useRouter();
 
   useEffect(() => {
     function handler(e: KeyboardEvent) {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
-
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName))) return;
       if (e.altKey || e.ctrlKey || e.metaKey) return;
 
-      switch (e.key) {
-        case "g":
-          if (e.shiftKey) return;
-          e.preventDefault();
-          router.push("/dashboard/overview");
-          break;
-        case "f":
-          e.preventDefault();
-          router.push("/dashboard/finance");
-          break;
-        case "v":
-          e.preventDefault();
-          router.push("/dashboard/sales");
-          break;
-        case "o":
-          e.preventDefault();
-          router.push("/dashboard/operations");
-          break;
-        case "h":
-          e.preventDefault();
-          router.push("/dashboard/hr");
-          break;
-        case "m":
-          e.preventDefault();
-          router.push("/dashboard/marketing");
-          break;
-        case "r":
-          e.preventDefault();
-          router.push("/dashboard/reports");
-          break;
-        case "s":
-          e.preventDefault();
-          router.push("/dashboard/settings");
-          break;
-        case "?":
-          e.preventDefault();
-          const event = new CustomEvent("toggle-shortcuts-help");
-          window.dispatchEvent(event);
-          break;
+      if (e.key === "?") {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent("toggle-shortcuts-help"));
+        return;
+      }
+      if (e.shiftKey) return;
+      const href = BY_KEY.get(e.key);
+      if (href) {
+        e.preventDefault();
+        router.push(href);
       }
     }
 

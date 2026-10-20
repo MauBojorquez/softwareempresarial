@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
 import type { JobRole } from "@prisma/client";
+import { useMe } from "@/hooks/use-me";
+import { routeFor } from "@/lib/nav";
 import {
   LayoutDashboard, Gauge, KanbanSquare, ClipboardList,
   TrendingUp, Megaphone, Users, ListChecks, Receipt, Menu,
@@ -32,22 +33,13 @@ const FALLBACK_TABS: Tab[] = [RESUMEN, REPORTES];
 
 export function BottomNav({ onMenuClick }: { onMenuClick: () => void }) {
   const pathname = usePathname();
-  const [jobRole, setJobRole] = useState<JobRole | null>(null);
-
-  useEffect(() => {
-    fetch("/api/user")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.jobRole) setJobRole(data.jobRole);
-      })
-      .catch(() => {});
-  }, []);
+  const jobRole = useMe()?.jobRole ?? null;
 
   const tabs = jobRole ? TABS_BY_ROLE[jobRole] : FALLBACK_TABS;
 
   return (
     <nav
-      aria-label="Navegación principal"
+      aria-label="Navegación inferior"
       className="fixed bottom-0 inset-x-0 z-40 lg:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
@@ -56,10 +48,7 @@ export function BottomNav({ onMenuClick }: { onMenuClick: () => void }) {
 
       <div className="relative flex items-stretch h-16">
         {tabs.map((tab) => {
-          const active =
-            tab.href === "/dashboard/overview"
-              ? pathname === tab.href
-              : pathname.startsWith(tab.href);
+          const active = routeFor(pathname)?.href === tab.href;
           return (
             <Link
               key={tab.href}
@@ -79,7 +68,7 @@ export function BottomNav({ onMenuClick }: { onMenuClick: () => void }) {
                 )}
                 <tab.icon className={cn("h-5 w-5 transition-transform", active && "scale-110")} />
               </div>
-              <span className={cn("text-[10px] font-medium leading-none", active ? "text-primary" : "text-muted-foreground/70")}>
+              <span className={cn("text-[11px] font-medium leading-none", active ? "text-primary" : "text-muted-foreground")}>
                 {tab.name}
               </span>
             </Link>
@@ -95,7 +84,7 @@ export function BottomNav({ onMenuClick }: { onMenuClick: () => void }) {
           <div className="flex h-8 w-12 items-center justify-center rounded-xl">
             <Menu className="h-5 w-5" />
           </div>
-          <span className="text-[10px] font-medium leading-none text-muted-foreground/70">Más</span>
+          <span className="text-[11px] font-medium leading-none text-muted-foreground">Más</span>
         </button>
       </div>
     </nav>

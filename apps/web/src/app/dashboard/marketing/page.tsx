@@ -69,10 +69,10 @@ export default function MarketingPage() {
           <LinkIcon className="h-8 w-8 text-muted-foreground mb-3 sm:h-10 sm:w-10 sm:mb-4" />
           <h3 className="text-base font-semibold sm:text-lg">Conecta Meta Ads</h3>
           <p className="mt-1 text-sm text-muted-foreground text-center max-w-md px-4">
-            Para ver tus métricas de marketing, conecta tu cuenta de Meta Ads desde integraciones.
+            Para ver tus métricas de marketing, conecta la cuenta de Meta Ads de la empresa.
           </p>
-          <a href="/dashboard/integrations" className="mt-4 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90">
-            Ir a Integraciones
+          <a href="/api/integrations/meta" className="mt-4 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90">
+            Conectar Meta Ads
           </a>
         </div>
       </div>
@@ -213,7 +213,7 @@ export default function MarketingPage() {
               <p className="text-xs text-muted-foreground mt-1">
                 {campaigns?.error || "Tu token de acceso expiró. Reconecta tu cuenta para ver datos actualizados."}
               </p>
-              <a href="/dashboard/integrations" className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-destructive/30 px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors">
+              <a href="/api/integrations/meta" className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-destructive/30 px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors">
                 <RefreshCw className="h-3 w-3" />
                 Reconectar
               </a>

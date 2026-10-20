@@ -2,16 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { X, Keyboard } from "lucide-react";
+import { ROUTES } from "@/lib/nav";
 
+// Read from the nav map so the list always matches the real shortcuts.
 const shortcuts = [
-  { key: "G", label: "Dashboard / Resumen" },
-  { key: "F", label: "Finanzas" },
-  { key: "V", label: "Ventas" },
-  { key: "O", label: "Operaciones" },
-  { key: "H", label: "Recursos Humanos" },
-  { key: "M", label: "Marketing" },
-  { key: "R", label: "Reportes" },
-  { key: "S", label: "Configuración" },
+  ...ROUTES.filter((r) => r.shortcut).map((r) => ({ key: (r.shortcut as string).toUpperCase(), label: r.name })),
+  { key: "⌘K", label: "Buscar y navegar" },
   { key: "?", label: "Mostrar atajos" },
 ];
 
@@ -41,7 +37,7 @@ export function ShortcutsHelp() {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Keyboard className="h-4 w-4 text-primary" />
-              <h3 className="font-semibold">Atajos de Teclado</h3>
+              <h3 className="font-semibold">Atajos de teclado</h3>
             </div>
             <button onClick={() => setOpen(false)} aria-label="Cerrar" className="text-muted-foreground hover:text-foreground">
               <X className="h-4 w-4" />
