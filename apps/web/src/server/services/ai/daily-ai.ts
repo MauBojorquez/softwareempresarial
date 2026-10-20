@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 
 // Model for the daily automations. Overridable from the environment so it can
 // be changed without a deploy of new code.
-const MODEL = process.env.AI_DAILY_MODEL || "claude-sonnet-5";
+const MODEL = process.env.AI_DAILY_MODEL || "claude-opus-5-5";
 
 let client: Anthropic | null = null;
 function anthropic(): Anthropic {
@@ -10,20 +10,47 @@ function anthropic(): Anthropic {
   return client;
 }
 
-/** Calls Claude and parses a single JSON object from the reply. */
-async function askJson<T>(system: string, user: string, maxTokens: number): Promise<T> {
-  const msg = await anthropic().messages.create({
+type JsonSchema = Record<string, unknown>;
+
+/**
+ * Calls Claude with structured outputs (output_config.format) so the reply is
+ * guaranteed to be JSON matching `schema`. Thinking is always on for this
+ * model and counts toward max_tokens, hence the generous cap; effort "low"
+ * keeps each run well inside Vercel's 60s function limit.
+ * The installed SDK (0.39) predates output_config in its types, so the field
+ * is passed through untyped — the API accepts it as-is.
+ */
+async function askJson<T>(system: string, user: string, schema: JsonSchema): Promise<T> {
+  const params = {
     model: MODEL,
-    max_tokens: maxTokens,
+    max_tokens: 16000,
     system,
-    messages: [{ role: "user", content: user }],
-  });
-  const text = msg.content.map((b) => (b.type === "text" ? b.text : "")).join("");
-  const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start < 0 || end <= start) throw new Error("La IA no devolvió JSON");
-  return JSON.parse(text.slice(start, end + 1)) as T;
+    messages: [{ role: "user" as const, content: user }],
+    output_config: { effort: "low", format: { type: "json_schema", schema } },
+  };
+  const msg = await anthropic().messages.create(
+    params as unknown as Anthropic.MessageCreateParamsNonStreaming,
+  );
+  // Old SDK types don't list "refusal"; compare as a plain string.
+  const stop = msg.stop_reason as string | null;
+  if (stop === "refusal") throw new Error("La IA declinó la solicitud (refusal)");
+  if (stop === "max_tokens") throw new Error("La IA se quedó sin espacio (max_tokens)");
+  const text = msg.content.map((b) => (b.type === "text" ? b.text : "")).join("").trim();
+  if (!text) throw new Error(`La IA no devolvió texto (stop_reason: ${stop})`);
+  return JSON.parse(text) as T;
 }
+
+const S = { type: "string" };
+const strArr = { type: "array", items: S };
+const itemArr = {
+  type: "array",
+  items: {
+    type: "object",
+    properties: { texto: S, fuente: S },
+    required: ["texto", "fuente"],
+    additionalProperties: false,
+  },
+};
 
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 const strList = (v: unknown, max = 12) =>
@@ -58,7 +85,12 @@ NO ENVIARON REPORTE: ${input.faltantes.length ? input.faltantes.join(", ") : "to
 
 CONTEXTO DEL MES:
 ${input.contextoTexto}`;
-  const r = await askJson<Record<string, unknown>>(system, user, 1500);
+  const r = await askJson<Record<string, unknown>>(system, user, {
+    type: "object",
+    properties: { resumen: S, destacados: strArr, alertas: strArr },
+    required: ["resumen", "destacados", "alertas"],
+    additionalProperties: false,
+  });
   return { resumen: str(r.resumen), destacados: strList(r.destacados, 5), alertas: strList(r.alertas, 5) };
 }
 
@@ -119,7 +151,18 @@ ${input.correosTexto ?? "(Google no conectado: no hay correos disponibles)"}
 
 NOTAS Y TRANSCRIPCIONES DE REUNIONES:
 ${input.sesionesTexto ?? "(Google no conectado: no hay reuniones disponibles)"}`;
-  const r = await askJson<Record<string, unknown>>(system, user, 2500);
+  const r = await askJson<Record<string, unknown>>(system, user, {
+    type: "object",
+    properties: {
+      resumen: S,
+      prioridades: strArr,
+      compromisos: itemArr,
+      seguimientos: itemArr,
+      incongruencias: strArr,
+    },
+    required: ["resumen", "prioridades", "compromisos", "seguimientos", "incongruencias"],
+    additionalProperties: false,
+  });
   return {
     resumen: str(r.resumen),
     prioridades: strList(r.prioridades, 3),
