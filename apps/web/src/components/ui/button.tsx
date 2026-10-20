@@ -27,7 +27,7 @@ export const buttonVariants = cva(
         md: "h-10 px-4",
         lg: "h-11 px-5 text-base",
         icon: "h-10 w-10",
-        "icon-sm": "h-8 w-8",
+        "icon-sm": "h-9 w-9",
       },
     },
     defaultVariants: { variant: "default", size: "md" },

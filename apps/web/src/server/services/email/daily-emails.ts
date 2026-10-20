@@ -17,7 +17,7 @@ function callout(text: string, color: string): string {
 }
 
 function button(href: string, label: string): string {
-  return `<a href="${href}" style="display:inline-block;margin-top:24px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:600;font-size:14px;">${esc(label)}</a>`;
+  return `<a href="${href}" style="display:inline-block;margin-top:24px;background:#224CA0;color:#fff;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:600;font-size:14px;">${esc(label)}</a>`;
 }
 
 // ─── Consolidado diario del equipo ──────────────────────────────────

@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Users, Activity, Loader2, Circle, LogIn, Eye, Plus, Pencil, Trash2, FileText, Target, Plug, Mail, RefreshCw } from "lucide-react";
+import { Users, Activity, Circle, LogIn, Eye, Plus, Pencil, Trash2, FileText, Target, Plug, Mail, type LucideIcon } from "lucide-react";
+import { useApi } from "@/hooks/use-api";
+import { PageHeader, Card } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, CardsSkeleton, RowsSkeleton } from "@/components/ui/states";
 import { cn } from "@/lib/utils";
 
 const ACTION_LABEL: Record<string, string> = {
@@ -32,7 +34,7 @@ type Data = {
   stats: { totalMembers: number; activeMembers: number; events30d: number };
 };
 
-const ACTION_ICON: Record<string, any> = {
+const ACTION_ICON: Record<string, LucideIcon> = {
   login: LogIn,
   "page.view": Eye,
   "metric.create": Plus,
@@ -75,35 +77,50 @@ function Avatar({ user, size = 9 }: { user: { name: string | null; email: string
   );
 }
 
+function SectionHeader({ title }: { title: string }) {
+  return (
+    <div className="border-b border-border px-5 py-4">
+      <h2 className="font-semibold text-foreground">{title}</h2>
+    </div>
+  );
+}
+
 export default function TeamPage() {
-  const [data, setData] = useState<Data | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, error, initialLoading, reload } = useApi<Data>("/api/team/activity");
 
-  useEffect(() => {
-    const controller = new AbortController();
-    fetch("/api/team/activity", { signal: controller.signal })
-      .then((r) => { if (!r.ok) throw new Error("Error al cargar el equipo"); return r.json(); })
-      .then((d) => { setData(d); setLoading(false); })
-      .catch((e) => { if (e.name !== "AbortError") { setError(e.message); setLoading(false); } });
-    return () => controller.abort();
-  }, []);
+  const header = (
+    <PageHeader
+      icon={Users}
+      title="Equipo"
+      description="Quién usa StratiuMetrics, qué hacen y cuándo se conectaron por última vez."
+    />
+  );
 
-  if (loading) {
-    return <div className="flex items-center justify-center py-24"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
-  }
-  if (error || !data) {
+  if (initialLoading) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-2xl border border-border bg-card py-16 text-center">
-        <Activity className="h-8 w-8 text-muted-foreground mb-3" />
-        <h3 className="text-base font-semibold">No se pudo cargar el equipo</h3>
-        <p className="mt-1 text-sm text-muted-foreground max-w-sm">{error || "Sin datos disponibles"}</p>
-        <button
-          onClick={() => { setLoading(true); setError(null); fetch("/api/team/activity").then((r) => r.json()).then((d) => { setData(d); setLoading(false); }).catch((e) => { setError(e.message); setLoading(false); }); }}
-          className="mt-4 flex items-center gap-2 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90"
-        >
-          <RefreshCw className="h-4 w-4" /> Reintentar
-        </button>
+      <div className="space-y-6">
+        {header}
+        <CardsSkeleton count={3} className="grid-cols-1 sm:grid-cols-3 lg:grid-cols-3" />
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
+          <Card className="overflow-hidden lg:col-span-3">
+            <SectionHeader title="Miembros" />
+            <RowsSkeleton rows={5} />
+          </Card>
+          <Card className="overflow-hidden lg:col-span-2">
+            <SectionHeader title="Actividad reciente" />
+            <RowsSkeleton rows={5} />
+          </Card>
+        </div>
+      </div>
+    );
+  }
+  if (!data) {
+    return (
+      <div className="space-y-6">
+        {header}
+        <Card>
+          <ErrorState message={error || "No se pudo cargar el equipo."} onRetry={reload} />
+        </Card>
       </div>
     );
   }
@@ -112,10 +129,7 @@ export default function TeamPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2"><Users className="h-6 w-6 text-primary" /> Equipo</h1>
-        <p className="text-sm text-muted-foreground mt-1">Quién usa StratiuMetrics, qué hacen y cuándo se conectaron por última vez.</p>
-      </div>
+      {header}
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -124,30 +138,37 @@ export default function TeamPage() {
           { label: "Activos (30 días)", value: data.stats.activeMembers, icon: Circle },
           { label: "Acciones (30 días)", value: data.stats.events30d, icon: Activity },
         ].map((s) => (
-          <div key={s.label} className="rounded-2xl border border-border bg-card p-5">
+          <Card key={s.label} className="p-5">
             <div className="flex items-center gap-2 text-muted-foreground"><s.icon className="h-4 w-4" /><span className="text-xs font-medium">{s.label}</span></div>
-            <p className="mt-2 text-3xl font-bold text-foreground">{s.value}</p>
-          </div>
+            <p className="mt-2 text-3xl font-bold tabular-nums text-foreground">{s.value}</p>
+          </Card>
         ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* Members */}
-        <div className="lg:col-span-3 rounded-2xl border border-border bg-card overflow-hidden">
-          <div className="px-5 py-4 border-b border-border"><h2 className="font-semibold text-foreground">Miembros</h2></div>
+        <Card className="overflow-hidden lg:col-span-3">
+          <SectionHeader title="Miembros" />
+          {data.members.length === 0 ? (
+            <EmptyState icon={Users} title="Sin miembros" description="Aún no hay miembros en el equipo." />
+          ) : (
           <div className="divide-y divide-border">
             {data.members.map((m) => (
               <div key={m.id} className="flex items-center gap-3 px-5 py-3.5">
                 <div className="relative">
                   <Avatar user={m} />
-                  {isOnline(m.lastSeen) && <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-green-500 border-2 border-card" />}
+                  {isOnline(m.lastSeen) && (
+                    <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card bg-success" title="En línea">
+                      <span className="sr-only">En línea</span>
+                    </span>
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-foreground truncate">{m.name || m.email}</p>
                   <p className="text-xs text-muted-foreground truncate">{m.email}</p>
                 </div>
                 <div className="text-right">
-                  <span className={cn("inline-block rounded-full px-2 py-0.5 text-[10px] font-medium",
+                  <span className={cn("inline-block rounded-full px-2 py-0.5 text-xs font-medium",
                     m.role === "ADMIN" ? "bg-primary/10 text-primary" : "bg-secondary text-muted-foreground")}>
                     {ROLE_LABEL[m.role] ?? m.role}
                   </span>
@@ -156,13 +177,16 @@ export default function TeamPage() {
               </div>
             ))}
           </div>
-        </div>
+          )}
+        </Card>
 
         {/* Activity feed */}
-        <div className="lg:col-span-2 rounded-2xl border border-border bg-card overflow-hidden">
-          <div className="px-5 py-4 border-b border-border"><h2 className="font-semibold text-foreground">Actividad reciente</h2></div>
-          <div className="divide-y divide-border max-h-[520px] overflow-y-auto">
-            {data.activity.length === 0 && <p className="px-5 py-8 text-center text-sm text-muted-foreground">Aún no hay actividad registrada.</p>}
+        <Card className="overflow-hidden lg:col-span-2">
+          <SectionHeader title="Actividad reciente" />
+          {data.activity.length === 0 ? (
+            <EmptyState icon={Activity} title="Sin actividad" description="Aún no hay actividad registrada." />
+          ) : (
+          <div className="max-h-[520px] divide-y divide-border overflow-y-auto">
             {data.activity.map((a) => {
               const Icon = ACTION_ICON[a.action] ?? Activity;
               return (
@@ -182,7 +206,8 @@ export default function TeamPage() {
               );
             })}
           </div>
-        </div>
+          )}
+        </Card>
       </div>
     </div>
   );

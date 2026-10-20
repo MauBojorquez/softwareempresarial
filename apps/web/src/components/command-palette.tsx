@@ -144,7 +144,7 @@ export function CommandPalette() {
           <div className="max-h-80 overflow-y-auto p-2">
             {Object.entries(grouped).map(([category, items]) => (
               <div key={category}>
-                <p className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">{category}</p>
+                <p className="px-2 py-1.5 text-xs font-medium text-muted-foreground">{category}</p>
                 {items.map((item) => {
                   itemIndex++;
                   const idx = itemIndex;
@@ -161,7 +161,7 @@ export function CommandPalette() {
                       <div className={cn("shrink-0", selected === idx ? "text-primary" : "")}>{item.icon}</div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-foreground truncate">{item.label}</p>
-                        {item.subtitle && <p className="text-[11px] text-muted-foreground truncate">{item.subtitle}</p>}
+                        {item.subtitle && <p className="text-xs text-muted-foreground truncate">{item.subtitle}</p>}
                       </div>
                       {selected === idx && <ArrowRight className="h-3.5 w-3.5 shrink-0 text-primary" />}
                     </button>

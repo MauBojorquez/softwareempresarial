@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Search } from "lucide-react";
+import { controlClass } from "@/components/ui/field";
+import { cn } from "@/lib/utils";
 
 // Curated list — Mexico first, then LATAM + common ones.
 type Country = { code: string; name: string; dial: string; flag: string };
@@ -46,9 +48,20 @@ interface PhoneInputProps {
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
+  /** Forwarded to the number input so `<Field>` can label it. */
+  id?: string;
+  "aria-describedby"?: string;
+  "aria-invalid"?: boolean;
 }
 
-export function PhoneInput({ value, onChange, disabled }: PhoneInputProps) {
+export function PhoneInput({
+  value,
+  onChange,
+  disabled,
+  id,
+  "aria-describedby": describedBy,
+  "aria-invalid": invalid,
+}: PhoneInputProps) {
   const initial = useMemo(() => parseValue(value), []); // eslint-disable-line react-hooks/exhaustive-deps
   const [country, setCountry] = useState<Country>(initial.country);
   const [local, setLocal] = useState(initial.local);
@@ -69,8 +82,17 @@ export function PhoneInput({ value, onChange, disabled }: PhoneInputProps) {
         setOpen(false);
       }
     }
-    if (open) document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    if (open) {
+      document.addEventListener("mousedown", onClickOutside);
+      document.addEventListener("keydown", onKey);
+    }
+    return () => {
+      document.removeEventListener("mousedown", onClickOutside);
+      document.removeEventListener("keydown", onKey);
+    };
   }, [open]);
 
   const emit = (c: Country, l: string) => {
@@ -107,7 +129,10 @@ export function PhoneInput({ value, onChange, disabled }: PhoneInputProps) {
         type="button"
         disabled={disabled}
         onClick={() => setOpen((v) => !v)}
-        className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 py-2 text-sm hover:bg-secondary disabled:opacity-50"
+        aria-label={`País: ${country.name} ${country.dial}`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className="flex h-10 shrink-0 items-center gap-1.5 rounded-lg border border-input bg-background px-2.5 text-sm hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/25 disabled:opacity-50"
       >
         <span className="text-base leading-none">{country.flag}</span>
         <span className="font-mono text-xs text-muted-foreground">{country.dial}</span>
@@ -116,17 +141,21 @@ export function PhoneInput({ value, onChange, disabled }: PhoneInputProps) {
 
       {/* Local number */}
       <input
+        id={id}
+        aria-describedby={describedBy}
+        aria-invalid={invalid}
         type="tel"
         inputMode="numeric"
+        autoComplete="tel-national"
         value={local}
         disabled={disabled}
         onChange={(e) => handleLocal(e.target.value)}
         placeholder="442 123 4567"
-        className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30 disabled:opacity-50"
+        className={cn(controlClass, "flex-1")}
       />
 
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-1 w-72 rounded-xl border border-border bg-card shadow-lg">
+        <div className="absolute left-0 top-full z-50 mt-1 w-72 max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-card shadow-lg">
           <div className="flex items-center gap-2 border-b border-border px-3 py-2">
             <Search className="h-3.5 w-3.5 text-muted-foreground" />
             <input
@@ -134,10 +163,11 @@ export function PhoneInput({ value, onChange, disabled }: PhoneInputProps) {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Buscar país o lada..."
+              aria-label="Buscar país o lada"
               className="w-full bg-transparent text-sm focus:outline-none"
             />
           </div>
-          <div className="max-h-60 overflow-y-auto p-1">
+          <div role="listbox" aria-label="Países" className="max-h-60 overflow-y-auto p-1">
             {filtered.length === 0 && (
               <p className="px-3 py-4 text-center text-xs text-muted-foreground">Sin resultados</p>
             )}
@@ -145,6 +175,8 @@ export function PhoneInput({ value, onChange, disabled }: PhoneInputProps) {
               <button
                 key={c.code}
                 type="button"
+                role="option"
+                aria-selected={c.code === country.code}
                 onClick={() => handleSelect(c)}
                 className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm hover:bg-secondary ${
                   c.code === country.code ? "bg-secondary/60" : ""

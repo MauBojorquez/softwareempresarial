@@ -1,10 +1,17 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Plus, Trash2, Loader2, Users, Pencil, X, Check } from "lucide-react";
-import { formatCurrency } from "@/lib/utils";
+import { useState } from "react";
+import { Plus, Trash2, Users, Pencil } from "lucide-react";
+import { cn, formatCurrency } from "@/lib/utils";
 import { useToast } from "@/components/toast";
 import { saludGrupoFromCounts } from "@/lib/salud";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Field, Input, MoneyInput, Select, Textarea } from "@/components/ui/field";
+import { PageHeader, Card } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, RowsSkeleton, CardsSkeleton } from "@/components/ui/states";
+import { useConfirm } from "@/components/ui/confirm";
+import { useApi, apiSend } from "@/hooks/use-api";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -32,16 +39,16 @@ const ESTATUS_LABEL: Record<Estatus, string> = {
 };
 
 const ESTATUS_STYLE: Record<Estatus, string> = {
-  ACTIVO: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-  ESPERA: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-  VENCIDO: "bg-red-500/10 text-red-600 dark:text-red-400",
-  BAJA: "bg-secondary text-muted-foreground",
+  ACTIVO: "border-success/30 bg-success/10 text-success",
+  ESPERA: "border-warning/30 bg-warning/10 text-warning",
+  VENCIDO: "border-destructive/30 bg-destructive/10 text-destructive",
+  BAJA: "border-border bg-secondary text-muted-foreground",
 };
 
 const SALUD_DOT: Record<Salud, string> = {
-  VERDE: "bg-emerald-500",
-  AMARILLO: "bg-amber-500",
-  ROJO: "bg-red-500",
+  VERDE: "bg-success",
+  AMARILLO: "bg-warning",
+  ROJO: "bg-destructive",
 };
 
 const ESTATUS_OPTS: Estatus[] = ["ACTIVO", "ESPERA", "VENCIDO", "BAJA"];
@@ -58,27 +65,386 @@ const EMPTY_FORM = {
   notas: "",
 };
 
+type FormState = typeof EMPTY_FORM;
+
+function errMsg(e: unknown, fallback: string) {
+  return e instanceof Error && e.message ? e.message : fallback;
+}
+
 export default function CarteraPage() {
   const { toast } = useToast();
-  const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ ...EMPTY_FORM });
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const confirm = useConfirm();
+  const { data, setData, error, initialLoading, reload } = useApi<{ clientes: Cliente[] }>("/api/clientes");
+  const clientes = data?.clientes ?? [];
+  const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Cliente | null>(null);
 
-  const load = useCallback(async () => {
+  const patch = async (id: string, body: Record<string, unknown>) => {
     try {
-      const res = await fetch("/api/clientes");
-      const data = await res.json();
-      setClientes(data.clientes ?? []);
-    } catch {
-      /* noop */
+      await apiSend(`/api/clientes/${id}`, "PATCH", body);
+      await reload();
+      return true;
+    } catch (e) {
+      toast(errMsg(e, "No se pudo actualizar"), "error");
+      await reload();
+      return false;
     }
-    setLoading(false);
-  }, []);
+  };
 
-  useEffect(() => { load(); }, [load]);
+  const changeSalud = (c: Cliente, salud: Salud) => {
+    setData((prev) =>
+      prev ? { ...prev, clientes: prev.clientes.map((x) => (x.id === c.id ? { ...x, salud } : x)) } : prev,
+    );
+    patch(c.id, { salud });
+  };
+
+  const remove = async (c: Cliente) => {
+    const ok = await confirm({
+      title: `¿Dar de baja a ${c.nombre}?`,
+      description: "El cliente dejará de contar en la cartera vigente.",
+      confirmLabel: "Dar de baja",
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      const res = await apiSend<{ note?: string }>(`/api/clientes/${c.id}`, "DELETE");
+      if (res?.note) toast(res.note, "info");
+      else toast("Cliente eliminado", "success");
+      await reload();
+    } catch (e) {
+      toast(errMsg(e, "No se pudo eliminar"), "error");
+    }
+  };
+
+  // ── Totals / indicators ──────────────────────────────────────────
+  const activos = clientes.filter((c) => c.estatus === "ACTIVO");
+  const mrr = activos.reduce((s, c) => s + c.montoMensual, 0);
+  const countByEstatus = ESTATUS_OPTS.reduce(
+    (acc, e) => ({ ...acc, [e]: clientes.filter((c) => c.estatus === e).length }),
+    {} as Record<Estatus, number>,
+  );
+  const noBaja = clientes.filter((c) => c.estatus !== "BAJA");
+  const verde = noBaja.filter((c) => c.salud === "VERDE").length;
+  const amarillo = noBaja.filter((c) => c.salud === "AMARILLO").length;
+  const rojo = noBaja.filter((c) => c.salud === "ROJO").length;
+  const grupoSalud: Salud | null = saludGrupoFromCounts({ verde, amarillo, rojo });
+
+  const newButton = (
+    <Button onClick={() => setCreating(true)}>
+      <Plus /> Dar de alta
+    </Button>
+  );
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        icon={Users}
+        title="Cartera de clientes"
+        description="Altas, estatus, salud y monto mensual recurrente."
+        actions={newButton}
+      />
+
+      {error ? (
+        <Card>
+          <ErrorState message={error} onRetry={reload} />
+        </Card>
+      ) : initialLoading ? (
+        <>
+          <CardsSkeleton count={4} className="grid-cols-2 sm:grid-cols-2" />
+          <Card>
+            <RowsSkeleton rows={6} />
+          </Card>
+        </>
+      ) : (
+        <>
+          {/* Summary tiles */}
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <Card className="p-4">
+              <p className="text-xs font-medium text-muted-foreground">MRR activo</p>
+              <p className="mt-1 text-xl font-bold tracking-tight text-success">{formatCurrency(mrr)}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">{activos.length} clientes activos</p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-xs font-medium text-muted-foreground">Por estatus</p>
+              <p className="mt-1 text-sm font-semibold">
+                {countByEstatus.ACTIVO} activo · {countByEstatus.ESPERA} espera
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {countByEstatus.VENCIDO} vencido · {countByEstatus.BAJA} baja
+              </p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-xs font-medium text-muted-foreground">Salud del grupo</p>
+              <div className="mt-1 flex items-center gap-2">
+                {grupoSalud ? (
+                  <>
+                    <span className={cn("h-3 w-3 rounded-full", SALUD_DOT[grupoSalud])} aria-hidden />
+                    <span className="text-sm font-semibold">
+                      {grupoSalud === "ROJO" ? "En riesgo" : grupoSalud === "AMARILLO" ? "Atención" : "Saludable"}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="h-3 w-3 rounded-full bg-secondary" aria-hidden />
+                    <span className="text-sm font-semibold text-muted-foreground">Sin clientes activos</span>
+                  </>
+                )}
+              </div>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {verde} verde / {amarillo} amarillo / {rojo} rojo
+              </p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-xs font-medium text-muted-foreground">Total clientes</p>
+              <p className="mt-1 text-xl font-bold tracking-tight">{clientes.length}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">{noBaja.length} vigentes</p>
+            </Card>
+          </div>
+
+          {clientes.length === 0 ? (
+            <Card>
+              <EmptyState
+                icon={Users}
+                title="Sin clientes todavía"
+                description="Da de alta tu primer cliente para empezar a medir el MRR y la salud de la cartera."
+                action={newButton}
+              />
+            </Card>
+          ) : (
+            <>
+              {/* Mobile card list (below md) */}
+              <div className="space-y-3 md:hidden">
+                {clientes.map((c) => (
+                  <Card key={c.id} className="p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-semibold">{c.nombre}</p>
+                        <p className="truncate text-xs text-muted-foreground">{c.contacto || "—"}</p>
+                      </div>
+                      <EstatusBadge estatus={c.estatus} className="flex-shrink-0" />
+                    </div>
+                    <div className="mt-3 flex items-center justify-between text-sm">
+                      <span className="font-semibold tabular-nums">{formatCurrency(c.montoMensual)}</span>
+                      <span className="text-xs text-muted-foreground">
+                        Pago: {c.diaDePago ?? "—"} · Reporte: {c.diaReporte ?? "—"}
+                      </span>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between gap-2">
+                      <SaludSelect cliente={c} onChange={changeSalud} />
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" aria-label={`Editar ${c.nombre}`} onClick={() => setEditing(c)}>
+                          <Pencil />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Dar de baja a ${c.nombre}`}
+                          className="hover:bg-destructive/10 hover:text-destructive"
+                          onClick={() => remove(c)}
+                        >
+                          <Trash2 />
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+
+              {/* Table (md and up) */}
+              <Card className="hidden overflow-x-auto md:block">
+                <table className="w-full min-w-[760px] text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-left text-xs font-medium text-muted-foreground">
+                      <th className="px-4 py-3 font-medium">Cliente</th>
+                      <th className="px-4 py-3 font-medium">Contacto</th>
+                      <th className="px-4 py-3 text-right font-medium">Monto mensual</th>
+                      <th className="px-4 py-3 font-medium">Día pago</th>
+                      <th className="px-4 py-3 font-medium">Día reporte</th>
+                      <th className="px-4 py-3 font-medium">Estatus</th>
+                      <th className="px-4 py-3 font-medium">Salud</th>
+                      <th className="px-4 py-3 text-right font-medium">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {clientes.map((c) => (
+                      <tr key={c.id} className="border-b border-border last:border-0 hover:bg-secondary/60">
+                        <td className="px-4 py-3 font-medium">{c.nombre}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{c.contacto || "—"}</td>
+                        <td className="px-4 py-3 text-right font-semibold tabular-nums">{formatCurrency(c.montoMensual)}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{c.diaDePago ?? "—"}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{c.diaReporte ?? "—"}</td>
+                        <td className="px-4 py-3">
+                          <EstatusBadge estatus={c.estatus} />
+                        </td>
+                        <td className="px-4 py-3">
+                          <SaludSelect cliente={c} onChange={changeSalud} />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button variant="ghost" size="icon-sm" aria-label={`Editar ${c.nombre}`} onClick={() => setEditing(c)}>
+                              <Pencil />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label={`Dar de baja a ${c.nombre}`}
+                              className="hover:bg-destructive/10 hover:text-destructive"
+                              onClick={() => remove(c)}
+                            >
+                              <Trash2 />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </Card>
+            </>
+          )}
+        </>
+      )}
+
+      {creating && (
+        <CreateDialog
+          onClose={() => setCreating(false)}
+          onCreated={async () => {
+            setCreating(false);
+            toast("Cliente dado de alta", "success");
+            await reload();
+          }}
+        />
+      )}
+
+      {editing && (
+        <EditDialog
+          cliente={editing}
+          onClose={() => setEditing(null)}
+          onSave={async (body) => {
+            const ok = await patch(editing.id, body);
+            if (ok) {
+              toast("Cliente actualizado", "success");
+              setEditing(null);
+            }
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function EstatusBadge({ estatus, className }: { estatus: Estatus; className?: string }) {
+  return (
+    <span className={cn("inline-block rounded-full border px-2.5 py-1 text-xs font-semibold", ESTATUS_STYLE[estatus], className)}>
+      {ESTATUS_LABEL[estatus]}
+    </span>
+  );
+}
+
+function SaludSelect({ cliente, onChange }: { cliente: Cliente; onChange: (c: Cliente, s: Salud) => void }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className={cn("h-2.5 w-2.5 flex-shrink-0 rounded-full", SALUD_DOT[cliente.salud])} aria-hidden />
+      <Select
+        aria-label={`Salud de ${cliente.nombre}`}
+        value={cliente.salud}
+        onChange={(e) => onChange(cliente, e.target.value as Salud)}
+        className="w-auto text-xs"
+      >
+        {SALUD_OPTS.map((s) => (
+          <option key={s} value={s}>
+            {s}
+          </option>
+        ))}
+      </Select>
+    </div>
+  );
+}
+
+// ─── Shared form fields ─────────────────────────────────────────────
+
+function ClienteFields({
+  form,
+  setForm,
+  errors,
+  showSalud,
+}: {
+  form: FormState;
+  setForm: (fn: (f: FormState) => FormState) => void;
+  errors: Record<string, string>;
+  showSalud: boolean;
+}) {
+  return (
+    <div className="space-y-4">
+      <Field label="Nombre" error={errors.nombre}>
+        <Input value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} autoFocus />
+      </Field>
+      <Field label="Contacto" optional>
+        <Input value={form.contacto} onChange={(e) => setForm((f) => ({ ...f, contacto: e.target.value }))} />
+      </Field>
+      <Field label="Monto mensual" optional error={errors.montoMensual}>
+        <MoneyInput
+          value={form.montoMensual}
+          placeholder="0.00"
+          onChange={(e) => setForm((f) => ({ ...f, montoMensual: e.target.value }))}
+        />
+      </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Día de pago" optional hint="1 a 31" error={errors.diaDePago}>
+          <Input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={31}
+            value={form.diaDePago}
+            onChange={(e) => setForm((f) => ({ ...f, diaDePago: e.target.value }))}
+          />
+        </Field>
+        <Field label="Día de reporte" optional hint="1 a 31" error={errors.diaReporte}>
+          <Input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={31}
+            value={form.diaReporte}
+            onChange={(e) => setForm((f) => ({ ...f, diaReporte: e.target.value }))}
+          />
+        </Field>
+      </div>
+      <div className={cn("grid gap-3", showSalud ? "grid-cols-2" : "grid-cols-1")}>
+        <Field label="Estatus">
+          <Select value={form.estatus} onChange={(e) => setForm((f) => ({ ...f, estatus: e.target.value as Estatus }))}>
+            {ESTATUS_OPTS.map((e) => (
+              <option key={e} value={e}>
+                {ESTATUS_LABEL[e]}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        {showSalud && (
+          <Field label="Salud">
+            <Select value={form.salud} onChange={(e) => setForm((f) => ({ ...f, salud: e.target.value as Salud }))}>
+              {SALUD_OPTS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
+      </div>
+      <Field label="Notas" optional>
+        <Textarea rows={3} value={form.notas} onChange={(e) => setForm((f) => ({ ...f, notas: e.target.value }))} />
+      </Field>
+    </div>
+  );
+}
+
+function CreateDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const { toast } = useToast();
+  const [form, setForm] = useState<FormState>({ ...EMPTY_FORM });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
 
   const validate = () => {
     const e: Record<string, string> = {};
@@ -103,407 +469,119 @@ export default function CarteraPage() {
     if (!validate()) return;
     setSaving(true);
     try {
-      const res = await fetch("/api/clientes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nombre: form.nombre,
-          contacto: form.contacto || null,
-          montoMensual: Number(form.montoMensual) || 0,
-          diaDePago: form.diaDePago === "" ? null : Number(form.diaDePago),
-          diaReporte: form.diaReporte === "" ? null : Number(form.diaReporte),
-          estatus: form.estatus,
-          salud: form.salud,
-          notas: form.notas || null,
-        }),
+      await apiSend("/api/clientes", "POST", {
+        nombre: form.nombre,
+        contacto: form.contacto || null,
+        montoMensual: Number(form.montoMensual) || 0,
+        diaDePago: form.diaDePago === "" ? null : Number(form.diaDePago),
+        diaReporte: form.diaReporte === "" ? null : Number(form.diaReporte),
+        estatus: form.estatus,
+        salud: form.salud,
+        notas: form.notas || null,
       });
-      if (!res.ok) throw new Error();
-      setForm({ ...EMPTY_FORM });
-      setErrors({});
-      toast("Cliente dado de alta", "success");
-      await load();
-    } catch {
-      toast("No se pudo guardar", "error");
+      onCreated();
+    } catch (e) {
+      toast(errMsg(e, "No se pudo guardar"), "error");
     }
     setSaving(false);
   };
 
-  const patch = async (id: string, body: Record<string, unknown>) => {
-    try {
-      const res = await fetch(`/api/clientes/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) throw new Error();
-      await load();
-    } catch {
-      toast("No se pudo actualizar", "error");
-    }
-  };
-
-  const changeSalud = (c: Cliente, salud: Salud) => {
-    setClientes((prev) => prev.map((x) => (x.id === c.id ? { ...x, salud } : x)));
-    patch(c.id, { salud });
-  };
-
-  const remove = async (c: Cliente) => {
-    if (!confirm(`¿Dar de baja a ${c.nombre}?`)) return;
-    try {
-      const res = await fetch(`/api/clientes/${c.id}`, { method: "DELETE" });
-      const data = await res.json().catch(() => ({}));
-      if (data?.note) toast(data.note, "info");
-      else toast("Cliente eliminado", "success");
-      await load();
-    } catch {
-      toast("No se pudo eliminar", "error");
-    }
-  };
-
-  // ── Totals / indicators ──────────────────────────────────────────
-  const activos = clientes.filter((c) => c.estatus === "ACTIVO");
-  const mrr = activos.reduce((s, c) => s + c.montoMensual, 0);
-  const countByEstatus = ESTATUS_OPTS.reduce(
-    (acc, e) => ({ ...acc, [e]: clientes.filter((c) => c.estatus === e).length }),
-    {} as Record<Estatus, number>,
-  );
-  const noBaja = clientes.filter((c) => c.estatus !== "BAJA");
-  const verde = noBaja.filter((c) => c.salud === "VERDE").length;
-  const amarillo = noBaja.filter((c) => c.salud === "AMARILLO").length;
-  const rojo = noBaja.filter((c) => c.salud === "ROJO").length;
-  const grupoSalud: Salud | null = saludGrupoFromCounts({ verde, amarillo, rojo });
-
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="rounded-xl bg-primary/10 p-2">
-          <Users className="h-5 w-5 text-primary" />
-        </div>
-        <div>
-          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Cartera de clientes</h1>
-          <p className="text-sm text-muted-foreground">Altas, estatus, salud y monto mensual recurrente.</p>
-        </div>
-      </div>
-
-      {/* Summary tiles */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <div className="rounded-2xl border border-border bg-card p-4">
-          <p className="text-xs font-medium text-muted-foreground">MRR activo</p>
-          <p className="mt-1 text-xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">{formatCurrency(mrr)}</p>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">{activos.length} clientes activos</p>
-        </div>
-        <div className="rounded-2xl border border-border bg-card p-4">
-          <p className="text-xs font-medium text-muted-foreground">Por estatus</p>
-          <p className="mt-1 text-sm font-semibold">
-            {countByEstatus.ACTIVO} activo · {countByEstatus.ESPERA} espera
-          </p>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">
-            {countByEstatus.VENCIDO} vencido · {countByEstatus.BAJA} baja
-          </p>
-        </div>
-        <div className="rounded-2xl border border-border bg-card p-4">
-          <p className="text-xs font-medium text-muted-foreground">Salud del grupo</p>
-          <div className="mt-1 flex items-center gap-2">
-            {grupoSalud ? (
-              <>
-                <span className={"h-3 w-3 rounded-full " + SALUD_DOT[grupoSalud]} />
-                <span className="text-sm font-semibold">{grupoSalud === "ROJO" ? "En riesgo" : grupoSalud === "AMARILLO" ? "Atención" : "Saludable"}</span>
-              </>
-            ) : (
-              <>
-                <span className="h-3 w-3 rounded-full bg-secondary" />
-                <span className="text-sm font-semibold text-muted-foreground">Sin clientes activos</span>
-              </>
-            )}
-          </div>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">{verde} verde / {amarillo} amarillo / {rojo} rojo</p>
-        </div>
-        <div className="rounded-2xl border border-border bg-card p-4">
-          <p className="text-xs font-medium text-muted-foreground">Total clientes</p>
-          <p className="mt-1 text-xl font-bold tracking-tight">{clientes.length}</p>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">{noBaja.length} vigentes</p>
-        </div>
-      </div>
-
-      {/* Add form */}
-      <div className="rounded-2xl border border-border bg-card p-4">
-        <p className="mb-3 text-sm font-semibold">Alta de cliente</p>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-6">
-          <div className="lg:col-span-2">
-            <input
-              className="min-h-[40px] w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-              placeholder="Nombre *"
-              value={form.nombre}
-              onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
-            />
-            {errors.nombre && <p className="mt-1 text-[11px] text-red-500">{errors.nombre}</p>}
-          </div>
-          <input
-            className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-            placeholder="Contacto"
-            value={form.contacto}
-            onChange={(e) => setForm((f) => ({ ...f, contacto: e.target.value }))}
-          />
-          <div>
-            <input
-              type="number"
-              inputMode="numeric"
-              className="min-h-[40px] w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-              placeholder="Monto mensual"
-              value={form.montoMensual}
-              onChange={(e) => setForm((f) => ({ ...f, montoMensual: e.target.value }))}
-            />
-            {errors.montoMensual && <p className="mt-1 text-[11px] text-red-500">{errors.montoMensual}</p>}
-          </div>
-          <div>
-            <input
-              type="number"
-              inputMode="numeric"
-              className="min-h-[40px] w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-              placeholder="Día de pago (1-31)"
-              value={form.diaDePago}
-              onChange={(e) => setForm((f) => ({ ...f, diaDePago: e.target.value }))}
-            />
-            {errors.diaDePago && <p className="mt-1 text-[11px] text-red-500">{errors.diaDePago}</p>}
-          </div>
-          <div>
-            <input
-              type="number"
-              inputMode="numeric"
-              className="min-h-[40px] w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-              placeholder="Día de reporte (1-31)"
-              value={form.diaReporte}
-              onChange={(e) => setForm((f) => ({ ...f, diaReporte: e.target.value }))}
-            />
-            {errors.diaReporte && <p className="mt-1 text-[11px] text-red-500">{errors.diaReporte}</p>}
-          </div>
-          <select
-            className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-            value={form.estatus}
-            onChange={(e) => setForm((f) => ({ ...f, estatus: e.target.value as Estatus }))}
-          >
-            {ESTATUS_OPTS.map((e) => <option key={e} value={e}>{ESTATUS_LABEL[e]}</option>)}
-          </select>
-          <select
-            className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-            value={form.salud}
-            onChange={(e) => setForm((f) => ({ ...f, salud: e.target.value as Salud }))}
-          >
-            {SALUD_OPTS.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-        <button
-          onClick={add}
-          disabled={saving}
-          className="mt-3 flex items-center gap-1.5 rounded-lg gradient-bg px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-        >
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-          Dar de alta
-        </button>
-      </div>
-
-      {/* Mobile card list (below sm) */}
-      <div className="space-y-3 sm:hidden">
-        {loading ? (
-          <div className="rounded-2xl border border-border bg-card px-4 py-10 text-center text-muted-foreground">
-            <Loader2 className="mx-auto h-5 w-5 animate-spin" />
-          </div>
-        ) : clientes.length === 0 ? (
-          <div className="rounded-2xl border border-border bg-card px-4 py-10 text-center text-muted-foreground">
-            Sin clientes todavía. Da de alta el primero arriba.
-          </div>
-        ) : (
-          clientes.map((c) => (
-            <div key={c.id} className="rounded-2xl border border-border bg-card p-4">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="font-semibold">{c.nombre}</p>
-                  <p className="truncate text-xs text-muted-foreground">{c.contacto || "—"}</p>
-                </div>
-                <span className={"inline-block flex-shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold " + ESTATUS_STYLE[c.estatus]}>
-                  {ESTATUS_LABEL[c.estatus]}
-                </span>
-              </div>
-              <div className="mt-3 flex items-center justify-between text-sm">
-                <span className="font-semibold">{formatCurrency(c.montoMensual)}</span>
-                <span className="text-xs text-muted-foreground">Pago: {c.diaDePago ?? "—"} · Reporte: {c.diaReporte ?? "—"}</span>
-              </div>
-              <div className="mt-3 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className={"h-2.5 w-2.5 rounded-full " + SALUD_DOT[c.salud]} />
-                  <select
-                    value={c.salud}
-                    onChange={(e) => changeSalud(c, e.target.value as Salud)}
-                    className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-2 py-1 text-xs"
-                  >
-                    {SALUD_OPTS.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setEditing(c)}
-                    title="Editar"
-                    className="rounded-lg p-2 text-muted-foreground hover:bg-secondary hover:text-foreground"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => remove(c)}
-                    title="Dar de baja"
-                    className="rounded-lg p-2 text-muted-foreground hover:bg-red-500/10 hover:text-red-500"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-
-      {/* Table (sm and up) */}
-      <div className="hidden overflow-x-auto rounded-2xl border border-border bg-card sm:block">
-        <table className="w-full min-w-[760px] text-sm">
-          <thead>
-            <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
-              <th className="px-4 py-3 font-medium">Cliente</th>
-              <th className="px-4 py-3 font-medium">Contacto</th>
-              <th className="px-4 py-3 text-right font-medium">Monto mensual</th>
-              <th className="px-4 py-3 font-medium">Día pago</th>
-              <th className="px-4 py-3 font-medium">Día reporte</th>
-              <th className="px-4 py-3 font-medium">Estatus</th>
-              <th className="px-4 py-3 font-medium">Salud</th>
-              <th className="px-4 py-3 text-right font-medium">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground"><Loader2 className="mx-auto h-5 w-5 animate-spin" /></td></tr>
-            ) : clientes.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">Sin clientes todavía. Da de alta el primero arriba.</td></tr>
-            ) : (
-              clientes.map((c) => (
-                <tr key={c.id} className="border-b border-border last:border-0 hover:bg-secondary/30">
-                  <td className="px-4 py-3 font-medium">{c.nombre}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{c.contacto || "—"}</td>
-                  <td className="px-4 py-3 text-right font-semibold">{formatCurrency(c.montoMensual)}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{c.diaDePago ?? "—"}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{c.diaReporte ?? "—"}</td>
-                  <td className="px-4 py-3">
-                    <span className={"inline-block rounded-full px-2.5 py-1 text-[11px] font-semibold " + ESTATUS_STYLE[c.estatus]}>
-                      {ESTATUS_LABEL[c.estatus]}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <span className={"h-2.5 w-2.5 rounded-full " + SALUD_DOT[c.salud]} />
-                      <select
-                        value={c.salud}
-                        onChange={(e) => changeSalud(c, e.target.value as Salud)}
-                        className="rounded-lg border border-border bg-secondary/40 px-2 py-1 text-xs"
-                      >
-                        {SALUD_OPTS.map((s) => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-1">
-                      <button
-                        onClick={() => setEditing(c)}
-                        title="Editar"
-                        className="rounded-lg p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => remove(c)}
-                        title="Dar de baja"
-                        className="rounded-lg p-1.5 text-muted-foreground hover:bg-red-500/10 hover:text-red-500"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {editing && (
-        <EditModal
-          cliente={editing}
-          onClose={() => setEditing(null)}
-          onSaved={async (body) => {
-            await patch(editing.id, body);
-            setEditing(null);
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent
+        title="Alta de cliente"
+        description="Registra un cliente nuevo en la cartera."
+        footer={
+          <>
+            <Button variant="outline" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button onClick={add} loading={saving}>
+              Dar de alta
+            </Button>
+          </>
+        }
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            add();
           }}
-        />
-      )}
-    </div>
+        >
+          <ClienteFields form={form} setForm={setForm} errors={errors} showSalud />
+          <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
-function EditModal({
+function EditDialog({
   cliente,
   onClose,
-  onSaved,
+  onSave,
 }: {
   cliente: Cliente;
   onClose: () => void;
-  onSaved: (body: Record<string, unknown>) => void;
+  onSave: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const [nombre, setNombre] = useState(cliente.nombre);
-  const [contacto, setContacto] = useState(cliente.contacto ?? "");
-  const [montoMensual, setMontoMensual] = useState(String(cliente.montoMensual));
-  const [diaDePago, setDiaDePago] = useState(cliente.diaDePago != null ? String(cliente.diaDePago) : "");
-  const [diaReporte, setDiaReporte] = useState(cliente.diaReporte != null ? String(cliente.diaReporte) : "");
-  const [estatus, setEstatus] = useState<Estatus>(cliente.estatus);
-  const [notas, setNotas] = useState(cliente.notas ?? "");
+  const [form, setForm] = useState<FormState>({
+    nombre: cliente.nombre,
+    contacto: cliente.contacto ?? "",
+    montoMensual: String(cliente.montoMensual),
+    diaDePago: cliente.diaDePago != null ? String(cliente.diaDePago) : "",
+    diaReporte: cliente.diaReporte != null ? String(cliente.diaReporte) : "",
+    estatus: cliente.estatus,
+    salud: cliente.salud,
+    notas: cliente.notas ?? "",
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
 
-  const save = () => {
-    if (!nombre.trim()) return;
-    onSaved({
-      nombre: nombre.trim(),
-      contacto: contacto.trim() || null,
-      montoMensual: Number(montoMensual) || 0,
-      diaDePago: diaDePago === "" ? null : Number(diaDePago),
-      diaReporte: diaReporte === "" ? null : Number(diaReporte),
-      estatus,
-      notas: notas.trim() || null,
+  const save = async () => {
+    if (!form.nombre.trim()) {
+      setErrors({ nombre: "El nombre es obligatorio" });
+      return;
+    }
+    setErrors({});
+    setSaving(true);
+    await onSave({
+      nombre: form.nombre.trim(),
+      contacto: form.contacto.trim() || null,
+      montoMensual: Number(form.montoMensual) || 0,
+      diaDePago: form.diaDePago === "" ? null : Number(form.diaDePago),
+      diaReporte: form.diaReporte === "" ? null : Number(form.diaReporte),
+      estatus: form.estatus,
+      notas: form.notas.trim() || null,
     });
+    setSaving(false);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="w-full max-w-md rounded-2xl border border-border bg-card shadow-2xl">
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <h3 className="font-semibold">Editar cliente</h3>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X size={18} /></button>
-        </div>
-        <div className="space-y-3 p-6">
-          <input className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm" placeholder="Nombre *" value={nombre} onChange={(e) => setNombre(e.target.value)} />
-          <input className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm" placeholder="Contacto" value={contacto} onChange={(e) => setContacto(e.target.value)} />
-          <div className="grid grid-cols-2 gap-3">
-            <input type="number" className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm" placeholder="Monto mensual" value={montoMensual} onChange={(e) => setMontoMensual(e.target.value)} />
-            <input type="number" className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm" placeholder="Día pago" value={diaDePago} onChange={(e) => setDiaDePago(e.target.value)} />
-          </div>
-          <input type="number" className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm" placeholder="Día de reporte (1-31)" value={diaReporte} onChange={(e) => setDiaReporte(e.target.value)} />
-          {/* Día de reporte: día del mes en que se entrega el reporte al cliente */}
-          <select className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm" value={estatus} onChange={(e) => setEstatus(e.target.value as Estatus)}>
-            {ESTATUS_OPTS.map((e) => <option key={e} value={e}>{ESTATUS_LABEL[e]}</option>)}
-          </select>
-          <textarea className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm" placeholder="Notas" rows={3} value={notas} onChange={(e) => setNotas(e.target.value)} />
-        </div>
-        <div className="flex gap-3 border-t border-border px-6 py-4">
-          <button onClick={onClose} className="flex-1 rounded-lg border border-border py-2 text-sm text-muted-foreground hover:text-foreground">Cancelar</button>
-          <button onClick={save} className="flex flex-1 items-center justify-center gap-1.5 rounded-lg gradient-bg py-2 text-sm font-semibold text-white hover:opacity-90">
-            <Check className="h-4 w-4" /> Guardar
-          </button>
-        </div>
-      </div>
-    </div>
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent
+        title="Editar cliente"
+        footer={
+          <>
+            <Button variant="outline" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button onClick={save} loading={saving}>
+              Guardar
+            </Button>
+          </>
+        }
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            save();
+          }}
+        >
+          <ClienteFields form={form} setForm={setForm} errors={errors} showSalud={false} />
+          <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

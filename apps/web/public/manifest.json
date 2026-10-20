@@ -8,7 +8,6 @@
   "display_override": ["standalone", "minimal-ui"],
   "background_color": "#08090F",
   "theme_color": "#08090F",
-  "orientation": "portrait-primary",
   "categories": ["business", "productivity", "finance"],
   "lang": "es-MX",
   "dir": "ltr",

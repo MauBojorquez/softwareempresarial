@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Download, FileSpreadsheet, FileText, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/toast";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { Button } from "@/components/ui/button";
 
 type Format = "xlsx" | "csv";
 
@@ -25,7 +27,10 @@ export function ExportButton({ category, label = "Exportar", className }: Export
       const params = new URLSearchParams({ format });
       if (category) params.set("category", category);
       const res = await fetch(`/api/metrics/export?${params}`);
-      if (!res.ok) throw new Error("Error al exportar");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || "No se pudo exportar. Intenta de nuevo.");
+      }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -37,58 +42,47 @@ export function ExportButton({ category, label = "Exportar", className }: Export
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       toast("Exportación lista", "success");
-    } catch {
-      toast("No se pudo exportar. Intenta de nuevo.", "error");
+    } catch (e) {
+      toast(e instanceof Error && e.message ? e.message : "No se pudo exportar. Intenta de nuevo.", "error");
     } finally {
       setLoading(null);
     }
   };
 
-  return (
-    <div className={cn("relative", className)}>
-      <button
-        onClick={() => setOpen((v) => !v)}
-        disabled={loading !== null}
-        className="flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors disabled:opacity-50"
-      >
-        {loading ? (
-          <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-border border-t-primary" />
-        ) : (
-          <Download className="h-3.5 w-3.5" />
-        )}
-        {label}
-        <ChevronDown className={cn("h-3 w-3 transition-transform", open && "rotate-180")} />
-      </button>
+  const itemClass =
+    "flex w-full cursor-pointer select-none items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm outline-none transition-colors data-[highlighted]:bg-secondary";
 
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full z-50 mt-1 w-44 rounded-xl border border-border bg-card shadow-lg">
-            <div className="p-1">
-              <button
-                onClick={() => download("xlsx")}
-                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm hover:bg-secondary transition-colors"
-              >
-                <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
-                <div>
-                  <p className="font-medium">Excel (.xlsx)</p>
-                  <p className="text-xs text-muted-foreground">Con hojas por área</p>
-                </div>
-              </button>
-              <button
-                onClick={() => download("csv")}
-                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm hover:bg-secondary transition-colors"
-              >
-                <FileText className="h-4 w-4 text-blue-600" />
-                <div>
-                  <p className="font-medium">CSV</p>
-                  <p className="text-xs text-muted-foreground">Compatible con todo</p>
-                </div>
-              </button>
+  return (
+    <DropdownMenu.Root open={open} onOpenChange={setOpen}>
+      <DropdownMenu.Trigger asChild>
+        <Button variant="outline" size="sm" loading={loading !== null} className={className}>
+          {loading === null && <Download />}
+          {label}
+          <ChevronDown className={cn("transition-transform", open && "rotate-180")} />
+        </Button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content
+          align="end"
+          sideOffset={4}
+          className="z-50 w-48 rounded-xl border border-border bg-card p-1 text-card-foreground shadow-lg data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95"
+        >
+          <DropdownMenu.Item className={itemClass} onSelect={() => download("xlsx")}>
+            <FileSpreadsheet className="h-4 w-4 shrink-0 text-success" />
+            <div>
+              <p className="font-medium">Excel (.xlsx)</p>
+              <p className="text-xs text-muted-foreground">Con hojas por área</p>
             </div>
-          </div>
-        </>
-      )}
-    </div>
+          </DropdownMenu.Item>
+          <DropdownMenu.Item className={itemClass} onSelect={() => download("csv")}>
+            <FileText className="h-4 w-4 shrink-0 text-info" />
+            <div>
+              <p className="font-medium">CSV</p>
+              <p className="text-xs text-muted-foreground">Compatible con todo</p>
+            </div>
+          </DropdownMenu.Item>
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
   );
 }

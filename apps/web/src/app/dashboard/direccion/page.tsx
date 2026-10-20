@@ -1,11 +1,16 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
-  Loader2, Gauge, Pencil, Check, X, CheckCircle2, Clock, Mountain,
-  Users, TrendingUp, Filter,
+  Gauge, Pencil, Check, X, CheckCircle2, Clock, Mountain,
+  Users, TrendingUp, Filter, Lock,
 } from "lucide-react";
 import { useToast } from "@/components/toast";
+import { useApi, apiSend } from "@/hooks/use-api";
+import { Button } from "@/components/ui/button";
+import { MoneyInput } from "@/components/ui/field";
+import { PageHeader, Card } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, Skeleton, CardsSkeleton, RowsSkeleton } from "@/components/ui/states";
 import { cn, formatCurrency } from "@/lib/utils";
 
 type JobRole = "DIRECCION" | "OPERACIONES" | "COMERCIAL" | "MARKETING" | "ADMINISTRACION";
@@ -47,18 +52,19 @@ interface Data {
   rocas: RocaRow[];
 }
 
+// Semáforos: always the semantic tokens so they read in light and dark mode.
 const SALUD_COLOR: Record<Salud, string> = {
-  VERDE: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200",
-  AMARILLO: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200",
-  ROJO: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200",
+  VERDE: "border-success/30 bg-success/10 text-success",
+  AMARILLO: "border-warning/30 bg-warning/10 text-warning",
+  ROJO: "border-destructive/30 bg-destructive/10 text-destructive",
 };
 const SEMA_TEXT: Record<Salud, string> = {
-  VERDE: "text-emerald-600 dark:text-emerald-400",
-  AMARILLO: "text-amber-600 dark:text-amber-400",
-  ROJO: "text-red-600 dark:text-red-400",
+  VERDE: "text-success",
+  AMARILLO: "text-warning",
+  ROJO: "text-destructive",
 };
 const SEMA_BAR: Record<Salud, string> = {
-  VERDE: "bg-emerald-500", AMARILLO: "bg-amber-500", ROJO: "bg-red-500",
+  VERDE: "bg-success", AMARILLO: "bg-warning", ROJO: "bg-destructive",
 };
 const ETAPA_LABEL: Record<string, string> = {
   NUEVO: "Nuevo",
@@ -80,6 +86,86 @@ function fmtDate(iso: string): string {
 }
 function pct(n: number): string {
   return `${n.toFixed(0)}%`;
+}
+
+function SaludBadge({ value, className }: { value: Salud; className?: string }) {
+  return (
+    <span className={cn("inline-block shrink-0 rounded-md border px-2 py-0.5 text-xs font-semibold", SALUD_COLOR[value], className)}>
+      {value}
+    </span>
+  );
+}
+
+type ToastFn = ReturnType<typeof useToast>["toast"];
+
+/** Inline money editor for a meta: Enter saves, Escape cancels. */
+function MetaEditor({ initial, label, saving, onSave, onCancel }: {
+  initial: string; label: string; saving: boolean; onSave: (v: string) => void; onCancel: () => void;
+}) {
+  const [val, setVal] = useState(initial);
+  return (
+    <div className="flex items-center gap-1">
+      <div className="w-32">
+        <MoneyInput
+          type="number"
+          min={0}
+          step="any"
+          autoFocus
+          aria-label={label}
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") onSave(val);
+            if (e.key === "Escape") onCancel();
+          }}
+          className="h-9 text-sm"
+        />
+      </div>
+      <Button variant="ghost" size="icon-sm" className="h-9 w-9 text-success hover:text-success" onClick={() => onSave(val)} loading={saving} aria-label="Guardar">
+        {!saving && <Check />}
+      </Button>
+      <Button variant="ghost" size="icon-sm" className="h-9 w-9" onClick={onCancel} disabled={saving} aria-label="Cancelar">
+        <X />
+      </Button>
+    </div>
+  );
+}
+
+function EditMetaButton({ onClick }: { onClick: () => void }) {
+  return (
+    <Button variant="ghost" size="icon-sm" className="h-9 w-9" onClick={onClick} aria-label="Editar meta">
+      <Pencil />
+    </Button>
+  );
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-6" aria-busy="true" aria-label="Cargando">
+      <Card className="space-y-4 p-6">
+        <Skeleton className="h-4 w-56" />
+        <div className="grid gap-6 md:grid-cols-[auto_1fr]">
+          <div className="space-y-3">
+            <Skeleton className="h-12 w-28" />
+            <Skeleton className="h-3 w-56 rounded-full" />
+          </div>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="space-y-2">
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-5 w-24" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </Card>
+      <CardsSkeleton count={6} className="sm:grid-cols-3 lg:grid-cols-6" />
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card><RowsSkeleton rows={5} /></Card>
+        <Card><RowsSkeleton rows={5} /></Card>
+      </div>
+    </div>
+  );
 }
 
 // Key numbers to surface per role in the "reportes de hoy" cards.
@@ -108,65 +194,70 @@ const REPORT_SUMMARY: Record<Exclude<JobRole, "DIRECCION">, { key: string; label
 
 export default function DireccionDashboardPage() {
   const { toast } = useToast();
-  const [jobRole, setJobRole] = useState<JobRole | null>(null);
-  const [roleLoaded, setRoleLoaded] = useState(false);
-  const [data, setData] = useState<Data | null>(null);
-  const [loading, setLoading] = useState(true);
+  const user = useApi<{ jobRole?: JobRole | null }>("/api/user");
+  const jobRole = user.data?.jobRole ?? null;
+  const dash = useApi<Data>(jobRole === "DIRECCION" ? "/api/dashboard/direccion" : null);
+  const { data, error, reload } = dash;
 
+  // A failed refresh (after a save) keeps the board on screen and reports it.
+  const hadData = useRef(false);
   useEffect(() => {
-    fetch("/api/user")
-      .then((r) => r.json())
-      .then((d) => setJobRole(d.jobRole ?? null))
-      .catch(() => {})
-      .finally(() => setRoleLoaded(true));
-  }, []);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/dashboard/direccion");
-      if (res.ok) setData(await res.json());
-    } catch {
-      /* noop */
-    }
-    setLoading(false);
-  }, []);
-
+    if (data) hadData.current = true;
+  }, [data]);
   useEffect(() => {
-    if (jobRole === "DIRECCION") load();
-  }, [jobRole, load]);
+    if (error && hadData.current) toast(error, "error", { action: { label: "Reintentar", onClick: reload } });
+  }, [error, reload, toast]);
 
-  if (!roleLoaded) {
-    return <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
-  }
-  if (jobRole !== "DIRECCION") {
+  const header = (description?: string) => (
+    <PageHeader icon={Gauge} title="Dirección" description={description} />
+  );
+
+  if (user.initialLoading) {
     return (
-      <div className="py-20 text-center text-sm text-muted-foreground">
-        No autorizado. Este panel es exclusivo de Dirección.
+      <div className="space-y-6">
+        {header()}
+        <DashboardSkeleton />
       </div>
     );
   }
-  if (loading && !data) {
-    return <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+  if (user.error) {
+    return (
+      <div className="space-y-6">
+        {header()}
+        <Card><ErrorState message={user.error} onRetry={user.reload} /></Card>
+      </div>
+    );
   }
-  if (!data) return null;
+  if (jobRole !== "DIRECCION") {
+    return (
+      <div className="space-y-6">
+        {header()}
+        <Card>
+          <EmptyState icon={Lock} title="No autorizado" description="Este panel es exclusivo de Dirección." />
+        </Card>
+      </div>
+    );
+  }
+  if (!data) {
+    return (
+      <div className="space-y-6">
+        {header()}
+        {error ? <Card><ErrorState message={error} onRetry={reload} /></Card> : <DashboardSkeleton />}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
-          <Gauge className="h-6 w-6 text-primary" /> Dirección
-        </h1>
-        <p className="text-sm text-muted-foreground">Panorama del mes {data.mes}</p>
-      </div>
+      {header(`Panorama del mes ${data.mes}`)}
 
-      <NumeroCriticoHero nc={data.numeroCritico} mes={data.mes} onSaved={load} toast={toast} />
+      <NumeroCriticoHero nc={data.numeroCritico} mes={data.mes} onSaved={reload} toast={toast} />
 
       <CarteraBlock cartera={data.cartera} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <EmbudoBlock rows={data.embudo} />
-        <VendedoresBlock rows={data.ventasPorVendedor} mes={data.mes} onSaved={load} toast={toast} />
+        <VendedoresBlock rows={data.ventasPorVendedor} mes={data.mes} onSaved={reload} toast={toast} />
       </div>
 
       <ReportesBlock rows={data.reportesHoy} hoy={data.hoy} />
@@ -178,22 +269,15 @@ export default function DireccionDashboardPage() {
 
 // ── 1. Número Crítico ──
 function NumeroCriticoHero({ nc, mes, onSaved, toast }: {
-  nc: NumeroCritico; mes: string; onSaved: () => void; toast: (m: string, t?: "success" | "error" | "info") => void;
+  nc: NumeroCritico; mes: string; onSaved: () => void; toast: ToastFn;
 }) {
   const [editing, setEditing] = useState(false);
-  const [val, setVal] = useState(String(nc.meta));
   const [saving, setSaving] = useState(false);
 
-  const save = async () => {
+  const save = async (val: string) => {
     setSaving(true);
     try {
-      const res = await fetch("/api/targets", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mes, monthlyMeta: Number(val) }),
-      });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.error || "Error");
+      await apiSend("/api/targets", "PUT", { mes, monthlyMeta: Number(val) });
       toast("Meta actualizada", "success");
       setEditing(false);
       onSaved();
@@ -204,37 +288,43 @@ function NumeroCriticoHero({ nc, mes, onSaved, toast }: {
   };
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Número Crítico · Cobranza del mes</h2>
-        <span className={cn("rounded-full px-3 py-1 text-xs font-bold", SALUD_COLOR[nc.semaforo])}>{nc.semaforo}</span>
+    <Card className="p-6">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold text-muted-foreground">Número Crítico · Cobranza del mes</h2>
+        <SaludBadge value={nc.semaforo} className="rounded-full px-3 py-1 font-bold" />
       </div>
 
       <div className="mt-4 grid gap-6 md:grid-cols-[auto_1fr]">
         <div>
           <p className={cn("text-5xl font-black leading-none", SEMA_TEXT[nc.semaforo])}>{pct(nc.avancePct)}</p>
           <p className="mt-1 text-xs text-muted-foreground">de avance</p>
-          <div className="mt-3 h-3 w-56 overflow-hidden rounded-full bg-secondary">
+          <div
+            className="mt-3 h-3 w-full max-w-56 overflow-hidden rounded-full bg-secondary sm:w-56"
+            role="progressbar"
+            aria-label="Avance de cobranza"
+            aria-valuenow={Math.round(nc.avancePct)}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
             <div className={cn("h-3 rounded-full", SEMA_BAR[nc.semaforo])} style={{ width: `${Math.min(100, nc.avancePct)}%` }} />
           </div>
-          <p className="mt-1 text-[11px] text-muted-foreground">Mes transcurrido: {pct(nc.mesTranscurridoPct)}</p>
+          <p className="mt-1 text-xs text-muted-foreground">Mes transcurrido: {pct(nc.mesTranscurridoPct)}</p>
         </div>
 
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           <Stat label="Meta">
             {editing ? (
-              <div className="flex items-center gap-1">
-                <input type="number" min={0} value={val} onChange={(e) => setVal(e.target.value)}
-                  className="w-28 rounded border border-border bg-background px-2 py-1 text-sm" />
-                <button onClick={save} disabled={saving} className="text-emerald-600" aria-label="Guardar">
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                </button>
-                <button onClick={() => { setEditing(false); setVal(String(nc.meta)); }} className="text-muted-foreground" aria-label="Cancelar"><X className="h-4 w-4" /></button>
-              </div>
+              <MetaEditor
+                initial={String(nc.meta)}
+                label="Meta de cobranza del mes"
+                saving={saving}
+                onSave={save}
+                onCancel={() => setEditing(false)}
+              />
             ) : (
-              <span className="inline-flex items-center gap-1.5">
+              <span className="inline-flex items-center gap-1">
                 {formatCurrency(nc.meta)}
-                <button onClick={() => setEditing(true)} className="text-muted-foreground hover:text-foreground" aria-label="Editar meta"><Pencil className="h-3.5 w-3.5" /></button>
+                <EditMetaButton onClick={() => setEditing(true)} />
               </span>
             )}
           </Stat>
@@ -244,7 +334,7 @@ function NumeroCriticoHero({ nc, mes, onSaved, toast }: {
           <Stat label="Ritmo requerido/día">{formatCurrency(nc.ritmoDiario)}</Stat>
         </div>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -252,7 +342,7 @@ function Stat({ label, children }: { label: string; children: React.ReactNode })
   return (
     <div>
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="text-lg font-bold text-foreground">{children}</p>
+      <div className="text-lg font-bold tabular-nums text-foreground">{children}</div>
     </div>
   );
 }
@@ -261,15 +351,15 @@ function Stat({ label, children }: { label: string; children: React.ReactNode })
 function CarteraBlock({ cartera }: { cartera: Cartera }) {
   const t = cartera.totals;
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
+    <Card className="p-5">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground"><Users className="h-5 w-5 text-primary" /> Cartera</h2>
-        <div className="flex items-center gap-2 text-xs">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
           <span className="text-muted-foreground">Salud del grupo:</span>
           {cartera.saludGrupo ? (
-            <span className={cn("rounded px-2 py-0.5 font-semibold", SALUD_COLOR[cartera.saludGrupo])}>{cartera.saludGrupo}</span>
+            <SaludBadge value={cartera.saludGrupo} />
           ) : (
-            <span className="rounded bg-secondary px-2 py-0.5 font-semibold text-muted-foreground">Sin clientes activos</span>
+            <span className="rounded-md bg-secondary px-2 py-0.5 font-semibold text-muted-foreground">Sin clientes activos</span>
           )}
           <span className="text-muted-foreground">V {cartera.saludCounts.verde} · A {cartera.saludCounts.amarillo} · R {cartera.saludCounts.rojo}</span>
         </div>
@@ -284,6 +374,10 @@ function CarteraBlock({ cartera }: { cartera: Cartera }) {
         <MiniStat label="De baja" value={`${t.baja.count}`} sub={formatCurrency(t.baja.monto)} />
       </div>
 
+      {cartera.clientes.length === 0 ? (
+        <EmptyState icon={Users} title="Sin clientes" description="Aún no hay clientes en la cartera." className="py-8" />
+      ) : (
+      <>
       <div className="hidden overflow-x-auto rounded-lg border border-border sm:block">
         <table className="w-full min-w-[640px] text-sm">
           <thead>
@@ -303,13 +397,10 @@ function CarteraBlock({ cartera }: { cartera: Cartera }) {
                 <td className="px-3 py-2">{formatCurrency(c.montoMensual)}</td>
                 <td className="px-3 py-2 text-muted-foreground">{c.diaDePago ?? "—"}</td>
                 <td className="px-3 py-2 text-muted-foreground">{ESTATUS_LABEL[c.estatus]}</td>
-                <td className="px-3 py-2"><span className={cn("inline-block rounded px-2 py-0.5 text-xs font-semibold", SALUD_COLOR[c.salud])}>{c.salud}</span></td>
+                <td className="px-3 py-2"><SaludBadge value={c.salud} /></td>
                 <td className="px-3 py-2">{formatCurrency(c.cobradoMes)}</td>
               </tr>
             ))}
-            {cartera.clientes.length === 0 && (
-              <tr><td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">Sin clientes.</td></tr>
-            )}
           </tbody>
         </table>
       </div>
@@ -319,42 +410,41 @@ function CarteraBlock({ cartera }: { cartera: Cartera }) {
           <div key={c.id} className="rounded-lg border border-border p-3">
             <div className="flex items-start justify-between gap-2">
               <p className="font-medium text-foreground">{c.nombre}</p>
-              <span className={cn("inline-block shrink-0 rounded px-2 py-0.5 text-xs font-semibold", SALUD_COLOR[c.salud])}>{c.salud}</span>
+              <SaludBadge value={c.salud} />
             </div>
             <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
               <div>
-                <p className="text-[11px] text-muted-foreground">Monto mensual</p>
+                <p className="text-xs text-muted-foreground">Monto mensual</p>
                 <p className="font-medium text-foreground">{formatCurrency(c.montoMensual)}</p>
               </div>
               <div>
-                <p className="text-[11px] text-muted-foreground">Día de pago</p>
+                <p className="text-xs text-muted-foreground">Día de pago</p>
                 <p className="font-medium text-foreground">{c.diaDePago ?? "—"}</p>
               </div>
               <div>
-                <p className="text-[11px] text-muted-foreground">Estatus</p>
+                <p className="text-xs text-muted-foreground">Estatus</p>
                 <p className="font-medium text-foreground">{ESTATUS_LABEL[c.estatus]}</p>
               </div>
               <div>
-                <p className="text-[11px] text-muted-foreground">Cobrado mes</p>
+                <p className="text-xs text-muted-foreground">Cobrado mes</p>
                 <p className="font-medium text-foreground">{formatCurrency(c.cobradoMes)}</p>
               </div>
             </div>
           </div>
         ))}
-        {cartera.clientes.length === 0 && (
-          <p className="rounded-lg border border-border p-3 text-center text-muted-foreground">Sin clientes.</p>
-        )}
       </div>
-    </div>
+      </>
+      )}
+    </Card>
   );
 }
 
 function MiniStat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="rounded-lg border border-border bg-secondary/30 px-3 py-2">
-      <p className="text-[11px] text-muted-foreground">{label}</p>
-      <p className="text-sm font-bold text-foreground">{value}</p>
-      {sub && <p className="text-[11px] text-muted-foreground">{sub}</p>}
+    <div className="rounded-lg border border-border bg-secondary/40 px-3 py-2">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="text-sm font-bold tabular-nums text-foreground">{value}</p>
+      {sub && <p className="text-xs tabular-nums text-muted-foreground">{sub}</p>}
     </div>
   );
 }
@@ -362,8 +452,11 @@ function MiniStat({ label, value, sub }: { label: string; value: string; sub?: s
 // ── 3. Embudo ──
 function EmbudoBlock({ rows }: { rows: EmbudoRow[] }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
+    <Card className="p-5">
       <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-foreground"><Filter className="h-5 w-5 text-primary" /> Embudo</h2>
+      {rows.length === 0 ? (
+        <EmptyState icon={Filter} title="Embudo vacío" description="Aún no hay leads en el embudo." className="py-8" />
+      ) : (
       <div className="space-y-2.5">
         {rows.map((r) => (
           <div key={r.etapa}>
@@ -377,28 +470,22 @@ function EmbudoBlock({ rows }: { rows: EmbudoRow[] }) {
           </div>
         ))}
       </div>
-    </div>
+      )}
+    </Card>
   );
 }
 
 // ── 4. Ventas por vendedor ──
 function VendedoresBlock({ rows, mes, onSaved, toast }: {
-  rows: VendedorRow[]; mes: string; onSaved: () => void; toast: (m: string, t?: "success" | "error" | "info") => void;
+  rows: VendedorRow[]; mes: string; onSaved: () => void; toast: ToastFn;
 }) {
   const [editing, setEditing] = useState<string | null>(null);
-  const [val, setVal] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const save = async (userId: string) => {
+  const save = async (userId: string, val: string) => {
     setSaving(true);
     try {
-      const res = await fetch("/api/targets", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mes, vendors: [{ userId, meta: Number(val) }] }),
-      });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.error || "Error");
+      await apiSend("/api/targets", "PUT", { mes, vendors: [{ userId, meta: Number(val) }] });
       toast("Meta actualizada", "success");
       setEditing(null);
       onSaved();
@@ -408,9 +495,29 @@ function VendedoresBlock({ rows, mes, onSaved, toast }: {
     setSaving(false);
   };
 
+  const metaCell = (r: VendedorRow) =>
+    editing === r.userId ? (
+      <MetaEditor
+        initial={String(r.meta)}
+        label={`Meta de ${r.name}`}
+        saving={saving}
+        onSave={(v) => save(r.userId, v)}
+        onCancel={() => setEditing(null)}
+      />
+    ) : (
+      <span className="inline-flex items-center gap-1 font-medium text-foreground">
+        {formatCurrency(r.meta)}
+        <EditMetaButton onClick={() => setEditing(r.userId)} />
+      </span>
+    );
+
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
+    <Card className="p-5">
       <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-foreground"><TrendingUp className="h-5 w-5 text-primary" /> Ventas por vendedor</h2>
+      {rows.length === 0 ? (
+        <EmptyState icon={TrendingUp} title="Sin vendedores" description="No hay vendedores con ventas este mes." className="py-8" />
+      ) : (
+      <>
       <div className="hidden overflow-x-auto sm:block">
         <table className="w-full min-w-[480px] text-sm">
           <thead>
@@ -426,20 +533,7 @@ function VendedoresBlock({ rows, mes, onSaved, toast }: {
             {rows.map((r) => (
               <tr key={r.userId} className="border-b border-border last:border-0">
                 <td className="px-2 py-2 font-medium text-foreground">{r.name}</td>
-                <td className="px-2 py-2">
-                  {editing === r.userId ? (
-                    <div className="flex items-center gap-1">
-                      <input type="number" min={0} value={val} onChange={(e) => setVal(e.target.value)} className="w-24 rounded border border-border bg-background px-2 py-1 text-xs" />
-                      <button onClick={() => save(r.userId)} disabled={saving} className="text-emerald-600" aria-label="Guardar">{saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}</button>
-                      <button onClick={() => setEditing(null)} className="text-muted-foreground" aria-label="Cancelar"><X className="h-3.5 w-3.5" /></button>
-                    </div>
-                  ) : (
-                    <span className="inline-flex items-center gap-1">
-                      {formatCurrency(r.meta)}
-                      <button onClick={() => { setEditing(r.userId); setVal(String(r.meta)); }} className="text-muted-foreground hover:text-foreground" aria-label="Editar meta"><Pencil className="h-3 w-3" /></button>
-                    </span>
-                  )}
-                </td>
+                <td className="px-2 py-2">{metaCell(r)}</td>
                 <td className="px-2 py-2">{formatCurrency(r.vendido)}</td>
                 <td className="px-2 py-2">{formatCurrency(r.cobrado)}</td>
                 <td className="px-2 py-2 min-w-[120px]">
@@ -452,9 +546,6 @@ function VendedoresBlock({ rows, mes, onSaved, toast }: {
                 </td>
               </tr>
             ))}
-            {rows.length === 0 && (
-              <tr><td colSpan={5} className="px-2 py-6 text-center text-muted-foreground">Sin vendedores.</td></tr>
-            )}
           </tbody>
         </table>
       </div>
@@ -466,18 +557,7 @@ function VendedoresBlock({ rows, mes, onSaved, toast }: {
             <div className="mt-2 space-y-1.5 text-sm">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs text-muted-foreground">Meta</span>
-                {editing === r.userId ? (
-                  <div className="flex items-center gap-1">
-                    <input type="number" min={0} value={val} onChange={(e) => setVal(e.target.value)} className="w-24 rounded border border-border bg-background px-2 py-1 text-xs" />
-                    <button onClick={() => save(r.userId)} disabled={saving} className="text-emerald-600" aria-label="Guardar">{saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}</button>
-                    <button onClick={() => setEditing(null)} className="text-muted-foreground" aria-label="Cancelar"><X className="h-3.5 w-3.5" /></button>
-                  </div>
-                ) : (
-                  <span className="inline-flex items-center gap-1 font-medium text-foreground">
-                    {formatCurrency(r.meta)}
-                    <button onClick={() => { setEditing(r.userId); setVal(String(r.meta)); }} className="text-muted-foreground hover:text-foreground" aria-label="Editar meta"><Pencil className="h-3 w-3" /></button>
-                  </span>
-                )}
+                {metaCell(r)}
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">Vendido</span>
@@ -499,30 +579,32 @@ function VendedoresBlock({ rows, mes, onSaved, toast }: {
             </div>
           </div>
         ))}
-        {rows.length === 0 && (
-          <p className="rounded-lg border border-border p-3 text-center text-muted-foreground">Sin vendedores.</p>
-        )}
       </div>
-    </div>
+      </>
+      )}
+    </Card>
   );
 }
 
 // ── 5. Reportes de hoy ──
 function ReportesBlock({ rows, hoy }: { rows: ReporteRow[]; hoy: string }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
+    <Card className="p-5">
       <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-foreground"><CheckCircle2 className="h-5 w-5 text-primary" /> Reportes de hoy <span className="text-sm font-normal text-muted-foreground">({hoy})</span></h2>
+      {rows.length === 0 ? (
+        <EmptyState icon={Users} title="Sin reportes" description="No hay miembros que envíen reporte." className="py-8" />
+      ) : (
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {rows.map((r) => {
           const defs = r.jobRole && r.jobRole !== "DIRECCION" ? REPORT_SUMMARY[r.jobRole] : [];
           return (
-            <div key={r.userId} className="rounded-lg border border-border bg-secondary/20 p-4">
-              <div className="mb-2 flex items-center justify-between">
-                <p className="font-semibold text-foreground">{r.name}</p>
+            <div key={r.userId} className="rounded-lg border border-border bg-secondary/40 p-4">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="min-w-0 truncate font-semibold text-foreground">{r.name}</p>
                 {r.submitted ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"><CheckCircle2 className="h-3 w-3" /> Enviado</span>
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-success/30 bg-success/10 px-2 py-0.5 text-xs font-semibold text-success"><CheckCircle2 className="h-3 w-3" /> Enviado</span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200"><Clock className="h-3 w-3" /> Pendiente</span>
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-warning/30 bg-warning/10 px-2 py-0.5 text-xs font-semibold text-warning"><Clock className="h-3 w-3" /> Pendiente</span>
                 )}
               </div>
               {r.submitted && r.payload ? (
@@ -545,17 +627,21 @@ function ReportesBlock({ rows, hoy }: { rows: ReporteRow[]; hoy: string }) {
             </div>
           );
         })}
-        {rows.length === 0 && <p className="text-sm text-muted-foreground">No hay miembros que envíen reporte.</p>}
       </div>
-    </div>
+      )}
+    </Card>
   );
 }
 
 // ── 6. Rocas del mes ──
 function RocasBlock({ rows }: { rows: RocaRow[] }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
+    <Card className="p-5">
       <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-foreground"><Mountain className="h-5 w-5 text-primary" /> Rocas del mes</h2>
+      {rows.length === 0 ? (
+        <EmptyState icon={Mountain} title="Sin rocas este mes" description="Las rocas trimestrales del mes aparecerán aquí." className="py-8" />
+      ) : (
+      <>
       <div className="hidden overflow-x-auto sm:block">
         <table className="w-full min-w-[640px] text-sm">
           <thead>
@@ -576,7 +662,7 @@ function RocasBlock({ rows }: { rows: RocaRow[] }) {
                   <p className="text-xs text-muted-foreground">{r.metricaExito}</p>
                 </td>
                 <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{fmtDate(r.fechaLimite)}</td>
-                <td className="px-3 py-2"><span className={cn("inline-block rounded px-2 py-0.5 text-xs font-semibold", SALUD_COLOR[r.estatus])}>{r.estatus}</span></td>
+                <td className="px-3 py-2"><SaludBadge value={r.estatus} /></td>
                 <td className="px-3 py-2 min-w-[140px]">
                   <div className="flex items-center gap-2">
                     <div className="h-2 flex-1 rounded-full bg-secondary">
@@ -587,9 +673,6 @@ function RocasBlock({ rows }: { rows: RocaRow[] }) {
                 </td>
               </tr>
             ))}
-            {rows.length === 0 && (
-              <tr><td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">Sin rocas este mes.</td></tr>
-            )}
           </tbody>
         </table>
       </div>
@@ -602,15 +685,15 @@ function RocasBlock({ rows }: { rows: RocaRow[] }) {
                 <p className="font-medium text-foreground">{r.titulo}</p>
                 <p className="text-xs text-muted-foreground">{r.metricaExito}</p>
               </div>
-              <span className={cn("inline-block shrink-0 rounded px-2 py-0.5 text-xs font-semibold", SALUD_COLOR[r.estatus])}>{r.estatus}</span>
+              <SaludBadge value={r.estatus} />
             </div>
             <div className="mt-2 flex items-center justify-between text-sm">
               <div>
-                <p className="text-[11px] text-muted-foreground">Dueño</p>
+                <p className="text-xs text-muted-foreground">Dueño</p>
                 <p className="font-medium text-foreground">{r.duenoNombre ?? "—"}</p>
               </div>
               <div className="text-right">
-                <p className="text-[11px] text-muted-foreground">Fecha</p>
+                <p className="text-xs text-muted-foreground">Fecha</p>
                 <p className="font-medium text-foreground">{fmtDate(r.fechaLimite)}</p>
               </div>
             </div>
@@ -625,10 +708,9 @@ function RocasBlock({ rows }: { rows: RocaRow[] }) {
             </div>
           </div>
         ))}
-        {rows.length === 0 && (
-          <p className="rounded-lg border border-border p-3 text-center text-muted-foreground">Sin rocas este mes.</p>
-        )}
       </div>
-    </div>
+      </>
+      )}
+    </Card>
   );
 }

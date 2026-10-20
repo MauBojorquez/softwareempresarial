@@ -1,7 +1,10 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { X, Check, Loader2, Upload, FileUp, ArrowLeft } from "lucide-react";
+import { Check, Upload, FileUp, ArrowLeft } from "lucide-react";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Field, Select } from "@/components/ui/field";
 
 type Member = { id: string; name: string | null };
 
@@ -229,113 +232,131 @@ export function ImportLeadsModal({
     setImporting(false);
   };
 
-  const selectClass = "min-h-[38px] w-full rounded-lg border border-border bg-secondary/40 px-2 py-1.5 text-sm";
+  // Once rows were imported, closing (X / Escape / overlay) must still refresh the board.
+  const close = () => {
+    if (importing) return;
+    if (result) onDone();
+    else onClose();
+  };
+
+  const footer = result ? (
+    <Button onClick={onDone}>
+      <Check /> Listo
+    </Button>
+  ) : step === "upload" ? (
+    <Button variant="outline" onClick={onClose}>
+      Cancelar
+    </Button>
+  ) : (
+    <>
+      <Button variant="ghost" onClick={onClose} disabled={importing}>
+        Cancelar
+      </Button>
+      <Button
+        variant="outline"
+        onClick={() => {
+          setStep("upload");
+          setResult(null);
+        }}
+        disabled={importing}
+      >
+        <ArrowLeft /> Atrás
+      </Button>
+      <Button onClick={submit} loading={importing}>
+        {!importing && <Upload />}
+        Importar {dataRows.length} filas
+      </Button>
+    </>
+  );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div
-        className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl border border-border bg-card shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
+    <Dialog open onOpenChange={(o) => !o && close()}>
+      <DialogContent
+        size="lg"
+        title="Importar leads desde CSV"
+        description={
+          result
+            ? "Resultado de la importación."
+            : step === "upload"
+              ? "Paso 1 de 2 · Selecciona el archivo."
+              : "Paso 2 de 2 · Asigna las columnas a los campos del lead."
+        }
+        footer={footer}
       >
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <h3 className="flex items-center gap-2 font-semibold">
-            {step === "map" && !result && (
-              <button
-                onClick={() => {
-                  setStep("upload");
-                  setResult(null);
-                }}
-                className="text-muted-foreground hover:text-foreground"
-                aria-label="Volver"
-              >
-                <ArrowLeft size={18} />
-              </button>
-            )}
-            Importar leads desde CSV
-          </h3>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-6">
-          {/* ── Result screen ── */}
-          {result ? (
-            <div className="space-y-4">
-              <div className="rounded-xl border border-border bg-secondary/30 p-4">
-                <p className="text-sm">
-                  <span className="text-lg font-bold text-emerald-500">{result.imported}</span> de {result.total}{" "}
-                  leads importados.
+        {result ? (
+          /* ── Result screen ── */
+          <div className="space-y-4">
+            <div className="rounded-xl border border-border bg-secondary/40 p-4">
+              <p className="text-sm">
+                <span className="text-lg font-bold text-success">{result.imported}</span> de {result.total} leads
+                importados.
+              </p>
+              {result.skipped.length > 0 && (
+                <p className="mt-1 text-sm text-muted-foreground">{result.skipped.length} fila(s) omitidas.</p>
+              )}
+              {result.warnings.length > 0 && (
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {result.warnings.length} advertencia(s) (campos omitidos).
                 </p>
-                {result.skipped.length > 0 && (
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {result.skipped.length} fila(s) omitidas.
-                  </p>
-                )}
-                {result.warnings.length > 0 && (
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {result.warnings.length} advertencia(s) (campos omitidos).
-                  </p>
-                )}
-              </div>
-              {(result.skipped.length > 0 || result.warnings.length > 0) && (
-                <div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-border p-3 text-xs">
-                  {result.skipped.map((s, i) => (
-                    <div key={`s${i}`} className="text-red-500">
-                      Fila {s.row}: {s.reason} (omitida)
-                    </div>
-                  ))}
-                  {result.warnings.map((w, i) => (
-                    <div key={`w${i}`} className="text-amber-500">
-                      Fila {w.row}: {w.reason}
-                    </div>
-                  ))}
-                </div>
               )}
             </div>
-          ) : step === "upload" ? (
-            /* ── Upload screen ── */
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Sube un archivo <code>.csv</code> con tus contactos. En el siguiente paso podrás asignar cada
-                columna del archivo a un campo del lead.
-              </p>
-              <button
-                onClick={() => fileInput.current?.click()}
-                className="flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-border bg-secondary/20 px-6 py-10 text-sm text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
-              >
-                <FileUp className="h-8 w-8" />
-                <span className="font-medium">Selecciona un archivo CSV</span>
-                <span className="text-xs">Se acepta separador por coma, punto y coma o tabulador.</span>
-              </button>
-              <input
-                ref={fileInput}
-                type="file"
-                accept=".csv,text/csv"
-                className="hidden"
-                onChange={(e) => onFile(e.target.files?.[0] ?? null)}
-              />
-            </div>
-          ) : (
-            /* ── Mapping screen ── */
-            <div className="space-y-5">
-              <p className="text-xs text-muted-foreground">
-                <span className="font-medium text-foreground">{fileName}</span> · {dataRows.length} filas detectadas
-              </p>
+            {(result.skipped.length > 0 || result.warnings.length > 0) && (
+              <ul className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-border p-3 text-xs">
+                {result.skipped.map((s, i) => (
+                  <li key={`s${i}`} className="text-destructive">
+                    Fila {s.row}: {s.reason} (omitida)
+                  </li>
+                ))}
+                {result.warnings.map((w, i) => (
+                  <li key={`w${i}`} className="text-warning">
+                    Fila {w.row}: {w.reason}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ) : step === "upload" ? (
+          /* ── Upload screen ── */
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Sube un archivo <code>.csv</code> con tus contactos. En el siguiente paso podrás asignar cada columna del
+              archivo a un campo del lead.
+            </p>
+            <button
+              type="button"
+              onClick={() => fileInput.current?.click()}
+              className="flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-border bg-secondary/40 px-6 py-10 text-sm text-muted-foreground transition-colors hover:border-primary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <FileUp className="h-8 w-8" aria-hidden />
+              <span className="font-medium">Selecciona un archivo CSV</span>
+              <span className="text-xs">Se acepta separador por coma, punto y coma o tabulador.</span>
+            </button>
+            <input
+              ref={fileInput}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={(e) => {
+                onFile(e.target.files?.[0] ?? null);
+                e.target.value = "";
+              }}
+            />
+          </div>
+        ) : (
+          /* ── Mapping screen ── */
+          <div className="space-y-5">
+            <p className="text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">{fileName}</span> · {dataRows.length} filas detectadas
+            </p>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                {FIELDS.map((f) => (
-                  <label key={f.key} className="block space-y-1">
-                    <span className="text-xs font-medium">
-                      {f.label}
-                      {"required" in f && f.required && <span className="text-red-500"> *</span>}
-                    </span>
-                    <select
-                      className={selectClass}
+            <div className="grid gap-3 sm:grid-cols-2">
+              {FIELDS.map((f) => {
+                const required = "required" in f && f.required;
+                return (
+                  <Field key={f.key} label={f.label} optional={!required}>
+                    <Select
                       value={mapping[f.key]}
-                      onChange={(e) =>
-                        setMapping((m) => ({ ...m, [f.key]: Number(e.target.value) }))
-                      }
+                      onChange={(e) => setMapping((m) => ({ ...m, [f.key]: Number(e.target.value) }))}
                     >
                       <option value={-1}>— No importar —</option>
                       {headers.map((h, idx) => (
@@ -343,111 +364,65 @@ export function ImportLeadsModal({
                           {h || `Columna ${idx + 1}`}
                         </option>
                       ))}
-                    </select>
-                  </label>
-                ))}
-              </div>
-
-              <div className="grid gap-3 border-t border-border pt-4 sm:grid-cols-2">
-                <label className="block space-y-1">
-                  <span className="text-xs font-medium">
-                    Origen por defecto<span className="text-red-500"> *</span>
-                  </span>
-                  <select
-                    className={selectClass}
-                    value={defaultOrigen}
-                    onChange={(e) => setDefaultOrigen(e.target.value as "" | Origen)}
-                  >
-                    <option value="">Selecciona…</option>
-                    {ORIGENES.map((o) => (
-                      <option key={o} value={o}>
-                        {ORIGEN_LABEL[o]}
-                      </option>
-                    ))}
-                  </select>
-                  <span className="text-[11px] text-muted-foreground">
-                    Se usa cuando la fila no traiga un origen válido.
-                  </span>
-                </label>
-                <label className="block space-y-1">
-                  <span className="text-xs font-medium">Dueño por defecto</span>
-                  <select
-                    className={selectClass}
-                    value={defaultDuenoId}
-                    onChange={(e) => setDefaultDuenoId(e.target.value)}
-                  >
-                    <option value="">Yo (por defecto)</option>
-                    {members.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-
-              {mapping.nombre >= 0 && (
-                <div className="space-y-2">
-                  <span className="text-xs font-medium">Vista previa</span>
-                  <div className="overflow-x-auto rounded-lg border border-border">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-secondary/40 text-muted-foreground">
-                        <tr>
-                          <th className="px-2 py-1.5">Nombre</th>
-                          <th className="px-2 py-1.5">Empresa</th>
-                          <th className="px-2 py-1.5">Correo</th>
-                          <th className="px-2 py-1.5">Teléfono</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {preview.map((row, i) => (
-                          <tr key={i} className="border-t border-border">
-                            <td className="px-2 py-1.5">{cell(row, "nombre") || "—"}</td>
-                            <td className="px-2 py-1.5">{cell(row, "empresa") || "—"}</td>
-                            <td className="px-2 py-1.5">{cell(row, "email") || "—"}</td>
-                            <td className="px-2 py-1.5">{cell(row, "telefono") || "—"}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
+                    </Select>
+                  </Field>
+                );
+              })}
             </div>
-          )}
-        </div>
 
-        {/* ── Footer ── */}
-        <div className="flex gap-3 border-t border-border px-6 py-4">
-          {result ? (
-            <button
-              onClick={onDone}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg gradient-bg py-2 text-sm font-semibold text-white hover:opacity-90"
-            >
-              <Check className="h-4 w-4" /> Listo
-            </button>
-          ) : (
-            <>
-              <button
-                onClick={onClose}
-                className="flex-1 rounded-lg border border-border py-2 text-sm text-muted-foreground hover:text-foreground"
-              >
-                Cancelar
-              </button>
-              {step === "map" && (
-                <button
-                  onClick={submit}
-                  disabled={importing}
-                  className="flex flex-1 items-center justify-center gap-1.5 rounded-lg gradient-bg py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
-                >
-                  {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                  Importar {dataRows.length} filas
-                </button>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-    </div>
+            <div className="grid gap-3 border-t border-border pt-4 sm:grid-cols-2">
+              <Field label="Origen por defecto" hint="Se usa cuando la fila no traiga un origen válido.">
+                <Select value={defaultOrigen} onChange={(e) => setDefaultOrigen(e.target.value as "" | Origen)}>
+                  <option value="">Selecciona…</option>
+                  {ORIGENES.map((o) => (
+                    <option key={o} value={o}>
+                      {ORIGEN_LABEL[o]}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Dueño por defecto" optional>
+                <Select value={defaultDuenoId} onChange={(e) => setDefaultDuenoId(e.target.value)}>
+                  <option value="">Yo (por defecto)</option>
+                  {members.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+
+            {mapping.nombre >= 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Vista previa</p>
+                <div className="overflow-x-auto rounded-lg border border-border">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-secondary/40">
+                      <tr className="text-xs font-medium text-muted-foreground">
+                        <th className="px-2 py-1.5 font-medium">Nombre</th>
+                        <th className="px-2 py-1.5 font-medium">Empresa</th>
+                        <th className="px-2 py-1.5 font-medium">Correo</th>
+                        <th className="px-2 py-1.5 font-medium">Teléfono</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {preview.map((row, i) => (
+                        <tr key={i} className="border-t border-border">
+                          <td className="px-2 py-1.5">{cell(row, "nombre") || "—"}</td>
+                          <td className="px-2 py-1.5">{cell(row, "empresa") || "—"}</td>
+                          <td className="px-2 py-1.5">{cell(row, "email") || "—"}</td>
+                          <td className="px-2 py-1.5">{cell(row, "telefono") || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }

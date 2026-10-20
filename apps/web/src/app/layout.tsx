@@ -7,21 +7,12 @@ const inter = Inter({ subsets: ["latin"], weight: ["400", "500", "600", "700"] }
 
 export const metadata: Metadata = {
   title: {
-    default: "StratiuMetrics — Dashboard Empresarial con IA",
+    default: "StratiuMetrics",
     template: "%s | StratiuMetrics",
   },
-  description:
-    "Centraliza las métricas de tu empresa. Finanzas, ventas, operaciones, RH y marketing en un solo lugar con reportes inteligentes.",
-  keywords: [
-    "dashboard empresarial",
-    "métricas",
-    "KPIs",
-    "IA",
-    "reportes",
-    "finanzas",
-    "ventas",
-    "México",
-  ],
+  description: "Herramienta interna del equipo Stratium.",
+  // Internal tool: keep it out of search engines.
+  robots: { index: false, follow: false },
   authors: [{ name: "Stratium" }],
   manifest: "/manifest.json",
   applicationName: "StratiuMetrics",
@@ -40,19 +31,6 @@ export const metadata: Metadata = {
     { rel: "icon", url: "/brand-icon.png", type: "image/png" },
     { rel: "apple-touch-icon", url: "/brand-icon.png" },
   ],
-  openGraph: {
-    title: "StratiuMetrics — Dashboard Empresarial con IA",
-    description:
-      "Centraliza las métricas de tu empresa con inteligencia artificial.",
-    type: "website",
-    locale: "es_MX",
-    siteName: "StratiuMetrics",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "StratiuMetrics — Dashboard Empresarial con IA",
-    description: "Centraliza las métricas de tu empresa. Finanzas, ventas, operaciones, RH y marketing en un solo lugar.",
-  },
 };
 
 export const viewport: Viewport = {

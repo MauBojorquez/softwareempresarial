@@ -5,26 +5,34 @@ import { useSession } from "next-auth/react";
 import { signOut } from "next-auth/react";
 import { useTheme } from "@/components/theme-provider";
 import { useToast } from "@/components/toast";
-import { ConfirmDialog } from "@/components/confirm-dialog";
+import { useConfirm } from "@/components/ui/confirm";
+import { Button } from "@/components/ui/button";
+import { Field, Input, Select } from "@/components/ui/field";
+import { PageHeader, Card } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, RowsSkeleton, Skeleton } from "@/components/ui/states";
+import { useApi } from "@/hooks/use-api";
+import { refreshMe } from "@/hooks/use-me";
 import {
   Sun, Moon, Monitor, User, Building2, Download, Trash2,
-  AlertTriangle, Key, Plus, Copy, Eye, EyeOff, Loader2, Save, Lock, Users, Mail, X,
-  Palette, Camera, ImagePlus, BellRing, MessageCircle, Phone,
+  AlertTriangle, Key, Plus, Copy, Eye, EyeOff, Save, Lock, Users, Mail, X,
+  Camera, ImagePlus, BellRing, MessageCircle, Settings, UserPlus, SunMoon,
 } from "lucide-react";
 import { PhoneInput } from "@/components/settings/phone-input";
 import { GoogleConnectCard } from "@/components/settings/google-connect";
+import { SettingsSection } from "@/components/settings/section";
 
 
 function Toggle({ enabled, onChange, label }: { enabled: boolean; onChange: (v: boolean) => void; label?: string }) {
   return (
     <button
+      type="button"
       role="switch"
       aria-checked={enabled}
       aria-label={label}
       onClick={() => onChange(!enabled)}
-      className={`relative w-10 h-5 rounded-full transition-colors ${enabled ? "bg-primary" : "bg-muted-foreground/30"}`}
+      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${enabled ? "bg-primary" : "bg-muted-foreground/30"}`}
     >
-      <span className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-foreground transition-transform ${enabled ? "translate-x-5" : "translate-x-0"}`} />
+      <span className={`absolute left-0.5 h-5 w-5 rounded-full bg-background shadow transition-transform ${enabled ? "translate-x-5" : "translate-x-0"}`} />
     </button>
   );
 }
@@ -67,6 +75,8 @@ type Member = {
   jobRole: JobRoleValue | null;
 };
 
+type Invitation = { id: string; email: string; role: string; expiresAt: string; invitedBy: { name: string | null; email: string } };
+
 const CONDITION_LABELS: Record<string, string> = {
   below: "Cae por debajo de",
   above: "Sube por encima de",
@@ -93,17 +103,24 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
+/** Read the server's error message from a failed response (or a fallback). */
+async function errorOf(res: Response, fallback: string) {
+  const data = await res.json().catch(() => ({}));
+  return (data as { error?: string }).error || fallback;
+}
+
 export default function SettingsPage() {
   const { data: session, update: updateSession } = useSession();
   const { theme, setTheme } = useTheme();
   const { toast } = useToast();
+  const confirm = useConfirm();
 
   const [isAdmin, setIsAdmin] = useState(false);
   const [profile, setProfile] = useState({ name: "", email: "" });
   const [org, setOrg] = useState({ name: "", industry: "" });
   const [avatar, setAvatar] = useState<string | null>(null);
   const [orgLogo, setOrgLogo] = useState<string | null>(null);
-  const [brandColor, setBrandColor] = useState("#6366f1");
+  const [brandColor, setBrandColor] = useState("#224CA0");
   const [savingBranding, setSavingBranding] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -113,37 +130,27 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
   const [loading, setLoading] = useState(true);
-
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const [contact, setContact] = useState({ phone: "", notifyEmail: true, notifyWhatsapp: false });
   const [savingContact, setSavingContact] = useState(false);
 
-  const [apiKeys, setApiKeys] = useState<ApiKeyItem[]>([]);
   const [newKeyName, setNewKeyName] = useState("");
   const [creatingKey, setCreatingKey] = useState(false);
   const [newKeyValue, setNewKeyValue] = useState<string | null>(null);
 
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleting, setDeleting] = useState(false);
-  const [confirmDeleteKeyId, setConfirmDeleteKeyId] = useState<string | null>(null);
-  const [confirmClearData, setConfirmClearData] = useState(false);
   const [clearingData, setClearingData] = useState(false);
   const [exportingCSV, setExportingCSV] = useState(false);
 
-  type Invitation = { id: string; email: string; role: string; expiresAt: string; invitedBy: { name: string | null; email: string } };
-  const [invitations, setInvitations] = useState<Invitation[]>([]);
-  const [members, setMembers] = useState<Member[]>([]);
-  const [membersOwnerId, setMembersOwnerId] = useState<string | null>(null);
-  const [membersCurrentUserId, setMembersCurrentUserId] = useState<string | null>(null);
   const [savingMemberId, setSavingMemberId] = useState<string | null>(null);
-  const [confirmDeleteMember, setConfirmDeleteMember] = useState<Member | null>(null);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"VIEWER" | "EDITOR" | "ADMIN">("VIEWER");
   const [inviteJobRole, setInviteJobRole] = useState<"" | "DIRECCION" | "OPERACIONES" | "COMERCIAL" | "MARKETING" | "ADMINISTRACION">("");
   const [inviteSections, setInviteSections] = useState<string[]>([]);
   const [inviting, setInviting] = useState(false);
 
-  const [alertRules, setAlertRules] = useState<AlertRuleItem[]>([]);
   const [newAlert, setNewAlert] = useState({
     metricName: "",
     category: "FINANCE" as (typeof CATEGORY_OPTIONS)[number],
@@ -152,56 +159,63 @@ export default function SettingsPage() {
   });
   const [savingAlert, setSavingAlert] = useState(false);
 
+  // Lists. Admin-only endpoints are requested once we know the user is Dirección.
+  const keysApi = useApi<{ keys?: ApiKeyItem[] }>(isAdmin ? "/api/user/api-keys" : null);
+  const invitesApi = useApi<{ invitations?: Invitation[] }>(isAdmin ? "/api/invitations" : null);
+  const membersApi = useApi<{ members?: Member[]; ownerId?: string | null; currentUserId?: string | null }>(
+    isAdmin ? "/api/members" : null,
+  );
+  const alertsApi = useApi<{ rules?: AlertRuleItem[] }>("/api/alerts");
+
+  const apiKeys = Array.isArray(keysApi.data?.keys) ? keysApi.data!.keys! : [];
+  const invitations = Array.isArray(invitesApi.data?.invitations) ? invitesApi.data!.invitations! : [];
+  const members = Array.isArray(membersApi.data?.members) ? membersApi.data!.members! : [];
+  const membersOwnerId = membersApi.data?.ownerId ?? null;
+  const membersCurrentUserId = membersApi.data?.currentUserId ?? null;
+  const alertRules = Array.isArray(alertsApi.data?.rules) ? alertsApi.data!.rules! : [];
+
+  const setMembers = (fn: (prev: Member[]) => Member[]) =>
+    membersApi.setData((d) => ({ ...(d ?? {}), members: fn(Array.isArray(d?.members) ? d!.members! : []) }));
+  const setAlertRules = (fn: (prev: AlertRuleItem[]) => AlertRuleItem[]) =>
+    alertsApi.setData((d) => ({ ...(d ?? {}), rules: fn(Array.isArray(d?.rules) ? d!.rules! : []) }));
+  const setApiKeys = (fn: (prev: ApiKeyItem[]) => ApiKeyItem[]) =>
+    keysApi.setData((d) => ({ ...(d ?? {}), keys: fn(Array.isArray(d?.keys) ? d!.keys! : []) }));
+  const setInvitations = (fn: (prev: Invitation[]) => Invitation[]) =>
+    invitesApi.setData((d) => ({ ...(d ?? {}), invitations: fn(Array.isArray(d?.invitations) ? d!.invitations! : []) }));
+
+  const loadUser = async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const r = await fetch("/api/user");
+      if (!r.ok) throw new Error(await errorOf(r, `Error ${r.status}`));
+      const data = await r.json();
+      if (data.user) {
+        setProfile({ name: data.user.name || "", email: data.user.email || "" });
+        if (data.user.theme && data.user.theme !== theme) setTheme(data.user.theme);
+        if (data.user.avatar) setAvatar(data.user.avatar);
+        setContact({
+          phone: data.user.phone || "",
+          notifyEmail: data.user.notifyEmail ?? true,
+          notifyWhatsapp: data.user.notifyWhatsapp ?? false,
+        });
+      }
+      if (data.organization) {
+        setOrg({ name: data.organization.name || "", industry: data.organization.industry || "" });
+        if (data.organization.logo) setOrgLogo(data.organization.logo);
+        if (data.organization.brandColor) setBrandColor(data.organization.brandColor);
+      }
+      // Org/admin sections are Dirección-only. DIRECCION == ADMIN membership
+      // here; accept either signal from /api/user.
+      setIsAdmin(data.role === "ADMIN" || data.jobRole === "DIRECCION");
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : "Sin conexión con el servidor.");
+    }
+    setLoading(false);
+  };
+
   useEffect(() => {
-    fetch("/api/user")
-      .then((r) => { if (!r.ok) throw new Error("fetch failed"); return r.json(); })
-      .then((data) => {
-        if (data.user) {
-          setProfile({ name: data.user.name || "", email: data.user.email || "" });
-          if (data.user.theme && data.user.theme !== theme) setTheme(data.user.theme);
-          if (data.user.avatar) setAvatar(data.user.avatar);
-          setContact({
-            phone: data.user.phone || "",
-            notifyEmail: data.user.notifyEmail ?? true,
-            notifyWhatsapp: data.user.notifyWhatsapp ?? false,
-          });
-        }
-        if (data.organization) {
-          setOrg({ name: data.organization.name || "", industry: data.organization.industry || "" });
-          if (data.organization.logo) setOrgLogo(data.organization.logo);
-          if (data.organization.brandColor) setBrandColor(data.organization.brandColor);
-        }
-        // Org/admin sections are Dirección-only. DIRECCION == ADMIN membership
-        // here; accept either signal from /api/user.
-        setIsAdmin(data.role === "ADMIN" || data.jobRole === "DIRECCION");
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-
-    fetch("/api/user/api-keys")
-      .then((r) => { if (!r.ok) throw new Error("fetch failed"); return r.json(); })
-      .then((data) => setApiKeys(Array.isArray(data.keys) ? data.keys : []))
-      .catch(() => {});
-
-    fetch("/api/invitations")
-      .then((r) => r.json())
-      .then((d) => setInvitations(Array.isArray(d.invitations) ? d.invitations : []))
-      .catch(() => {});
-
-    // Members + puestos (Dirección only; a 403 just returns no list).
-    fetch("/api/members")
-      .then((r) => (r.ok ? r.json() : { members: [] }))
-      .then((d) => {
-        setMembers(Array.isArray(d.members) ? d.members : []);
-        setMembersOwnerId(d.ownerId ?? null);
-        setMembersCurrentUserId(d.currentUserId ?? null);
-      })
-      .catch(() => {});
-
-    fetch("/api/alerts")
-      .then((r) => r.json())
-      .then((d) => setAlertRules(Array.isArray(d.rules) ? d.rules : []))
-      .catch(() => {});
+    loadUser();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -233,6 +247,8 @@ export default function SettingsPage() {
       if (res.ok) {
         toast("Perfil actualizado", "success");
         await updateSession({ name: profile.name });
+        // Sidebar / header read the cached /api/user: refresh name, avatar, org.
+        refreshMe();
       } else {
         toast(data.error || "Error al guardar", "error");
       }
@@ -253,6 +269,7 @@ export default function SettingsPage() {
       const data = await res.json();
       if (res.ok) {
         toast("Marca actualizada", "success");
+        refreshMe();
       } else {
         toast(data.error || "Error al guardar", "error");
       }
@@ -288,12 +305,15 @@ export default function SettingsPage() {
   const handleThemeChange = async (newTheme: "light" | "dark" | "system") => {
     setTheme(newTheme);
     try {
-      await fetch("/api/user", {
+      const res = await fetch("/api/user", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ theme: newTheme }),
       });
-    } catch {}
+      if (!res.ok) toast(await errorOf(res, "No se pudo guardar el tema en tu cuenta"), "error");
+    } catch {
+      toast("No se pudo guardar el tema en tu cuenta", "error");
+    }
   };
 
   const handleSaveContact = async () => {
@@ -329,14 +349,14 @@ export default function SettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newKeyName || "API Key" }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setNewKeyValue(data.key);
         setNewKeyName("");
-        const keysRes = await fetch("/api/user/api-keys");
-        const keysData = await keysRes.json();
-        setApiKeys(keysData.keys || []);
+        await keysApi.reload();
         toast("API Key creada", "success");
+      } else {
+        toast(data.error || "Error al crear API Key", "error");
       }
     } catch {
       toast("Error al crear API Key", "error");
@@ -345,6 +365,13 @@ export default function SettingsPage() {
   };
 
   const handleDeleteKey = async (id: string) => {
+    const ok = await confirm({
+      title: "Eliminar API Key",
+      description: "¿Eliminar esta API Key? Cualquier integración que la use dejará de funcionar.",
+      confirmLabel: "Eliminar",
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       const res = await fetch("/api/user/api-keys", {
         method: "DELETE",
@@ -352,12 +379,10 @@ export default function SettingsPage() {
         body: JSON.stringify({ id }),
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        toast(data.error || "Error al eliminar la API Key", "error");
+        toast(await errorOf(res, "Error al eliminar la API Key"), "error");
         return;
       }
       setApiKeys((prev) => prev.filter((k) => k.id !== id));
-      setConfirmDeleteKeyId(null);
       toast("API Key eliminada", "success");
     } catch {
       toast("Error de conexión", "error");
@@ -368,7 +393,7 @@ export default function SettingsPage() {
     setExportingCSV(true);
     try {
       const res = await fetch("/api/metrics/export?format=csv");
-      if (!res.ok) throw new Error();
+      if (!res.ok) throw new Error(await errorOf(res, "No se pudo exportar"));
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -377,13 +402,20 @@ export default function SettingsPage() {
       a.click();
       URL.revokeObjectURL(url);
       toast("Datos exportados", "success");
-    } catch {
-      toast("No se pudo exportar", "error");
+    } catch (e) {
+      toast(e instanceof Error && e.message ? e.message : "No se pudo exportar", "error");
     }
     setExportingCSV(false);
   };
 
   const handleClearData = async () => {
+    const ok = await confirm({
+      title: "Eliminar todos los datos",
+      description: "¿Eliminar todos los datos de métricas? Esta acción no se puede deshacer y perderás toda tu información.",
+      confirmLabel: "Eliminar todo",
+      destructive: true,
+    });
+    if (!ok) return;
     setClearingData(true);
     try {
       const res = await fetch("/api/metrics", { method: "DELETE" });
@@ -391,13 +423,12 @@ export default function SettingsPage() {
         toast("Datos eliminados correctamente. Recarga el dashboard para ver los cambios.", "success");
         setTimeout(() => window.location.reload(), 2000);
       } else {
-        toast("Error al eliminar los datos", "error");
+        toast(await errorOf(res, "Error al eliminar los datos"), "error");
       }
     } catch {
       toast("Error de conexión", "error");
     }
     setClearingData(false);
-    setConfirmClearData(false);
   };
 
   const handleCreateAlert = async () => {
@@ -433,7 +464,7 @@ export default function SettingsPage() {
   const handleDeleteAlert = async (id: string) => {
     try {
       const res = await fetch(`/api/alerts?id=${id}`, { method: "DELETE" });
-      if (!res.ok) { toast("Error al eliminar la alerta", "error"); return; }
+      if (!res.ok) { toast(await errorOf(res, "Error al eliminar la alerta"), "error"); return; }
       setAlertRules((prev) => prev.filter((r) => r.id !== id));
       toast("Alerta eliminada", "success");
     } catch {
@@ -460,8 +491,7 @@ export default function SettingsPage() {
         toast("Invitación enviada a " + inviteEmail, "success");
         setInviteEmail("");
         setInviteJobRole("");
-        const updated = await fetch("/api/invitations").then((r) => r.json());
-        setInvitations(Array.isArray(updated.invitations) ? updated.invitations : []);
+        await invitesApi.reload();
       } else {
         toast(data.error || "Error al invitar", "error");
       }
@@ -492,26 +522,31 @@ export default function SettingsPage() {
     setSavingMemberId(null);
   };
 
-  const handleDeleteMember = async (membershipId: string) => {
+  const handleDeleteMember = async (member: Member) => {
+    const ok = await confirm({
+      title: "Eliminar acceso",
+      description: `¿Eliminar el acceso de ${member.name || member.email}? Perderá el acceso a la app.`,
+      confirmLabel: "Eliminar acceso",
+      destructive: true,
+    });
+    if (!ok) return;
     try {
-      const res = await fetch(`/api/members?membershipId=${membershipId}`, { method: "DELETE" });
-      const data = await res.json().catch(() => ({}));
+      const res = await fetch(`/api/members?membershipId=${member.membershipId}`, { method: "DELETE" });
       if (!res.ok) {
-        toast(data.error || "No se pudo eliminar el acceso", "error");
+        toast(await errorOf(res, "No se pudo eliminar el acceso"), "error");
         return;
       }
-      setMembers((prev) => prev.filter((m) => m.membershipId !== membershipId));
+      setMembers((prev) => prev.filter((m) => m.membershipId !== member.membershipId));
       toast("Acceso eliminado", "success");
     } catch {
       toast("Error de conexión", "error");
     }
-    setConfirmDeleteMember(null);
   };
 
   const handleRevokeInvite = async (id: string) => {
     try {
       const res = await fetch(`/api/invitations?id=${id}`, { method: "DELETE" });
-      if (!res.ok) { toast("Error al revocar la invitación", "error"); return; }
+      if (!res.ok) { toast(await errorOf(res, "Error al revocar la invitación"), "error"); return; }
       setInvitations((prev) => prev.filter((inv) => inv.id !== id));
       toast("Invitación revocada", "success");
     } catch {
@@ -532,8 +567,7 @@ export default function SettingsPage() {
         toast("Cuenta eliminada", "success");
         signOut({ callbackUrl: "/" });
       } else {
-        const data = await res.json();
-        toast(data.error || "Error al eliminar", "error");
+        toast(await errorOf(res, "Error al eliminar"), "error");
       }
     } catch {
       toast("Error de conexión", "error");
@@ -547,24 +581,85 @@ export default function SettingsPage() {
     { value: "system" as const, label: "Sistema", icon: Monitor },
   ];
 
+  const header = (
+    <PageHeader icon={Settings} title="Configuración" description="Tu perfil, preferencias y la administración de tu empresa." />
+  );
+
   if (loading) {
-    return <div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+    return (
+      <div className="mx-auto max-w-2xl space-y-6">
+        {header}
+        <div className="flex gap-2 overflow-hidden" aria-hidden>
+          {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-8 w-24 shrink-0 rounded-lg" />)}
+        </div>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Card key={i} className="space-y-4 p-4 sm:p-6" aria-busy="true" aria-label="Cargando">
+            <Skeleton className="h-5 w-40" />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+            <Skeleton className="h-10 w-36" />
+          </Card>
+        ))}
+      </div>
+    );
   }
+
+  if (loadError) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-6">
+        {header}
+        <Card>
+          <ErrorState message={loadError} onRetry={loadUser} />
+        </Card>
+      </div>
+    );
+  }
+
+  const sections: { id: string; label: string; show: boolean }[] = [
+    { id: "perfil", label: "Perfil", show: true },
+    { id: "empresa", label: "Empresa", show: isAdmin },
+    { id: "contrasena", label: "Contraseña", show: true },
+    { id: "tema", label: "Tema", show: true },
+    { id: "google", label: "Mi Google", show: true },
+    { id: "reportes", label: "Cómo recibir reportes", show: true },
+    { id: "alertas", label: "Alertas", show: true },
+    { id: "miembros", label: "Miembros", show: isAdmin },
+    { id: "invitar", label: "Invitar", show: isAdmin },
+    { id: "api-keys", label: "API Keys", show: isAdmin },
+    { id: "datos", label: "Datos", show: true },
+    { id: "peligro", label: "Zona de peligro", show: true },
+  ];
+
+  const pwNewValid = passwords.new.length >= 8;
+  const pwConfirmValid = passwords.confirm.length > 0 && passwords.confirm === passwords.new;
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <h1 className="text-xl sm:text-2xl font-bold text-foreground">Configuración</h1>
+      {header}
+
+      {/* ── Navegación de secciones ── */}
+      <nav aria-label="Secciones de configuración" className="-mx-4 px-4 sm:mx-0 sm:px-0">
+        <ul className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
+          {sections.filter((s) => s.show).map((s) => (
+            <li key={s.id} className="shrink-0">
+              <a
+                href={`#${s.id}`}
+                className="inline-flex h-9 items-center rounded-lg border border-border bg-card px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {s.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
 
       {/* ── Perfil ── */}
-      <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
-        <div className="flex items-center gap-3">
-          <User className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-semibold text-foreground">Perfil</h2>
-        </div>
-
+      <SettingsSection id="perfil" icon={User} title="Perfil">
         {/* Avatar */}
         <div className="flex items-center gap-4">
-          <div className="relative">
+          <div className="relative shrink-0">
             {avatar ? (
               <img src={avatar} alt="Foto de perfil" className="h-16 w-16 rounded-full object-cover border-2 border-border" />
             ) : (
@@ -574,264 +669,247 @@ export default function SettingsPage() {
                 </span>
               </div>
             )}
-            <button
+            <Button
+              size="icon-sm"
               onClick={() => avatarInputRef.current?.click()}
-              className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full gradient-bg flex items-center justify-center shadow"
+              className="absolute -bottom-1 -right-1 rounded-full"
               aria-label="Cambiar foto de perfil"
             >
-              <Camera className="h-3 w-3 text-white" />
-            </button>
+              <Camera />
+            </Button>
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-sm font-medium">Foto de perfil</p>
             <p className="text-xs text-muted-foreground">JPG, PNG o GIF · máx 2 MB</p>
-            <div className="flex gap-2 mt-1">
-              <button onClick={() => avatarInputRef.current?.click()} className="text-xs text-primary hover:underline">Cambiar</button>
-              {avatar && <button onClick={() => setAvatar(null)} className="text-xs text-muted-foreground hover:underline">Quitar</button>}
+            <div className="flex gap-2 mt-2">
+              <Button variant="outline" size="sm" onClick={() => avatarInputRef.current?.click()}>Cambiar</Button>
+              {avatar && <Button variant="ghost" size="sm" onClick={() => setAvatar(null)}>Quitar</Button>}
             </div>
           </div>
           <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="settings-name" className="text-xs text-muted-foreground">Nombre</label>
-            <input
-              id="settings-name"
+          <Field label="Nombre">
+            <Input
               type="text"
+              autoComplete="name"
               value={profile.name}
               onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
             />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground">Correo electrónico</label>
-            <p className="mt-1 rounded-lg border border-border bg-secondary/30 px-3 py-2 text-sm text-muted-foreground">{profile.email}</p>
-          </div>
+          </Field>
+          <Field label="Correo electrónico">
+            <Input type="email" value={profile.email} readOnly className="bg-secondary text-muted-foreground" />
+          </Field>
         </div>
         {isAdmin && (
-        <div className="flex items-start gap-2 pt-1">
-          <Building2 className="h-4 w-4 text-muted-foreground mt-6" />
-          <div className="flex-1 grid gap-4 sm:grid-cols-2">
-            <div>
-              <label htmlFor="settings-org" className="text-xs text-muted-foreground">Empresa</label>
-              <input
-                id="settings-org"
-                type="text"
-                value={org.name}
-                onChange={(e) => setOrg({ ...org, name: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
-              />
-            </div>
-            <div>
-              <label htmlFor="settings-industry" className="text-xs text-muted-foreground">Industria</label>
-              <input
-                id="settings-industry"
-                type="text"
-                value={org.industry}
-                onChange={(e) => setOrg({ ...org, industry: e.target.value })}
-                placeholder="Ej: Tecnología, Retail..."
-                className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
-              />
+          <div className="space-y-3 border-t border-border pt-4">
+            <p className="flex items-center gap-2 text-sm font-medium text-foreground">
+              <Building2 className="h-4 w-4 text-muted-foreground" /> Datos de la empresa
+            </p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Empresa">
+                <Input
+                  type="text"
+                  value={org.name}
+                  onChange={(e) => setOrg({ ...org, name: e.target.value })}
+                />
+              </Field>
+              <Field label="Industria" optional>
+                <Input
+                  type="text"
+                  value={org.industry}
+                  onChange={(e) => setOrg({ ...org, industry: e.target.value })}
+                  placeholder="Ej: Tecnología, Retail..."
+                />
+              </Field>
             </div>
           </div>
-        </div>
         )}
-        <button
-          onClick={handleSaveProfile}
-          disabled={saving}
-          className="flex items-center gap-2 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-        >
-          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-          {saving ? "Guardando..." : "Guardar Cambios"}
-        </button>
-      </div>
+        <Button onClick={handleSaveProfile} loading={saving}>
+          {!saving && <Save />}
+          {saving ? "Guardando..." : "Guardar cambios"}
+        </Button>
+      </SettingsSection>
 
-      {/* ── Identidad Visual (solo Dirección) ── */}
+      {/* ── Empresa: identidad visual (solo Dirección) ── */}
       {isAdmin && (
-      <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
-        <div className="flex items-center gap-3">
-          <Palette className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-semibold text-foreground">Identidad Visual</h2>
-        </div>
-        <p className="text-xs text-muted-foreground">Tu logo y color de marca aparecerán en el sidebar y personalizarán la app para tu empresa.</p>
-
-        {/* Logo */}
-        <div className="flex items-center gap-4">
-          <div
-            className="h-16 w-16 rounded-xl border-2 border-dashed border-border flex items-center justify-center overflow-hidden cursor-pointer hover:border-primary/50 transition-colors"
-            onClick={() => logoInputRef.current?.click()}
-          >
-            {orgLogo ? (
-              <img src={orgLogo} alt="Logo empresa" className="h-full w-full object-contain p-1" />
-            ) : (
-              <ImagePlus className="h-6 w-6 text-muted-foreground" />
-            )}
-          </div>
-          <div>
-            <p className="text-sm font-medium">Logo de empresa</p>
-            <p className="text-xs text-muted-foreground">PNG con fondo transparente recomendado · máx 2 MB</p>
-            <div className="flex gap-2 mt-1">
-              <button onClick={() => logoInputRef.current?.click()} className="text-xs text-primary hover:underline">
-                {orgLogo ? "Cambiar" : "Subir logo"}
-              </button>
-              {orgLogo && <button onClick={() => setOrgLogo(null)} className="text-xs text-muted-foreground hover:underline">Quitar</button>}
+        <SettingsSection
+          id="empresa"
+          icon={Building2}
+          title="Empresa: identidad visual"
+          description="Tu logo y color de marca aparecerán en el sidebar y personalizarán la app para tu empresa."
+        >
+          {/* Logo */}
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={() => logoInputRef.current?.click()}
+              aria-label={orgLogo ? "Cambiar logo de empresa" : "Subir logo de empresa"}
+              className="h-16 w-16 shrink-0 rounded-xl border-2 border-dashed border-border flex items-center justify-center overflow-hidden hover:border-primary/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {orgLogo ? (
+                <img src={orgLogo} alt="" className="h-full w-full object-contain p-1" />
+              ) : (
+                <ImagePlus className="h-6 w-6 text-muted-foreground" />
+              )}
+            </button>
+            <div className="min-w-0">
+              <p className="text-sm font-medium">Logo de empresa</p>
+              <p className="text-xs text-muted-foreground">PNG con fondo transparente recomendado · máx 2 MB</p>
+              <div className="flex gap-2 mt-2">
+                <Button variant="outline" size="sm" onClick={() => logoInputRef.current?.click()}>
+                  {orgLogo ? "Cambiar" : "Subir logo"}
+                </Button>
+                {orgLogo && <Button variant="ghost" size="sm" onClick={() => setOrgLogo(null)}>Quitar</Button>}
+              </div>
             </div>
+            <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
           </div>
-          <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
-        </div>
 
-        {/* Brand color */}
-        <div className="flex items-center gap-4">
-          <div className="relative h-16 w-16 rounded-xl border-2 border-border overflow-hidden cursor-pointer">
-            <div className="h-full w-full" style={{ backgroundColor: brandColor }} />
-            <input
-              type="color"
-              value={brandColor}
-              onChange={(e) => setBrandColor(e.target.value)}
-              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-              aria-label="Color de marca"
-            />
-          </div>
-          <div>
-            <p className="text-sm font-medium">Color de marca</p>
-            <p className="text-xs text-muted-foreground">Se aplica en acentos del sidebar y header</p>
-            <div className="flex items-center gap-2 mt-1">
+          {/* Brand color */}
+          <div className="flex items-end gap-4">
+            <div className="relative h-16 w-16 shrink-0 rounded-xl border-2 border-border overflow-hidden cursor-pointer focus-within:ring-2 focus-within:ring-ring">
+              <div className="h-full w-full" style={{ backgroundColor: brandColor }} />
               <input
+                type="color"
+                value={brandColor}
+                onChange={(e) => setBrandColor(e.target.value)}
+                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                aria-label="Elegir color de marca"
+              />
+            </div>
+            <Field label="Color de marca" hint="Se aplica en acentos del sidebar y header" className="flex-1">
+              <Input
                 type="text"
                 value={brandColor}
                 onChange={(e) => {
                   const v = e.target.value;
                   if (/^#[0-9a-fA-F]{0,6}$/.test(v)) setBrandColor(v);
                 }}
-                className="w-28 rounded-lg border border-border bg-background px-2 py-1 text-xs font-mono focus:border-primary/50 focus:outline-none"
-                placeholder="#6366f1"
+                className="max-w-[9rem] font-mono"
+                placeholder="#224CA0"
               />
-              <div className="h-5 w-5 rounded-full border border-border" style={{ backgroundColor: brandColor }} />
-            </div>
+            </Field>
           </div>
-        </div>
 
-        <button
-          onClick={handleSaveBranding}
-          disabled={savingBranding}
-          className="flex items-center gap-2 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-        >
-          {savingBranding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-          {savingBranding ? "Guardando..." : "Guardar Identidad Visual"}
-        </button>
-      </div>
+          <Button onClick={handleSaveBranding} loading={savingBranding}>
+            {!savingBranding && <Save />}
+            {savingBranding ? "Guardando..." : "Guardar identidad visual"}
+          </Button>
+        </SettingsSection>
       )}
 
       {/* ── Contraseña ── */}
-      <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
-        <div className="flex items-center gap-3">
-          <Lock className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-semibold text-foreground">Contraseña</h2>
-        </div>
-        <div className="grid gap-3">
-          <div>
-            <label htmlFor="current-pw" className="text-xs text-muted-foreground">Contraseña actual</label>
-            <div className="relative mt-1">
-              <input
-                id="current-pw"
+      <SettingsSection id="contrasena" icon={Lock} title="Contraseña">
+        <div className="grid gap-4">
+          <Field label="Contraseña actual">
+            <Input
+              type={showPasswords ? "text" : "password"}
+              autoComplete="current-password"
+              value={passwords.current}
+              onChange={(e) => setPasswords({ ...passwords, current: e.target.value })}
+            />
+          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label="Nueva contraseña"
+              hint="Mínimo 8 caracteres"
+              error={passwords.new.length > 0 && !pwNewValid ? `Mínimo 8 caracteres (${passwords.new.length}/8)` : null}
+            >
+              <Input
                 type={showPasswords ? "text" : "password"}
-                value={passwords.current}
-                onChange={(e) => setPasswords({ ...passwords, current: e.target.value })}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 pr-10 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
+                autoComplete="new-password"
+                value={passwords.new}
+                onChange={(e) => setPasswords({ ...passwords, new: e.target.value })}
+                className={pwNewValid ? "border-success/50" : undefined}
               />
-              <button onClick={() => setShowPasswords(!showPasswords)} className="absolute right-2.5 top-2 text-muted-foreground hover:text-foreground" aria-label={showPasswords ? "Ocultar" : "Mostrar"}>
-                {showPasswords ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <label htmlFor="new-pw" className="text-xs text-muted-foreground">Nueva contraseña</label>
-              <input id="new-pw" type={showPasswords ? "text" : "password"} value={passwords.new} onChange={(e) => setPasswords({ ...passwords, new: e.target.value })} placeholder="Mínimo 8 caracteres" className={`mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 ${passwords.new.length === 0 ? "border-border focus:border-primary/50 focus:ring-primary/30" : passwords.new.length >= 8 ? "border-emerald-500/50 focus:ring-emerald-500/25" : "border-red-400/60 focus:ring-red-500/25"}`} />
-              {passwords.new.length > 0 && passwords.new.length < 8 && (
-                <p className="mt-1 text-xs text-red-500">Mínimo 8 caracteres ({passwords.new.length}/8)</p>
-              )}
-            </div>
-            <div>
-              <label htmlFor="confirm-pw" className="text-xs text-muted-foreground">Confirmar</label>
-              <input id="confirm-pw" type={showPasswords ? "text" : "password"} value={passwords.confirm} onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })} className={`mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 ${passwords.confirm.length === 0 ? "border-border focus:border-primary/50 focus:ring-primary/30" : passwords.confirm === passwords.new ? "border-emerald-500/50 focus:ring-emerald-500/25" : "border-red-400/60 focus:ring-red-500/25"}`} />
-              {passwords.confirm.length > 0 && passwords.confirm !== passwords.new && (
-                <p className="mt-1 text-xs text-red-500">Las contraseñas no coinciden</p>
-              )}
-            </div>
+            </Field>
+            <Field
+              label="Confirmar"
+              error={passwords.confirm.length > 0 && !pwConfirmValid ? "Las contraseñas no coinciden" : null}
+            >
+              <Input
+                type={showPasswords ? "text" : "password"}
+                autoComplete="new-password"
+                value={passwords.confirm}
+                onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })}
+                className={pwConfirmValid ? "border-success/50" : undefined}
+              />
+            </Field>
           </div>
         </div>
-        <button
-          onClick={handleChangePassword}
-          disabled={savingPassword || !passwords.current || !passwords.new}
-          className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary transition-colors disabled:opacity-50"
-        >
-          {savingPassword ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Lock className="h-3.5 w-3.5" />}
-          Cambiar Contraseña
-        </button>
-      </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={handleChangePassword}
+            loading={savingPassword}
+            disabled={!passwords.current || !passwords.new}
+          >
+            {!savingPassword && <Lock />}
+            Cambiar contraseña
+          </Button>
+          <Button variant="ghost" onClick={() => setShowPasswords(!showPasswords)} aria-pressed={showPasswords}>
+            {showPasswords ? <EyeOff /> : <Eye />}
+            {showPasswords ? "Ocultar contraseñas" : "Mostrar contraseñas"}
+          </Button>
+        </div>
+      </SettingsSection>
 
       {/* ── Tema ── */}
-      <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-foreground">Tema</h2>
-        <div className="grid grid-cols-3 gap-3">
+      <SettingsSection
+        id="tema"
+        icon={SunMoon}
+        title="Tema"
+        description="El tema se sincroniza con tu cuenta en todos los dispositivos."
+      >
+        <div className="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Tema">
           {themeOptions.map((opt) => (
             <button
               key={opt.value}
+              type="button"
+              role="radio"
+              aria-checked={theme === opt.value}
               onClick={() => handleThemeChange(opt.value)}
-              className={`flex flex-col items-center gap-2 rounded-lg border p-4 transition-all ${theme === opt.value ? "border-primary bg-primary/5 text-primary" : "border-border text-muted-foreground hover:border-foreground/20 hover:text-foreground"}`}
+              className={`flex flex-col items-center gap-2 rounded-lg border p-4 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${theme === opt.value ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-secondary/60 hover:text-foreground"}`}
             >
               <opt.icon className="h-5 w-5" />
               <span className="text-sm font-medium">{opt.label}</span>
             </button>
           ))}
         </div>
-        <p className="text-xs text-muted-foreground">El tema se sincroniza con tu cuenta en todos los dispositivos.</p>
-      </div>
+      </SettingsSection>
 
       {/* ── Google: correo y reuniones para los pendientes ── */}
-      <GoogleConnectCard />
+      <GoogleConnectCard id="google" />
 
       {/* ── Cómo recibir reportes ── */}
-      <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
-        <div className="flex items-center gap-3">
-          <MessageCircle className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-semibold text-foreground">Cómo recibir reportes</h2>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Elige cómo quieres recibir tus resúmenes, alertas y avisos. Puedes activar correo, WhatsApp o ambos.
-        </p>
-
-        {/* Teléfono */}
-        <div>
-          <label className="text-xs text-muted-foreground flex items-center gap-1.5">
-            <Phone className="h-3 w-3" /> Número de WhatsApp
-          </label>
-          <div className="mt-1">
-            <PhoneInput value={contact.phone} onChange={(phone) => setContact((c) => ({ ...c, phone }))} />
-          </div>
-          <p className="mt-1 text-[11px] text-muted-foreground">
-            Selecciona tu país (lada) y escribe tu número. Ej: 🇲🇽 +52 442 123 4567
-          </p>
-        </div>
+      <SettingsSection
+        id="reportes"
+        icon={MessageCircle}
+        title="Cómo recibir reportes"
+        description="Elige cómo quieres recibir tus resúmenes, alertas y avisos. Puedes activar correo, WhatsApp o ambos."
+      >
+        <Field label="Número de WhatsApp" hint="Selecciona tu país (lada) y escribe tu número. Ej: 🇲🇽 +52 442 123 4567">
+          <PhoneInput value={contact.phone} onChange={(phone) => setContact((c) => ({ ...c, phone }))} />
+        </Field>
 
         {/* Canales */}
-        <div className="space-y-3 pt-1">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <Mail className="h-4 w-4 text-muted-foreground" />
-              <div>
+        <div className="divide-y divide-border rounded-lg border border-border">
+          <div className="flex items-center justify-between gap-3 px-3 py-3">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <div className="min-w-0">
                 <p className="text-sm font-medium text-foreground">Por correo</p>
-                <p className="text-xs text-muted-foreground">{profile.email}</p>
+                <p className="truncate text-xs text-muted-foreground">{profile.email}</p>
               </div>
             </div>
             <Toggle label="Notificaciones por correo" enabled={contact.notifyEmail} onChange={(v) => setContact((c) => ({ ...c, notifyEmail: v }))} />
           </div>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <MessageCircle className="h-4 w-4 text-emerald-600" />
-              <div>
+          <div className="flex items-center justify-between gap-3 px-3 py-3">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <MessageCircle className="h-4 w-4 shrink-0 text-success" />
+              <div className="min-w-0">
                 <p className="text-sm font-medium text-foreground">Por WhatsApp</p>
                 <p className="text-xs text-muted-foreground">
                   {contact.phone ? "Al número de arriba" : "Agrega tu número primero"}
@@ -842,360 +920,405 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <button
-          onClick={handleSaveContact}
-          disabled={savingContact}
-          className="flex items-center gap-2 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-        >
-          {savingContact ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+        <Button onClick={handleSaveContact} loading={savingContact}>
+          {!savingContact && <Save />}
           {savingContact ? "Guardando..." : "Guardar preferencias"}
-        </button>
-      </div>
+        </Button>
+      </SettingsSection>
 
       {/* ── Alertas ── */}
-      <div id="alertas" className="scroll-mt-24 rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
-        <div className="flex items-center gap-3">
-          <BellRing className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-semibold text-foreground">Alertas por Correo</h2>
-        </div>
-        <p className="text-xs text-muted-foreground">Define reglas para recibir un correo cuando una métrica supere un umbral específico.</p>
-
-        {alertRules.length > 0 && (
+      <SettingsSection
+        id="alertas"
+        icon={BellRing}
+        title="Alertas por correo"
+        description="Define reglas para recibir un correo cuando una métrica supere un umbral específico."
+      >
+        {alertsApi.initialLoading ? (
+          <div className="rounded-lg border border-border"><RowsSkeleton rows={2} /></div>
+        ) : alertsApi.error && !alertsApi.data ? (
+          <div className="rounded-lg border border-border">
+            <ErrorState message={alertsApi.error} onRetry={alertsApi.reload} className="py-8" />
+          </div>
+        ) : alertRules.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border">
+            <EmptyState icon={BellRing} title="Sin alertas" description="Crea tu primera regla con el formulario de abajo." className="py-8" />
+          </div>
+        ) : (
           <div className="divide-y divide-border rounded-lg border border-border">
             {alertRules.map((rule) => (
-              <div key={rule.id} className="flex items-center justify-between px-3 py-2.5">
-                <div>
+              <div key={rule.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                <div className="min-w-0">
                   <p className="text-sm font-medium">{rule.metricName}</p>
                   <p className="text-xs text-muted-foreground">
                     {CONDITION_LABELS[rule.condition] ?? rule.condition} {rule.threshold} · {CATEGORY_LABELS[rule.category] ?? rule.category}
                   </p>
                   {rule.lastTriggered && (
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                    <p className="text-xs text-muted-foreground mt-0.5">
                       Última activación: {new Date(rule.lastTriggered).toLocaleDateString("es-MX")}
                     </p>
                   )}
                 </div>
-                <button
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
                   onClick={() => handleDeleteAlert(rule.id)}
-                  className="text-muted-foreground hover:text-red-500 transition-colors"
-                  aria-label="Eliminar alerta"
+                  className="hover:text-destructive"
+                  aria-label={`Eliminar alerta ${rule.metricName}`}
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                  <Trash2 />
+                </Button>
               </div>
             ))}
           </div>
         )}
 
-        <div className="space-y-3 pt-1">
-          <p className="text-xs font-medium text-muted-foreground">Nueva alerta</p>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <div>
-              <label className="text-xs text-muted-foreground">Nombre de la métrica</label>
-              <input
+        <div className="space-y-3 border-t border-border pt-4">
+          <p className="text-sm font-medium text-foreground">Nueva alerta</p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Nombre de la métrica">
+              <Input
                 type="text"
                 value={newAlert.metricName}
                 onChange={(e) => setNewAlert({ ...newAlert, metricName: e.target.value })}
                 placeholder="Ej: Ventas del Mes"
-                className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
               />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground">Categoría</label>
-              <select
+            </Field>
+            <Field label="Categoría">
+              <Select
                 value={newAlert.category}
                 onChange={(e) => setNewAlert({ ...newAlert, category: e.target.value as (typeof CATEGORY_OPTIONS)[number] })}
-                className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none"
               >
                 {CATEGORY_OPTIONS.map((c) => (
                   <option key={c} value={c}>{CATEGORY_LABELS[c] ?? c}</option>
                 ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground">Condición</label>
-              <select
+              </Select>
+            </Field>
+            <Field label="Condición">
+              <Select
                 value={newAlert.condition}
                 onChange={(e) => setNewAlert({ ...newAlert, condition: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none"
               >
                 {Object.entries(CONDITION_LABELS).map(([value, label]) => (
                   <option key={value} value={value}>{label}</option>
                 ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground">Umbral</label>
-              <input
+              </Select>
+            </Field>
+            <Field label="Umbral">
+              <Input
                 type="number"
+                inputMode="decimal"
                 min="0"
                 step="any"
                 value={newAlert.threshold}
                 onChange={(e) => setNewAlert({ ...newAlert, threshold: e.target.value })}
                 placeholder="Ej: 20 o 500000"
-                className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
               />
-            </div>
+            </Field>
           </div>
-          <button
-            onClick={handleCreateAlert}
-            disabled={savingAlert}
-            className="flex items-center gap-1.5 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-          >
-            {savingAlert ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-            Crear Alerta
-          </button>
+          <Button onClick={handleCreateAlert} loading={savingAlert}>
+            {!savingAlert && <Plus />}
+            Crear alerta
+          </Button>
         </div>
-      </div>
+      </SettingsSection>
 
       {/* ── Miembros y Puestos (solo Dirección) ── */}
-      {isAdmin && members.length > 0 && (
-        <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
-          <div className="flex items-center gap-3">
-            <Users className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-semibold text-foreground">Miembros y puestos</h2>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Asigna el puesto de cada persona. El puesto define qué puede ver y hacer en la app.
-            Un miembro <span className="text-amber-500 font-medium">sin puesto asignado</span> no tiene acceso a los módulos por rol.
-          </p>
-          <div className="divide-y divide-border rounded-lg border border-border">
-            {members.map((m) => (
-              <div key={m.membershipId} className="flex flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{m.name || m.email}</p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {m.email} · {ROLE_LABELS[m.role] ?? m.role}
-                    {!m.jobRole && <span className="ml-2 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-600">Sin puesto</span>}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <select
-                    value={m.jobRole ?? ""}
-                    disabled={savingMemberId === m.membershipId}
-                    onChange={(e) => handleSetJobRole(m.membershipId, e.target.value)}
-                    aria-label={`Puesto de ${m.name || m.email}`}
-                    className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none disabled:opacity-50"
-                  >
-                    <option value="">Sin puesto</option>
-                    {JOB_ROLES.map((jr) => (
-                      <option key={jr} value={jr}>{JOB_ROLE_LABELS[jr]}</option>
-                    ))}
-                  </select>
-                  {savingMemberId === m.membershipId && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-                  {m.userId !== membersCurrentUserId && m.userId !== membersOwnerId && (
-                    <button
-                      onClick={() => setConfirmDeleteMember(m)}
-                      className="text-muted-foreground hover:text-red-500 transition-colors"
-                      aria-label={`Eliminar acceso de ${m.name || m.email}`}
+      {isAdmin && (
+        <SettingsSection
+          id="miembros"
+          icon={Users}
+          title="Miembros y puestos"
+          description={
+            <>
+              Asigna el puesto de cada persona. El puesto define qué puede ver y hacer en la app.
+              Un miembro <span className="text-warning font-medium">sin puesto asignado</span> no tiene acceso a los módulos por rol.
+            </>
+          }
+        >
+          {membersApi.initialLoading ? (
+            <div className="rounded-lg border border-border"><RowsSkeleton rows={3} /></div>
+          ) : membersApi.error && !membersApi.data ? (
+            <div className="rounded-lg border border-border">
+              <ErrorState message={membersApi.error} onRetry={membersApi.reload} className="py-8" />
+            </div>
+          ) : members.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border">
+              <EmptyState
+                icon={Users}
+                title="Sin miembros"
+                description="Invita a tu equipo para asignarles un puesto."
+                action={<Button variant="outline" size="sm" asChild><a href="#invitar"><UserPlus /> Invitar usuarios</a></Button>}
+                className="py-8"
+              />
+            </div>
+          ) : (
+            <div className="divide-y divide-border rounded-lg border border-border">
+              {members.map((m) => (
+                <div key={m.membershipId} className="flex flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{m.name || m.email}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {m.email} · {ROLE_LABELS[m.role] ?? m.role}
+                      {!m.jobRole && <span className="ml-2 rounded-full bg-warning/15 px-2 py-0.5 text-xs font-semibold text-warning">Sin puesto</span>}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Select
+                      value={m.jobRole ?? ""}
+                      disabled={savingMemberId === m.membershipId}
+                      aria-busy={savingMemberId === m.membershipId || undefined}
+                      onChange={(e) => handleSetJobRole(m.membershipId, e.target.value)}
+                      aria-label={`Puesto de ${m.name || m.email}`}
+                      className="sm:w-48"
                     >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  )}
+                      <option value="">Sin puesto</option>
+                      {JOB_ROLES.map((jr) => (
+                        <option key={jr} value={jr}>{JOB_ROLE_LABELS[jr]}</option>
+                      ))}
+                    </Select>
+                    {m.userId !== membersCurrentUserId && m.userId !== membersOwnerId && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteMember(m)}
+                        className="shrink-0 hover:text-destructive"
+                        aria-label={`Eliminar acceso de ${m.name || m.email}`}
+                      >
+                        <Trash2 />
+                      </Button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
+              ))}
+            </div>
+          )}
+        </SettingsSection>
       )}
 
       {/* ── Invitar Usuarios (solo Dirección) ── */}
       {isAdmin && (
-      <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
-        <div className="flex items-center gap-3">
-          <Users className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-semibold text-foreground">Invitar Usuarios</h2>
-        </div>
-        <p className="text-xs text-muted-foreground">Invita a miembros de tu equipo. Recibirán un correo con el enlace de acceso. <span className="text-amber-500">El correo puede llegar a spam — pídeles que lo revisen.</span></p>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <input type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="correo@empresa.com" className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30" />
-          <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as "VIEWER" | "EDITOR" | "ADMIN")} className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none">
-            <option value="VIEWER">Visor</option>
-            <option value="EDITOR">Editor</option>
-            <option value="ADMIN">Administrador</option>
-          </select>
-          <select value={inviteJobRole} onChange={(e) => setInviteJobRole(e.target.value as typeof inviteJobRole)} className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none" aria-label="Rol de puesto">
-            <option value="">Puesto (sin asignar)</option>
-            <option value="DIRECCION">Dirección</option>
-            <option value="OPERACIONES">Operaciones</option>
-            <option value="COMERCIAL">Comercial</option>
-            <option value="MARKETING">Marketing</option>
-            <option value="ADMINISTRACION">Administración</option>
-          </select>
-          <button onClick={handleInvite} disabled={inviting || !inviteEmail} className="flex items-center gap-1.5 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50">
-            {inviting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
-            Invitar
-          </button>
-        </div>
-        <div>
-          <p className="text-xs font-medium text-muted-foreground mb-2">Acceso a secciones <span className="font-normal">(deja vacío para acceso completo)</span></p>
-          <div className="flex flex-wrap gap-2">
-            {[
-              { key: "FINANCE", label: "Finanzas" },
-              { key: "SALES", label: "Ventas" },
-              { key: "OPERATIONS", label: "Operaciones" },
-              { key: "HR", label: "RRHH" },
-              { key: "MARKETING", label: "Marketing" },
-            ].map((s) => (
-              <button
-                key={s.key}
-                type="button"
-                onClick={() => setInviteSections((prev) => prev.includes(s.key) ? prev.filter((x) => x !== s.key) : [...prev, s.key])}
-                className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${inviteSections.includes(s.key) ? "border-primary bg-primary/10 text-primary" : "border-border bg-background text-muted-foreground hover:border-primary/50"}`}
-              >
-                {s.label}
-              </button>
-            ))}
+        <SettingsSection
+          id="invitar"
+          icon={UserPlus}
+          title="Invitar usuarios"
+          description={
+            <>
+              Invita a miembros de tu equipo. Recibirán un correo con el enlace de acceso.{" "}
+              <span className="text-warning">El correo puede llegar a spam — pídeles que lo revisen.</span>
+            </>
+          }
+        >
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field label="Correo" className="sm:col-span-3">
+              <Input type="email" autoComplete="off" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="correo@empresa.com" />
+            </Field>
+            <Field label="Rol" className="sm:col-span-1">
+              <Select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as "VIEWER" | "EDITOR" | "ADMIN")}>
+                <option value="VIEWER">Visor</option>
+                <option value="EDITOR">Editor</option>
+                <option value="ADMIN">Administrador</option>
+              </Select>
+            </Field>
+            <Field label="Puesto" optional className="sm:col-span-2">
+              <Select value={inviteJobRole} onChange={(e) => setInviteJobRole(e.target.value as typeof inviteJobRole)}>
+                <option value="">Sin asignar</option>
+                <option value="DIRECCION">Dirección</option>
+                <option value="OPERACIONES">Operaciones</option>
+                <option value="COMERCIAL">Comercial</option>
+                <option value="MARKETING">Marketing</option>
+                <option value="ADMINISTRACION">Administración</option>
+              </Select>
+            </Field>
           </div>
-        </div>
-        {invitations.length > 0 && (
-          <div className="space-y-1">
-            <p className="text-xs font-medium text-muted-foreground">Invitaciones pendientes</p>
-            <div className="divide-y divide-border rounded-lg border border-border">
-              {invitations.map((inv) => (
-                <div key={inv.id} className="flex items-center justify-between px-3 py-2">
-                  <div>
-                    <p className="text-sm font-medium">{inv.email}</p>
-                    <p className="text-xs text-muted-foreground">{ROLE_LABELS[inv.role] ?? inv.role} · Expira {new Date(inv.expiresAt).toLocaleDateString("es-MX")}</p>
-                  </div>
-                  <button onClick={() => handleRevokeInvite(inv.id)} className="text-muted-foreground hover:text-red-500" aria-label="Revocar invitación">
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
+          <fieldset>
+            <legend className="text-sm font-medium text-foreground mb-2">
+              Acceso a secciones <span className="text-xs font-normal text-muted-foreground">(deja vacío para acceso completo)</span>
+            </legend>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { key: "FINANCE", label: "Finanzas" },
+                { key: "SALES", label: "Ventas" },
+                { key: "OPERATIONS", label: "Operaciones" },
+                { key: "HR", label: "RRHH" },
+                { key: "MARKETING", label: "Marketing" },
+              ].map((s) => (
+                <button
+                  key={s.key}
+                  type="button"
+                  aria-pressed={inviteSections.includes(s.key)}
+                  onClick={() => setInviteSections((prev) => prev.includes(s.key) ? prev.filter((x) => x !== s.key) : [...prev, s.key])}
+                  className={`h-9 rounded-lg border px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${inviteSections.includes(s.key) ? "border-primary bg-primary/10 text-primary" : "border-border bg-background text-muted-foreground hover:bg-secondary/60 hover:text-foreground"}`}
+                >
+                  {s.label}
+                </button>
               ))}
             </div>
+          </fieldset>
+          <Button onClick={handleInvite} loading={inviting} disabled={!inviteEmail}>
+            {!inviting && <Mail />}
+            Invitar
+          </Button>
+
+          <div className="space-y-2 border-t border-border pt-4">
+            <p className="text-sm font-medium text-foreground">Invitaciones pendientes</p>
+            {invitesApi.initialLoading ? (
+              <div className="rounded-lg border border-border"><RowsSkeleton rows={2} /></div>
+            ) : invitesApi.error && !invitesApi.data ? (
+              <div className="rounded-lg border border-border">
+                <ErrorState message={invitesApi.error} onRetry={invitesApi.reload} className="py-8" />
+              </div>
+            ) : invitations.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-border">
+                <EmptyState icon={Mail} title="Sin invitaciones pendientes" description="Las invitaciones que envíes aparecerán aquí hasta que se acepten." className="py-6" />
+              </div>
+            ) : (
+              <div className="divide-y divide-border rounded-lg border border-border">
+                {invitations.map((inv) => (
+                  <div key={inv.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{inv.email}</p>
+                      <p className="text-xs text-muted-foreground">{ROLE_LABELS[inv.role] ?? inv.role} · Expira {new Date(inv.expiresAt).toLocaleDateString("es-MX")}</p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => handleRevokeInvite(inv.id)}
+                      className="hover:text-destructive"
+                      aria-label={`Revocar invitación de ${inv.email}`}
+                    >
+                      <X />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </SettingsSection>
       )}
 
       {/* ── API Keys (solo Dirección) ── */}
       {isAdmin && (
-      <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
-        <div className="flex items-center gap-3">
-          <Key className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-semibold text-foreground">API Keys</h2>
-        </div>
-        <p className="text-xs text-muted-foreground">Crea API Keys para enviar métricas desde sistemas externos vía REST API.</p>
-        {newKeyValue && (
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10 p-3 space-y-2">
-            <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400">Copia tu API Key — no se mostrará de nuevo:</p>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 rounded bg-white dark:bg-background px-3 py-1.5 text-xs font-mono border border-border break-all">{newKeyValue}</code>
-              <button onClick={() => { navigator.clipboard.writeText(newKeyValue); toast("Copiado", "success"); }} className="rounded-lg border border-border p-2 hover:bg-secondary" aria-label="Copiar API Key">
-                <Copy className="h-3.5 w-3.5" />
-              </button>
-            </div>
-            <button onClick={() => setNewKeyValue(null)} className="text-xs text-emerald-600 hover:underline">Cerrar</button>
-          </div>
-        )}
-        <div className="flex items-center gap-2">
-          <input type="text" value={newKeyName} onChange={(e) => setNewKeyName(e.target.value)} placeholder="Nombre de la key (ej: Mi CRM)" className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30" />
-          <button onClick={handleCreateKey} disabled={creatingKey} className="flex items-center gap-1.5 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50">
-            {creatingKey ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-            Crear
-          </button>
-        </div>
-        {apiKeys.length > 0 && (
-          <div className="divide-y divide-border rounded-lg border border-border">
-            {apiKeys.map((k) => (
-              <div key={k.id} className="flex items-center justify-between p-3">
-                <div>
-                  <p className="text-sm font-medium">{k.name}</p>
-                  <p className="text-xs text-muted-foreground font-mono">{k.key}</p>
-                  {k.lastUsed && <p className="text-[10px] text-muted-foreground mt-0.5">Último uso: {new Date(k.lastUsed).toLocaleDateString("es-MX")}</p>}
-                </div>
-                <button onClick={() => setConfirmDeleteKeyId(k.id)} className="text-muted-foreground hover:text-red-500" aria-label="Eliminar key">
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+        <SettingsSection
+          id="api-keys"
+          icon={Key}
+          title="API Keys"
+          description="Crea API Keys para enviar métricas desde sistemas externos vía REST API."
+        >
+          {newKeyValue && (
+            <div role="status" className="rounded-lg border border-success/30 bg-success/10 p-3 space-y-2">
+              <p className="text-xs font-medium text-success">Copia tu API Key — no se mostrará de nuevo:</p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 rounded-lg bg-background px-3 py-1.5 text-xs font-mono border border-border break-all">{newKeyValue}</code>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => { navigator.clipboard.writeText(newKeyValue); toast("Copiado", "success"); }}
+                  aria-label="Copiar API Key"
+                >
+                  <Copy />
+                </Button>
               </div>
-            ))}
+              <Button variant="ghost" size="sm" onClick={() => setNewKeyValue(null)}>Cerrar</Button>
+            </div>
+          )}
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+            <Field label="Nombre de la key" optional className="flex-1">
+              <Input type="text" value={newKeyName} onChange={(e) => setNewKeyName(e.target.value)} placeholder="Ej: Mi CRM" />
+            </Field>
+            <Button onClick={handleCreateKey} loading={creatingKey}>
+              {!creatingKey && <Plus />}
+              Crear
+            </Button>
           </div>
-        )}
-        <div className="rounded-lg border border-border bg-slate-900 p-3 font-mono text-xs text-slate-300">
-          <p className="text-blue-400">POST /api/v1/metrics</p>
-          <p className="mt-1 text-slate-400">Authorization: Bearer mp_abc...xyz</p>
-          <p className="mt-1 text-slate-400">Content-Type: application/json</p>
-          <p className="mt-2 text-emerald-400">{"{"}</p>
-          <p className="text-emerald-400 pl-4">&quot;category&quot;: &quot;FINANCE&quot;,</p>
-          <p className="text-emerald-400 pl-4">&quot;name&quot;: &quot;Ingresos&quot;,</p>
-          <p className="text-emerald-400 pl-4">&quot;value&quot;: 150000,</p>
-          <p className="text-emerald-400 pl-4">&quot;unit&quot;: &quot;MXN&quot;</p>
-          <p className="text-emerald-400">{"}"}</p>
-        </div>
-      </div>
+          {keysApi.initialLoading ? (
+            <div className="rounded-lg border border-border"><RowsSkeleton rows={2} /></div>
+          ) : keysApi.error && !keysApi.data ? (
+            <div className="rounded-lg border border-border">
+              <ErrorState message={keysApi.error} onRetry={keysApi.reload} className="py-8" />
+            </div>
+          ) : apiKeys.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border">
+              <EmptyState icon={Key} title="Sin API Keys" description="Crea una key para conectar tus sistemas externos." className="py-6" />
+            </div>
+          ) : (
+            <div className="divide-y divide-border rounded-lg border border-border">
+              {apiKeys.map((k) => (
+                <div key={k.id} className="flex items-center justify-between gap-3 p-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">{k.name}</p>
+                    <p className="text-xs text-muted-foreground font-mono truncate">{k.key}</p>
+                    {k.lastUsed && <p className="text-xs text-muted-foreground mt-0.5">Último uso: {new Date(k.lastUsed).toLocaleDateString("es-MX")}</p>}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => handleDeleteKey(k.id)}
+                    className="hover:text-destructive"
+                    aria-label={`Eliminar key ${k.name}`}
+                  >
+                    <Trash2 />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="overflow-x-auto rounded-lg border border-border bg-secondary p-3 font-mono text-xs text-foreground">
+            <p className="font-semibold text-primary">POST /api/v1/metrics</p>
+            <p className="mt-1 text-muted-foreground">Authorization: Bearer mp_abc...xyz</p>
+            <p className="mt-1 text-muted-foreground">Content-Type: application/json</p>
+            <p className="mt-2">{"{"}</p>
+            <p className="pl-4">&quot;category&quot;: &quot;FINANCE&quot;,</p>
+            <p className="pl-4">&quot;name&quot;: &quot;Ingresos&quot;,</p>
+            <p className="pl-4">&quot;value&quot;: 150000,</p>
+            <p className="pl-4">&quot;unit&quot;: &quot;MXN&quot;</p>
+            <p>{"}"}</p>
+          </div>
+        </SettingsSection>
       )}
 
       {/* ── Datos ── */}
-      <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-4">
-        <div className="flex items-center gap-3">
-          <Download className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-semibold text-foreground">Datos</h2>
-        </div>
+      <SettingsSection id="datos" icon={Download} title="Datos">
         <div className="flex flex-col sm:flex-row gap-3">
-          <button onClick={handleExportCSV} disabled={exportingCSV} className="flex items-center justify-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-50">
-            {exportingCSV ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          <Button variant="outline" onClick={handleExportCSV} loading={exportingCSV}>
+            {!exportingCSV && <Download />}
             {exportingCSV ? "Exportando..." : "Exportar datos como CSV"}
-          </button>
-          <button onClick={() => setConfirmClearData(true)} disabled={clearingData} className="flex items-center justify-center gap-2 rounded-lg border border-destructive/50 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50">
-            {clearingData ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleClearData}
+            loading={clearingData}
+            className="border-destructive/50 text-destructive hover:bg-destructive/10"
+          >
+            {!clearingData && <Trash2 />}
             {clearingData ? "Eliminando..." : "Limpiar datos de métricas"}
-          </button>
+          </Button>
         </div>
-      </div>
+      </SettingsSection>
 
       {/* ── Zona de peligro ── */}
-      <div className="rounded-xl border-2 border-destructive/50 bg-card p-4 sm:p-6 space-y-4">
-        <div className="flex items-center gap-3">
-          <AlertTriangle className="h-5 w-5 text-destructive" />
-          <h2 className="text-lg font-semibold text-destructive">Zona de peligro</h2>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          Eliminar tu cuenta borrará permanentemente tu organización y todos sus datos: métricas, reportes, integraciones y metas. También se eliminarán las cuentas de los miembros de tu equipo que solo pertenezcan a esta organización. Esta acción no se puede deshacer.
-        </p>
-        <div className="space-y-3">
-          <div>
-            <label htmlFor="delete-confirm" className="text-xs font-medium text-destructive">Escribe ELIMINAR para confirmar</label>
-            <input id="delete-confirm" type="text" value={deleteConfirm} onChange={(e) => setDeleteConfirm(e.target.value)} placeholder="ELIMINAR" className="mt-1 w-full rounded-lg border border-destructive/30 bg-background px-3 py-2 text-sm focus:border-destructive focus:outline-none focus:ring-1 focus:ring-destructive/30" />
-          </div>
-          <button
-            onClick={handleDeleteAccount}
-            disabled={deleteConfirm !== "ELIMINAR" || deleting}
-            className="flex items-center gap-2 rounded-lg border border-destructive bg-destructive/10 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-            Eliminar mi cuenta
-          </button>
-        </div>
-      </div>
-
-      <ConfirmDialog
-        open={confirmDeleteKeyId !== null}
-        title="Eliminar API Key"
-        description="¿Eliminar esta API Key? Cualquier integración que la use dejará de funcionar."
-        confirmLabel="Eliminar"
-        destructive
-        onConfirm={() => confirmDeleteKeyId && handleDeleteKey(confirmDeleteKeyId)}
-        onCancel={() => setConfirmDeleteKeyId(null)}
-      />
-      <ConfirmDialog
-        open={confirmDeleteMember !== null}
-        title="Eliminar acceso"
-        description={confirmDeleteMember ? `¿Eliminar el acceso de ${confirmDeleteMember.name || confirmDeleteMember.email}? Perderá el acceso a la app.` : ""}
-        confirmLabel="Eliminar acceso"
-        destructive
-        onConfirm={() => confirmDeleteMember && handleDeleteMember(confirmDeleteMember.membershipId)}
-        onCancel={() => setConfirmDeleteMember(null)}
-      />
-      <ConfirmDialog
-        open={confirmClearData}
-        title="Eliminar todos los datos"
-        description="¿Eliminar todos los datos de métricas? Esta acción no se puede deshacer y perderás toda tu información."
-        confirmLabel="Eliminar todo"
-        destructive
-        onConfirm={handleClearData}
-        onCancel={() => setConfirmClearData(false)}
-      />
+      <SettingsSection
+        id="peligro"
+        icon={AlertTriangle}
+        title="Zona de peligro"
+        danger
+        className="border-2"
+        description="Eliminar tu cuenta borrará permanentemente tu organización y todos sus datos: métricas, reportes, integraciones y metas. También se eliminarán las cuentas de los miembros de tu equipo que solo pertenezcan a esta organización. Esta acción no se puede deshacer."
+      >
+        <Field label="Escribe ELIMINAR para confirmar">
+          <Input
+            type="text"
+            autoComplete="off"
+            value={deleteConfirm}
+            onChange={(e) => setDeleteConfirm(e.target.value)}
+            placeholder="ELIMINAR"
+            className="border-destructive/30"
+          />
+        </Field>
+        <Button variant="destructive" onClick={handleDeleteAccount} loading={deleting} disabled={deleteConfirm !== "ELIMINAR"}>
+          {!deleting && <Trash2 />}
+          Eliminar mi cuenta
+        </Button>
+      </SettingsSection>
     </div>
   );
 }

@@ -1,13 +1,17 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { type LucideIcon } from "lucide-react";
-import { Plus, Trash2, X, Download, Upload, Search, RefreshCw, LinkIcon, Pencil, ArrowLeftRight, Loader2 } from "lucide-react";
+import { Plus, Trash2, Download, Upload, Search, RefreshCw, LinkIcon, Pencil, ArrowLeftRight, SearchX } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/metric-card";
-import { DashboardSkeleton } from "@/components/dashboard/skeleton";
-import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ExportButton } from "@/components/dashboard/export-button";
 import { cn, formatCurrency } from "@/lib/utils";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Field, Input, MoneyInput, Select } from "@/components/ui/field";
+import { PageHeader, Card } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, CardsSkeleton, RowsSkeleton, Skeleton } from "@/components/ui/states";
+import { useConfirm } from "@/components/ui/confirm";
 import { useToast } from "@/components/toast";
 import { addActivityLog } from "@/components/dashboard/activity-log";
 
@@ -62,6 +66,7 @@ export function MetricsDashboard({
   readOnlyNote,
 }: MetricsDashboardProps) {
   const { toast } = useToast();
+  const confirm = useConfirm();
   const [metrics, setMetrics] = useState<MetricEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -80,14 +85,12 @@ export function MetricsDashboard({
   });
   const setMonths = (m: number) => {
     setMonthsState(m);
-    try { localStorage.setItem(monthsKey, String(m)); } catch {}
+    try { localStorage.setItem(monthsKey, String(m)); } catch { /* almacenamiento no disponible: solo se pierde la preferencia */ }
   };
   const [form, setForm] = useState({ name: templates[0].name, value: "", period: new Date().toISOString().split("T")[0] });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>(defaultSelected);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [bulkDeleteCount, setBulkDeleteCount] = useState(0);
   const [editEntry, setEditEntry] = useState<MetricEntry | null>(null);
   const [editForm, setEditForm] = useState({ value: "", period: "" });
   const [editSaving, setEditSaving] = useState(false);
@@ -96,7 +99,6 @@ export function MetricsDashboard({
   const [compareLoading, setCompareLoading] = useState(false);
 
   const storageKey = `metrixpro-display-${category}`;
-  const valueInputRef = useRef<HTMLInputElement>(null);
 
   const load = (signal?: AbortSignal) => {
     setLoading(true);
@@ -121,25 +123,13 @@ export function MetricsDashboard({
     return () => clearInterval(id);
   }, [autoRefresh, months]);
 
-  // Focus the value input when the form opens
   useEffect(() => {
-    if (showForm) setTimeout(() => valueInputRef.current?.focus(), 50);
-  }, [showForm]);
-
-  // Close modals on Escape key
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      if (editEntry) { setEditEntry(null); return; }
-      if (showForm) setShowForm(false);
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [editEntry, showForm]);
-
-  useEffect(() => {
-    const stored = localStorage.getItem(storageKey);
-    if (stored) try { setSelectedMetrics(JSON.parse(stored)); } catch {}
+    try {
+      const stored = localStorage.getItem(storageKey);
+      if (stored) setSelectedMetrics(JSON.parse(stored));
+    } catch {
+      // Preferencia local corrupta o almacenamiento bloqueado: se usan los valores por defecto.
+    }
   }, []);
 
   useEffect(() => {
@@ -209,6 +199,12 @@ export function MetricsDashboard({
   };
 
   const handleDelete = async (id: string) => {
+    if (!(await confirm({
+      title: "Eliminar registro",
+      description: "¿Eliminar este registro? Esta acción no se puede deshacer.",
+      confirmLabel: "Eliminar",
+      destructive: true,
+    }))) return;
     try {
       const res = await fetch(`/api/metrics/manual?id=${id}`, { method: "DELETE" });
       if (!res.ok) { toast("No se pudo eliminar el registro", "error"); return; }
@@ -217,8 +213,6 @@ export function MetricsDashboard({
       load();
     } catch {
       toast("Error de conexión al eliminar", "error");
-    } finally {
-      setDeleteId(null);
     }
   };
 
@@ -228,7 +222,7 @@ export function MetricsDashboard({
   };
 
   const handleEdit = async () => {
-    if (!editEntry) return;
+    if (!editEntry || !editForm.value) return;
     setEditSaving(true);
     try {
       const res = await fetch("/api/metrics/manual", {
@@ -253,6 +247,13 @@ export function MetricsDashboard({
   };
 
   const handleBulkDelete = async () => {
+    const count = selected.size;
+    if (!(await confirm({
+      title: "Eliminar registros",
+      description: `¿Eliminar ${count} registro${count > 1 ? "s" : ""}? Esta acción no se puede deshacer.`,
+      confirmLabel: "Eliminar",
+      destructive: true,
+    }))) return;
     try {
       const results = await Promise.all(
         Array.from(selected).map((id) => fetch(`/api/metrics/manual?id=${id}`, { method: "DELETE" }).then((r) => r.ok).catch(() => false))
@@ -265,7 +266,6 @@ export function MetricsDashboard({
       toast("Error de conexión al eliminar", "error");
     } finally {
       setSelected(new Set());
-      setBulkDeleteCount(0);
     }
   };
 
@@ -333,188 +333,169 @@ export function MetricsDashboard({
   const comparePct = (curr: number, prev: number | null): number | null =>
     prev !== null && prev !== 0 ? ((curr - prev) / Math.abs(prev)) * 100 : null;
 
-  if (loading) return <DashboardSkeleton />;
-
-  if (error) return (
-    <div className="flex flex-col items-center justify-center rounded-xl border border-destructive/30 bg-card py-16">
-      <div className="rounded-full bg-destructive/10 p-3 mb-4"><X className="h-6 w-6 text-destructive" /></div>
-      <h3 className="text-lg font-semibold">Error al cargar datos</h3>
-      <p className="mt-1 text-sm text-muted-foreground">{error}</p>
-      <button onClick={() => load()} className="mt-4 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90">Reintentar</button>
-    </div>
+  const headerActions = (
+    <>
+      <ExportButton category={category} label="Exportar" />
+      {!disableManualEntry && (
+        <>
+          <Button asChild variant="outline" size="sm">
+            <a href={`/api/metrics/template?category=${category}`} aria-label="Descargar plantilla CSV">
+              <Download />
+              <span className="hidden sm:inline">Plantilla</span>
+            </a>
+          </Button>
+          <label
+            className={cn(
+              buttonVariants({ variant: "outline", size: "sm" }),
+              "cursor-pointer focus-within:ring-2 focus-within:ring-ring",
+              importing && "pointer-events-none opacity-60",
+            )}
+            aria-label="Importar CSV"
+          >
+            <Upload />
+            <span className="hidden sm:inline">{importing ? "Importando..." : "CSV"}</span>
+            <input type="file" accept=".csv" onChange={handleImport} disabled={importing} className="sr-only" />
+          </label>
+          <Button size="sm" onClick={() => setShowForm(true)} aria-label="Agregar dato">
+            <Plus />
+            <span className="hidden sm:inline">Agregar Dato</span>
+          </Button>
+        </>
+      )}
+    </>
   );
 
+  const header = hideTitle ? (
+    <div className="flex flex-wrap items-center justify-end gap-2">{headerActions}</div>
+  ) : (
+    <PageHeader icon={defaultIcon} title={title} description={subtitle} actions={headerActions} />
+  );
+
+  if (loading) {
+    return (
+      <div className="space-y-5">
+        {header}
+        <div className="flex gap-2">
+          <Skeleton className="h-9 w-56 rounded-lg" />
+          <Skeleton className="h-9 w-20 rounded-lg" />
+        </div>
+        <CardsSkeleton count={4} className="grid-cols-2 sm:grid-cols-2" />
+        <Card>
+          <div className="border-b border-border p-4"><Skeleton className="h-5 w-40" /></div>
+          <RowsSkeleton rows={5} />
+        </Card>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-5">
+        {header}
+        <Card>
+          <ErrorState message={error} onRetry={() => load()} />
+        </Card>
+      </div>
+    );
+  }
+
   const hasData = metrics.length > 0;
+  const selectedTemplate = templates.find((t) => t.name === form.name);
+  const editIsMoney = editEntry?.unit === "MXN";
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        {!hideTitle && (
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">{title}</h1>
-            <p className="text-sm text-muted-foreground">{subtitle}</p>
-          </div>
-        )}
-        {hideTitle && <div />}
-        <div className="flex items-center gap-2">
-          <ExportButton category={category} label="Exportar" />
-          {!disableManualEntry && (
-            <>
-              <a
-                href={`/api/metrics/template?category=${category}`}
-                className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium transition-colors hover:bg-secondary"
-              >
-                <Download className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Plantilla</span>
-              </a>
-              <label className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium transition-colors hover:bg-secondary cursor-pointer">
-                <Upload className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">{importing ? "Importando..." : "CSV"}</span>
-                <input type="file" accept=".csv" onChange={handleImport} className="hidden" />
-              </label>
-              <button
-                onClick={() => setShowForm(true)}
-                className="flex items-center gap-2 rounded-lg gradient-bg px-3 py-2 sm:px-4 text-sm font-medium text-white transition-opacity hover:opacity-90"
-              >
-                <Plus className="h-4 w-4" />
-                <span className="hidden sm:inline">Agregar Dato</span>
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+      {header}
 
       {disableManualEntry && readOnlyNote && (
-        <div className="rounded-xl border border-border bg-secondary/30 px-4 py-3 text-xs text-muted-foreground">
+        <div className="rounded-xl border border-info/30 bg-info/10 px-4 py-3 text-sm text-muted-foreground">
           {readOnlyNote}
         </div>
       )}
 
-      {showForm && (
-        <div className="rounded-xl border border-primary/20 bg-card p-4 sm:p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold">Nuevo Registro</h3>
-            <button onClick={() => setShowForm(false)} aria-label="Cerrar" className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
-          </div>
-          <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">Tipo</label>
-              <select
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-              >
-                {templates.filter((t) => !t.computed).map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">Valor</label>
-              <input
-                ref={valueInputRef}
-                type="number"
-                inputMode="decimal"
-                min="0"
-                value={form.value}
-                onChange={(e) => setForm({ ...form, value: e.target.value })}
-                placeholder="0"
-                className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">Período</label>
-              <input
-                type="date"
-                value={form.period}
-                onChange={(e) => setForm({ ...form, period: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-              />
-            </div>
-          </div>
-          <button
-            onClick={handleSave}
-            disabled={saving || !form.value}
-            className="mt-4 flex items-center gap-2 rounded-lg gradient-bg px-6 py-2 text-sm font-medium text-white disabled:opacity-50"
-          >
-            {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            {saving ? "Guardando..." : "Guardar"}
-          </button>
-        </div>
-      )}
-
       {!hasData ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card py-14 sm:py-20">
-          <LinkIcon className="h-10 w-10 text-muted-foreground mb-4" />
-          <h3 className="text-lg font-semibold">{emptyTitle}</h3>
-          <p className="mt-1 text-sm text-muted-foreground text-center max-w-md">{emptySubtitle}</p>
-          {!disableManualEntry && (
-            <button onClick={() => setShowForm(true)} className="mt-4 rounded-lg gradient-bg px-3 py-2 sm:px-4 text-sm font-medium text-white hover:opacity-90">
-              Entrada Manual
-            </button>
-          )}
-        </div>
+        <Card>
+          <EmptyState
+            icon={LinkIcon}
+            title={emptyTitle}
+            description={emptySubtitle}
+            action={
+              !disableManualEntry && (
+                <Button onClick={() => setShowForm(true)}>
+                  <Plus /> Entrada Manual
+                </Button>
+              )
+            }
+          />
+        </Card>
       ) : (
         <>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 rounded-lg border border-border bg-secondary/50 p-1 w-fit">
+          <div className="flex flex-wrap items-center gap-2">
+            <div role="group" aria-label="Rango de meses" className="flex w-fit items-center gap-1 rounded-lg border border-border bg-secondary p-1">
               {[1, 3, 6, 12].map((m) => (
                 <button
                   key={m}
+                  type="button"
                   onClick={() => setMonths(m)}
+                  aria-pressed={months === m}
                   className={cn(
-                    "rounded-md px-3 py-1 text-xs font-medium transition-colors",
-                    months === m ? "bg-primary text-white" : "text-muted-foreground hover:text-foreground"
+                    "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                    months === m ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
                   )}
                 >
                   {m === 1 ? "1 mes" : `${m} meses`}
                 </button>
               ))}
             </div>
-            <button
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => setAutoRefresh(!autoRefresh)}
-              className={cn(
-                "rounded-lg border border-border px-3 py-1 text-xs font-medium transition-colors",
-                autoRefresh ? "bg-primary/10 text-primary border-primary/30" : "text-muted-foreground hover:text-foreground"
-              )}
+              aria-pressed={autoRefresh}
+              className={cn(autoRefresh && "border-primary/30 bg-primary/10 text-primary hover:bg-primary/15")}
             >
-              <RefreshCw className={cn("h-3 w-3 inline mr-1", autoRefresh && "animate-spin")} />
+              <RefreshCw className={cn(autoRefresh && "animate-spin")} />
               Auto
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => setCompareMode(!compareMode)}
-              className={cn(
-                "rounded-lg border border-border px-3 py-1 text-xs font-medium transition-colors",
-                compareMode ? "bg-primary/10 text-primary border-primary/30" : "text-muted-foreground hover:text-foreground"
-              )}
+              aria-pressed={compareMode}
+              className={cn(compareMode && "border-primary/30 bg-primary/10 text-primary hover:bg-primary/15")}
             >
-              <ArrowLeftRight className="h-3 w-3 inline mr-1" />
+              <ArrowLeftRight />
               Comparar período
-            </button>
+            </Button>
           </div>
 
-          <div className="flex flex-wrap gap-1.5 mb-3">
-            {templates.map((t) => (
-              <button
-                key={t.name}
-                onClick={() => {
-                  const next = selectedMetrics.includes(t.name)
-                    ? selectedMetrics.filter((n) => n !== t.name)
-                    : [...selectedMetrics, t.name].slice(-4);
-                  setSelectedMetrics(next);
-                  localStorage.setItem(storageKey, JSON.stringify(next));
-                }}
-                className={cn(
-                  "rounded-full px-3 py-1 text-xs font-medium transition-colors",
-                  selectedMetrics.includes(t.name)
-                    ? "gradient-bg text-white"
-                    : "bg-secondary/50 text-muted-foreground hover:bg-secondary"
-                )}
-              >
-                {t.name}
-              </button>
-            ))}
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Métricas visibles (máximo 4)">
+            {templates.map((t) => {
+              const on = selectedMetrics.includes(t.name);
+              return (
+                <button
+                  key={t.name}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => {
+                    const next = on
+                      ? selectedMetrics.filter((n) => n !== t.name)
+                      : [...selectedMetrics, t.name].slice(-4);
+                    setSelectedMetrics(next);
+                    try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch { /* almacenamiento no disponible: solo se pierde la preferencia */ }
+                  }}
+                  className={cn(
+                    "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+                    on ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+                  )}
+                >
+                  {t.name}
+                </button>
+              );
+            })}
           </div>
 
-          <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             {selectedMetrics.map((name) => {
               const template = templates.find((t) => t.name === name);
               const Icon = iconMap[name] || defaultIcon;
@@ -528,7 +509,7 @@ export function MetricsDashboard({
                     change={pctChange(name)}
                   />
                   {template?.computed && (
-                    <span className="absolute top-2 right-2 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold text-primary leading-none">
+                    <span className="absolute bottom-2 right-2 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium leading-none text-primary">
                       = calculado
                     </span>
                   )}
@@ -540,27 +521,27 @@ export function MetricsDashboard({
           {extraContent?.(metrics, months)}
 
           {compareMode && (
-            <div className="rounded-xl border border-primary/20 bg-card">
+            <Card>
               <div className="flex items-center gap-2 border-b border-border p-4">
-                <ArrowLeftRight className="h-4 w-4 text-primary" />
-                <h3 className="font-semibold text-sm">
+                <ArrowLeftRight className="h-4 w-4 shrink-0 text-primary" />
+                <h2 className="text-sm font-semibold">
                   Comparación con período anterior
                   <span className="ml-2 text-xs font-normal text-muted-foreground">
                     ({months === 1 ? "1 mes" : `${months} meses`} actuales vs {months === 1 ? "1 mes" : `${months} meses`} anteriores)
                   </span>
-                </h3>
+                </h2>
               </div>
               {compareLoading ? (
-                <div className="p-6 text-center text-sm text-muted-foreground">Cargando comparación...</div>
+                <RowsSkeleton rows={Math.min(templates.length, 5)} />
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                      <tr className="border-b border-border text-left text-xs font-medium text-muted-foreground">
                         <th scope="col" className="p-3 font-medium">Métrica</th>
-                        <th scope="col" className="p-3 font-medium text-right">Período actual</th>
-                        <th scope="col" className="p-3 font-medium text-right">Período anterior</th>
-                        <th scope="col" className="p-3 font-medium text-right">Variación</th>
+                        <th scope="col" className="p-3 text-right font-medium">Período actual</th>
+                        <th scope="col" className="p-3 text-right font-medium">Período anterior</th>
+                        <th scope="col" className="p-3 text-right font-medium">Variación</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -577,12 +558,12 @@ export function MetricsDashboard({
                         const pct = currVal !== null ? comparePct(currVal, prevVal) : null;
                         const hasAny = currVal !== null || prevVal !== null;
                         return (
-                          <tr key={t.name} className="border-b border-border last:border-0 hover:bg-secondary/30">
+                          <tr key={t.name} className="border-b border-border last:border-0 hover:bg-secondary/60">
                             <td className="p-3 font-medium">{t.name}</td>
-                            <td className="p-3 text-right font-semibold">
-                              {currVal !== null ? fmtValue(currVal, t.unit) : <span className="text-muted-foreground text-xs">Sin datos</span>}
+                            <td className="p-3 text-right font-semibold tabular-nums">
+                              {currVal !== null ? fmtValue(currVal, t.unit) : <span className="text-xs text-muted-foreground">Sin datos</span>}
                             </td>
-                            <td className="p-3 text-right text-muted-foreground">
+                            <td className="p-3 text-right tabular-nums text-muted-foreground">
                               {prevVal !== null ? fmtValue(prevVal, t.unit) : <span className="text-xs">Sin datos anteriores</span>}
                             </td>
                             <td className="p-3 text-right">
@@ -591,10 +572,8 @@ export function MetricsDashboard({
                               ) : pct !== null ? (
                                 <span
                                   className={cn(
-                                    "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold",
-                                    pct >= 0
-                                      ? "bg-emerald-500/10 text-emerald-600"
-                                      : "bg-red-500/10 text-red-600"
+                                    "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums",
+                                    pct >= 0 ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
                                   )}
                                 >
                                   {pct >= 0 ? "+" : ""}{pct.toFixed(1)}%
@@ -610,213 +589,244 @@ export function MetricsDashboard({
                   </table>
                 </div>
               )}
-            </div>
+            </Card>
           )}
 
-          <div className="rounded-xl border border-border bg-card">
-            <div className="flex items-center justify-between border-b border-border p-4">
-              <h3 className="font-semibold">Registros Recientes</h3>
+          <Card>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4">
+              <h2 className="text-sm font-semibold">Registros Recientes</h2>
               <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                <input
-                  type="text"
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  type="search"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   aria-label="Buscar registros"
                   placeholder="Buscar..."
-                  className="w-32 sm:w-48 rounded-lg border border-border bg-background pl-8 pr-3 py-1.5 text-xs focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
+                  className="h-9 w-40 pl-9 sm:w-56"
                 />
               </div>
             </div>
             {!disableManualEntry && selected.size > 0 && (
               <div className="flex items-center justify-between border-b border-border bg-primary/5 px-4 py-2">
                 <span className="text-xs font-medium">{selected.size} seleccionado{selected.size > 1 ? "s" : ""}</span>
-                <button
-                  onClick={() => setBulkDeleteCount(selected.size)}
-                  className="text-xs font-medium text-red-500 hover:text-red-600"
-                >
-                  Eliminar seleccionados
-                </button>
+                <Button variant="ghost" size="sm" onClick={handleBulkDelete} className="text-destructive hover:bg-destructive/10 hover:text-destructive">
+                  <Trash2 /> Eliminar seleccionados
+                </Button>
               </div>
             )}
 
-            {/* Mobile card list */}
-            <div className="sm:hidden divide-y divide-border">
-              {filtered.length === 0 && (
-                <p className="p-6 text-center text-sm text-muted-foreground">Sin resultados</p>
-              )}
-              {filtered.map((m) => (
-                <div key={m.id} className="flex items-center justify-between px-4 py-3 hover:bg-secondary/30">
-                  <div>
-                    <p className="text-sm font-medium">{m.name}</p>
-                    <p className="text-xs text-muted-foreground">{new Date(m.period).toLocaleDateString("es-MX")}</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-semibold">{fmtValue(m.value, m.unit)}</span>
-                    {!disableManualEntry && (
-                      <div className="flex items-center gap-1">
-                        <button aria-label={`Editar ${m.name}`} onClick={() => openEdit(m)} className="text-muted-foreground hover:text-primary p-1">
-                          <Pencil className="h-3.5 w-3.5" />
-                        </button>
-                        <button aria-label={`Eliminar ${m.name}`} onClick={() => setDeleteId(m.id)} className="text-muted-foreground hover:text-red-500 p-1">
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Desktop table */}
-            <div className="hidden sm:block overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                    {!disableManualEntry && (
-                      <th scope="col" className="p-3 w-8">
-                        <input
-                          type="checkbox"
-                          aria-label="Seleccionar todos los registros"
-                          checked={selected.size === filtered.length && filtered.length > 0}
-                          onChange={(e) => {
-                            if (e.target.checked) setSelected(new Set(filtered.map((m) => m.id)));
-                            else setSelected(new Set());
-                          }}
-                          className="rounded border-border"
-                        />
-                      </th>
-                    )}
-                    <th scope="col" className="p-3 font-medium">Métrica</th>
-                    <th scope="col" className="p-3 font-medium text-right">Valor</th>
-                    <th scope="col" className="p-3 font-medium">Fecha</th>
-                    {!disableManualEntry && <th scope="col" className="p-3 font-medium w-20"></th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.length === 0 && (
-                    <tr><td colSpan={5} className="p-6 text-center text-sm text-muted-foreground">Sin resultados</td></tr>
-                  )}
+            {filtered.length === 0 ? (
+              <EmptyState icon={SearchX} title="Sin resultados" description="Ningún registro coincide con tu búsqueda." />
+            ) : (
+              <>
+                {/* Mobile card list */}
+                <div className="divide-y divide-border sm:hidden">
                   {filtered.map((m) => (
-                    <tr key={m.id} className="border-b border-border last:border-0 hover:bg-secondary/30">
-                      {!disableManualEntry && (
-                        <td className="p-3">
-                          <input
-                            type="checkbox"
-                            aria-label={`Seleccionar ${m.name}`}
-                            checked={selected.has(m.id)}
-                            onChange={(e) => {
-                              const next = new Set(selected);
-                              if (e.target.checked) next.add(m.id);
-                              else next.delete(m.id);
-                              setSelected(next);
-                            }}
-                            className="rounded border-border"
-                          />
-                        </td>
-                      )}
-                      <td className="p-3 font-medium">{m.name}</td>
-                      <td className="p-3 text-right font-semibold">{fmtValue(m.value, m.unit)}</td>
-                      <td className="p-3 text-muted-foreground">{new Date(m.period).toLocaleDateString("es-MX")}</td>
-                      {!disableManualEntry && (
-                        <td className="p-3">
-                          <div className="flex items-center gap-1">
-                            <button
-                              aria-label={`Editar ${m.name}`}
-                              onClick={() => openEdit(m)}
-                              className="text-muted-foreground hover:text-primary"
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </button>
-                            <button
+                    <div key={m.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">{m.name}</p>
+                        <p className="text-xs text-muted-foreground">{new Date(m.period).toLocaleDateString("es-MX")}</p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <span className="text-sm font-semibold tabular-nums">{fmtValue(m.value, m.unit)}</span>
+                        {!disableManualEntry && (
+                          <div className="flex items-center">
+                            <Button variant="ghost" size="icon-sm" aria-label={`Editar ${m.name}`} onClick={() => openEdit(m)}>
+                              <Pencil />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
                               aria-label={`Eliminar ${m.name}`}
-                              onClick={() => setDeleteId(m.id)}
-                              className="text-muted-foreground hover:text-red-500"
+                              onClick={() => handleDelete(m.id)}
+                              className="hover:bg-destructive/10 hover:text-destructive"
                             >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
+                              <Trash2 />
+                            </Button>
                           </div>
-                        </td>
-                      )}
-                    </tr>
+                        )}
+                      </div>
+                    </div>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                </div>
+
+                {/* Desktop table */}
+                <div className="hidden overflow-x-auto sm:block">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border text-left text-xs font-medium text-muted-foreground">
+                        {!disableManualEntry && (
+                          <th scope="col" className="w-8 p-3">
+                            <input
+                              type="checkbox"
+                              aria-label="Seleccionar todos los registros"
+                              checked={selected.size === filtered.length && filtered.length > 0}
+                              onChange={(e) => {
+                                if (e.target.checked) setSelected(new Set(filtered.map((m) => m.id)));
+                                else setSelected(new Set());
+                              }}
+                              className="h-4 w-4 rounded border-border accent-primary"
+                            />
+                          </th>
+                        )}
+                        <th scope="col" className="p-3 font-medium">Métrica</th>
+                        <th scope="col" className="p-3 text-right font-medium">Valor</th>
+                        <th scope="col" className="p-3 font-medium">Fecha</th>
+                        {!disableManualEntry && <th scope="col" className="w-24 p-3 font-medium"><span className="sr-only">Acciones</span></th>}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filtered.map((m) => (
+                        <tr key={m.id} className="border-b border-border last:border-0 hover:bg-secondary/60">
+                          {!disableManualEntry && (
+                            <td className="p-3">
+                              <input
+                                type="checkbox"
+                                aria-label={`Seleccionar ${m.name}`}
+                                checked={selected.has(m.id)}
+                                onChange={(e) => {
+                                  const next = new Set(selected);
+                                  if (e.target.checked) next.add(m.id);
+                                  else next.delete(m.id);
+                                  setSelected(next);
+                                }}
+                                className="h-4 w-4 rounded border-border accent-primary"
+                              />
+                            </td>
+                          )}
+                          <td className="p-3 font-medium">{m.name}</td>
+                          <td className="p-3 text-right font-semibold tabular-nums">{fmtValue(m.value, m.unit)}</td>
+                          <td className="p-3 text-muted-foreground">{new Date(m.period).toLocaleDateString("es-MX")}</td>
+                          {!disableManualEntry && (
+                            <td className="p-2">
+                              <div className="flex items-center justify-end">
+                                <Button variant="ghost" size="icon-sm" aria-label={`Editar ${m.name}`} onClick={() => openEdit(m)}>
+                                  <Pencil />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  aria-label={`Eliminar ${m.name}`}
+                                  onClick={() => handleDelete(m.id)}
+                                  className="hover:bg-destructive/10 hover:text-destructive"
+                                >
+                                  <Trash2 />
+                                </Button>
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </Card>
         </>
       )}
 
-      {/* Edit Modal */}
-      {editEntry && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={() => setEditEntry(null)} />
-          <div role="dialog" aria-modal="true" aria-label={`Editar ${editEntry.name}`} className="relative w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xl animate-in fade-in zoom-in-95">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="font-semibold text-sm">Editar: {editEntry.name}</h3>
-              <button onClick={() => setEditEntry(null)} aria-label="Cerrar" className="text-muted-foreground hover:text-foreground">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">Valor</label>
-                <input
+      {/* New record */}
+      <Dialog open={showForm} onOpenChange={(o) => !o && setShowForm(false)}>
+        <DialogContent
+          title="Nuevo registro"
+          description={`Captura manual de ${activityLabel}.`}
+          footer={
+            <>
+              <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
+              <Button onClick={handleSave} loading={saving} disabled={!form.value}>Guardar</Button>
+            </>
+          }
+        >
+          <form
+            className="space-y-4"
+            onSubmit={(e) => { e.preventDefault(); handleSave(); }}
+          >
+            <Field label="Tipo">
+              <Select value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}>
+                {templates.filter((t) => !t.computed).map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}
+              </Select>
+            </Field>
+            <Field label="Valor" hint={selectedTemplate?.unit && selectedTemplate.unit !== "MXN" ? `Unidad: ${selectedTemplate.unit}` : undefined}>
+              {selectedTemplate?.unit === "MXN" ? (
+                <MoneyInput
+                  autoFocus
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={form.value}
+                  onChange={(e) => setForm({ ...form, value: e.target.value })}
+                  placeholder="0"
+                />
+              ) : (
+                <Input
                   autoFocus
                   type="number"
                   inputMode="decimal"
                   min="0"
-                  value={editForm.value}
-                  onChange={(e) => setEditForm({ ...editForm, value: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
+                  step="any"
+                  value={form.value}
+                  onChange={(e) => setForm({ ...form, value: e.target.value })}
+                  placeholder="0"
                 />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">Período</label>
-                <input
-                  type="date"
-                  value={editForm.period}
-                  onChange={(e) => setEditForm({ ...editForm, period: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
-                />
-              </div>
-            </div>
-            <div className="mt-5 flex justify-end gap-2">
-              <button onClick={() => setEditEntry(null)} className="rounded-lg border border-border px-4 py-2 text-sm font-medium transition-colors hover:bg-secondary">
-                Cancelar
-              </button>
-              <button
-                onClick={handleEdit}
-                disabled={editSaving || !editForm.value}
-                className="flex items-center gap-2 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-              >
-                {editSaving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                {editSaving ? "Guardando..." : "Guardar"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+              )}
+            </Field>
+            <Field label="Período">
+              <Input type="date" value={form.period} onChange={(e) => setForm({ ...form, period: e.target.value })} />
+            </Field>
+            <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
+          </form>
+        </DialogContent>
+      </Dialog>
 
-      <ConfirmDialog
-        open={deleteId !== null}
-        title="Eliminar registro"
-        description="¿Eliminar este registro? Esta acción no se puede deshacer."
-        confirmLabel="Eliminar"
-        destructive
-        onConfirm={() => deleteId && handleDelete(deleteId)}
-        onCancel={() => setDeleteId(null)}
-      />
-
-      <ConfirmDialog
-        open={bulkDeleteCount > 0}
-        title="Eliminar registros"
-        description={`¿Eliminar ${bulkDeleteCount} registro${bulkDeleteCount > 1 ? "s" : ""}? Esta acción no se puede deshacer.`}
-        confirmLabel="Eliminar"
-        destructive
-        onConfirm={handleBulkDelete}
-        onCancel={() => setBulkDeleteCount(0)}
-      />
+      {/* Edit record */}
+      <Dialog open={editEntry !== null} onOpenChange={(o) => !o && setEditEntry(null)}>
+        {editEntry && (
+          <DialogContent
+            size="sm"
+            title={`Editar: ${editEntry.name}`}
+            footer={
+              <>
+                <Button variant="outline" onClick={() => setEditEntry(null)}>Cancelar</Button>
+                <Button onClick={handleEdit} loading={editSaving} disabled={!editForm.value}>Guardar</Button>
+              </>
+            }
+          >
+            <form
+              className="space-y-4"
+              onSubmit={(e) => { e.preventDefault(); handleEdit(); }}
+            >
+              <Field label="Valor">
+                {editIsMoney ? (
+                  <MoneyInput
+                    autoFocus
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={editForm.value}
+                    onChange={(e) => setEditForm({ ...editForm, value: e.target.value })}
+                  />
+                ) : (
+                  <Input
+                    autoFocus
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="any"
+                    value={editForm.value}
+                    onChange={(e) => setEditForm({ ...editForm, value: e.target.value })}
+                  />
+                )}
+              </Field>
+              <Field label="Período">
+                <Input type="date" value={editForm.period} onChange={(e) => setEditForm({ ...editForm, period: e.target.value })} />
+              </Field>
+              <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
+            </form>
+          </DialogContent>
+        )}
+      </Dialog>
     </div>
   );
 }

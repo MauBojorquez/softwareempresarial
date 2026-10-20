@@ -106,7 +106,7 @@ export function NotificationBell() {
       >
         <Bell className="h-4 w-4" />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+          <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-white">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
@@ -142,7 +142,7 @@ export function NotificationBell() {
                         {!n.read && <div className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />}
                         <p className="text-xs font-medium">{n.title}</p>
                       </div>
-                      <span className="text-[10px] text-muted-foreground ml-2 shrink-0">{timeAgo(n.createdAt)}</span>
+                      <span className="text-xs text-muted-foreground ml-2 shrink-0">{timeAgo(n.createdAt)}</span>
                     </div>
                     <p className="mt-0.5 text-xs text-muted-foreground">{n.message}</p>
                   </div>
@@ -155,13 +155,13 @@ export function NotificationBell() {
                 {!subscribed ? (
                   <>
                     <div className="mb-2.5 rounded-lg bg-secondary/50 p-2.5">
-                      <p className="text-[11px] font-medium text-foreground">Te avisamos cuando:</p>
-                      <ul className="mt-1 space-y-0.5 text-[10px] text-muted-foreground">
+                      <p className="text-xs font-medium text-foreground">Te avisamos cuando:</p>
+                      <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
                         <li>📊 Un reporte de IA está listo</li>
                         <li>⚠️ Una métrica sube o baja de forma importante</li>
                         <li>🎯 Se dispara una alerta que configuraste</li>
                       </ul>
-                      <p className="mt-1.5 text-[10px] text-muted-foreground">Te llegan aquí y a tu celular o navegador, aunque la app esté cerrada.</p>
+                      <p className="mt-1.5 text-xs text-muted-foreground">Te llegan aquí y a tu celular o navegador, aunque la app esté cerrada.</p>
                     </div>
                     <button
                       onClick={togglePush}
@@ -174,7 +174,7 @@ export function NotificationBell() {
                   </>
                 ) : (
                   <>
-                    <div className="mb-2.5 flex items-center justify-center gap-1.5 rounded-lg bg-emerald-500/10 py-1.5 text-[11px] font-medium text-emerald-600">
+                    <div className="mb-2.5 flex items-center justify-center gap-1.5 rounded-lg bg-success/10 py-1.5 text-xs font-medium text-success">
                       <Check className="h-3.5 w-3.5" /> Notificaciones activadas
                     </div>
                     <button
@@ -185,7 +185,7 @@ export function NotificationBell() {
                       Configurar alertas
                       <ArrowRight className="h-3.5 w-3.5" />
                     </button>
-                    <div className="mt-1.5 flex items-center justify-center gap-2 text-[10px] text-muted-foreground">
+                    <div className="mt-1.5 flex items-center justify-center gap-2 text-xs text-muted-foreground">
                       <button
                         onClick={() => fetch("/api/push/test", { method: "POST" }).catch(() => {})}
                         className="hover:text-foreground"

@@ -167,9 +167,9 @@ async function handle(req: NextRequest) {
           const html = `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f4f4f5;font-family:Inter,sans-serif;">
 <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:40px 16px;">
 <table width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;border:1px solid #e4e4e7;">
-<tr><td style="background:linear-gradient(135deg,#6366f1,#8b5cf6);padding:28px 32px;">
+<tr><td style="background:#224CA0;padding:28px 32px;">
 <h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;">StratiuMetrics</h1>
-<p style="margin:4px 0 0;color:rgba(255,255,255,0.8);font-size:13px;">Dashboard Empresarial Inteligente</p>
+<p style="margin:4px 0 0;color:rgba(255,255,255,0.8);font-size:13px;">Herramienta interna de Stratium</p>
 </td></tr>
 <tr><td style="padding:32px;">
 <h2 style="margin:0 0 8px;color:#18181b;font-size:20px;">⚠️ Alerta activada</h2>
@@ -178,10 +178,10 @@ async function handle(req: NextRequest) {
   <p style="margin:0;color:#92400e;font-size:14px;line-height:1.7;"><strong>Motivo:</strong> ${triggerDetail}.</p>
 </div>
 <p style="color:#71717a;font-size:13px;">Métrica: <strong>${rule.metricName}</strong> · Categoría: ${rule.category}</p>
-<a href="${process.env.NEXTAUTH_URL}/dashboard/overview" style="display:inline-block;margin-top:20px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:600;font-size:14px;">Ver Dashboard</a>
+<a href="${process.env.NEXTAUTH_URL}/dashboard/overview" style="display:inline-block;margin-top:20px;background:#224CA0;color:#fff;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:600;font-size:14px;">Ver Dashboard</a>
 </td></tr>
 <tr><td style="padding:20px 32px;border-top:1px solid #f4f4f5;text-align:center;">
-<p style="margin:0;font-size:12px;color:#a1a1aa;">© 2026 StratiuMetrics · Todos los derechos reservados</p>
+<p style="margin:0;font-size:12px;color:#a1a1aa;">StratiuMetrics · Uso interno del equipo Stratium</p>
 </td></tr>
 </table></td></tr></table></body></html>`;
           await sendEmail(ownerEmail, subject, html);

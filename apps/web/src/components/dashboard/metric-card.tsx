@@ -60,11 +60,11 @@ export function MetricCard({ title, value, change, icon: Icon, format, trend }: 
           : String(value);
 
   return (
-    <div role="article" aria-label={`${title}: ${formattedValue}`} className="group relative rounded-2xl border border-border bg-card p-4 sm:p-5 transition-all card-hover overflow-hidden">
+    <div role="article" aria-label={`${title}: ${formattedValue}`} className="group relative rounded-xl border border-border bg-card p-4 sm:p-5 transition-all card-hover overflow-hidden">
       {/* Top accent line */}
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
       <div className="flex items-start justify-between gap-2">
-        <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">{title}</p>
+        <p className="text-xs font-medium text-muted-foreground">{title}</p>
         <div className="rounded-xl bg-primary/10 p-1.5 sm:p-2 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3 shrink-0">
           <Icon className="h-3.5 w-3.5 text-primary sm:h-4 sm:w-4" />
         </div>
@@ -75,7 +75,7 @@ export function MetricCard({ title, value, change, icon: Icon, format, trend }: 
           <p
             className={cn(
               "mt-1.5 flex items-center gap-1 text-xs font-medium animate-scale-in",
-              change > 0 ? "text-emerald-400" : change < 0 ? "text-red-400" : "text-muted-foreground"
+              change > 0 ? "text-success" : change < 0 ? "text-destructive" : "text-muted-foreground"
             )}
           >
             {change > 0
@@ -88,11 +88,12 @@ export function MetricCard({ title, value, change, icon: Icon, format, trend }: 
         )}
         {trend && trend.length > 1 && (
           <div className="mt-3">
-            <svg viewBox="0 0 100 28" className="w-full h-7" preserveAspectRatio="none" style={{ filter: "drop-shadow(0 0 4px rgba(61,127,255,0.5))" }}>
+            <svg viewBox="0 0 100 28" className="w-full h-7 text-primary" preserveAspectRatio="none" aria-hidden>
               <polyline
                 fill="none"
-                stroke="#3D7FFF"
+                stroke="currentColor"
                 strokeWidth="2"
+                vectorEffect="non-scaling-stroke"
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 points={trend.map((v, i) => {

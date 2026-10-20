@@ -40,13 +40,14 @@ function base(content: string) {
   return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f4f4f5;font-family:Inter,sans-serif;">
 <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:40px 16px;">
 <table width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;border:1px solid #e4e4e7;">
-<tr><td style="background:linear-gradient(135deg,#6366f1,#8b5cf6);padding:28px 32px;">
-<h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;">StratiuMetrics</h1>
-<p style="margin:4px 0 0;color:rgba(255,255,255,0.8);font-size:13px;">Dashboard Empresarial Inteligente</p>
+<tr><td style="background:#224CA0;padding:28px 32px;">
+<img src="${(process.env.NEXTAUTH_URL ?? "").replace(/\/$/, "")}/brand-logo-white.png" alt="StratiuMetrics" height="28" style="display:block;height:28px;border:0;margin:0 0 8px;" />
+<h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;">StratiuMetrics</h1>
+<p style="margin:4px 0 0;color:rgba(255,255,255,0.8);font-size:13px;">Herramienta interna de Stratium</p>
 </td></tr>
 <tr><td style="padding:32px;">${content}</td></tr>
 <tr><td style="padding:20px 32px;border-top:1px solid #f4f4f5;text-align:center;">
-<p style="margin:0;font-size:12px;color:#a1a1aa;">© 2026 StratiuMetrics · Todos los derechos reservados</p>
+<p style="margin:0;font-size:12px;color:#a1a1aa;">StratiuMetrics · Uso interno del equipo Stratium</p>
 </td></tr>
 </table></td></tr></table></body></html>`;
 }
@@ -57,7 +58,7 @@ export function welcomeEmail(name: string, email: string) {
     html: base(`
       <h2 style="margin:0 0 8px;color:#18181b;font-size:20px;">¡Hola, ${esc(name)}!</h2>
       <p style="color:#71717a;font-size:15px;line-height:1.6;">Tu cuenta ha sido creada exitosamente con el correo <strong>${esc(email)}</strong>. Ya puedes acceder a tu dashboard empresarial.</p>
-      <a href="${process.env.NEXTAUTH_URL}/dashboard/overview" style="display:inline-block;margin-top:20px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:600;font-size:14px;">Ir al Dashboard</a>
+      <a href="${process.env.NEXTAUTH_URL}/dashboard/overview" style="display:inline-block;margin-top:20px;background:#224CA0;color:#fff;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:600;font-size:14px;">Ir al Dashboard</a>
       <p style="margin-top:24px;color:#a1a1aa;font-size:13px;">Si no creaste esta cuenta, puedes ignorar este correo.</p>
     `),
   };
@@ -72,7 +73,7 @@ export function reportEmail(name: string, reportTitle: string, summary: string, 
       <div style="background:#f4f4f5;border-radius:12px;padding:20px;margin:20px 0;">
         <p style="margin:0;color:#3f3f46;font-size:14px;line-height:1.7;">${esc(summary)}</p>
       </div>
-      <a href="${reportUrl}" style="display:inline-block;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:600;font-size:14px;">Ver Reporte Completo</a>
+      <a href="${reportUrl}" style="display:inline-block;background:#224CA0;color:#fff;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:600;font-size:14px;">Ver Reporte Completo</a>
     `),
   };
 }
@@ -83,7 +84,7 @@ export function inviteEmail(inviterName: string, orgName: string, inviteUrl: str
     html: base(`
       <h2 style="margin:0 0 8px;color:#18181b;font-size:20px;">Tienes una invitación</h2>
       <p style="color:#71717a;font-size:15px;line-height:1.6;"><strong>${esc(inviterName)}</strong> te invitó a unirte a <strong>${esc(orgName)}</strong> en StratiuMetrics, el dashboard empresarial inteligente.</p>
-      <a href="${inviteUrl}" style="display:inline-block;margin-top:16px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:600;font-size:14px;">Aceptar Invitación</a>
+      <a href="${inviteUrl}" style="display:inline-block;margin-top:16px;background:#224CA0;color:#fff;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:600;font-size:14px;">Aceptar Invitación</a>
       <p style="margin-top:24px;color:#a1a1aa;font-size:13px;">Este enlace expira en 7 días.</p>
     `),
   };
@@ -131,7 +132,7 @@ export function digestEmail(
       <p style="color:#71717a;font-size:14px;line-height:1.6;">Hola <strong>${esc(name)}</strong>, este es el estado de <strong>${esc(orgName)}</strong>.</p>
       <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;">${kpiHtml}</table>
       ${alertHtml}
-      <a href="${process.env.NEXTAUTH_URL}/dashboard/overview" style="display:inline-block;margin-top:24px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:600;font-size:14px;">Abrir Dashboard</a>
+      <a href="${process.env.NEXTAUTH_URL}/dashboard/overview" style="display:inline-block;margin-top:24px;background:#224CA0;color:#fff;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:600;font-size:14px;">Abrir Dashboard</a>
     `),
   };
 }

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
-import { AlertTriangle, RefreshCw } from "lucide-react";
+import { AlertTriangle, RotateCcw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default function FinanceError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
@@ -9,21 +10,18 @@ export default function FinanceError({ error, reset }: { error: Error & { digest
   }, [error]);
 
   return (
-    <div className="flex flex-col items-center justify-center py-20 text-center">
-      <div className="w-12 h-12 rounded-2xl bg-[#FF4444]/10 flex items-center justify-center mb-4">
-        <AlertTriangle size={22} className="text-[#FF4444]" />
+    <div role="alert" className="flex flex-col items-center justify-center py-20 text-center">
+      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-destructive/10">
+        <AlertTriangle className="h-6 w-6 text-destructive" />
       </div>
-      <h2 className="text-base font-semibold mb-1">No se pudo cargar Finanzas</h2>
-      <p className="text-sm text-muted-foreground max-w-sm mb-5">
+      <h2 className="mb-1 text-base font-semibold">No se pudo cargar Finanzas</h2>
+      <p className="mb-5 max-w-sm text-sm text-muted-foreground">
         Ocurrió un error al mostrar esta sección. Puedes reintentar; si persiste, recarga la página.
       </p>
-      <button
-        onClick={reset}
-        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#3D7FFF] text-white text-sm font-medium hover:bg-[#3D7FFF]/80 transition-colors"
-      >
-        <RefreshCw size={14} />
+      <Button onClick={reset}>
+        <RotateCcw />
         Reintentar
-      </button>
+      </Button>
     </div>
   );
 }

@@ -1,8 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Loader2, ClipboardList, Save, ChevronDown, CheckCircle2, Clock } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { ClipboardList, Save, ChevronDown, CheckCircle2, Clock, History, Users, UserX } from "lucide-react";
 import { useToast } from "@/components/toast";
+import { apiSend } from "@/hooks/use-api";
+import { Button } from "@/components/ui/button";
+import { Field, Input, MoneyInput, Select, Textarea } from "@/components/ui/field";
+import { PageHeader, Card } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, Skeleton } from "@/components/ui/states";
 import { cn } from "@/lib/utils";
 
 type JobRole = "DIRECCION" | "OPERACIONES" | "COMERCIAL" | "MARKETING" | "ADMINISTRACION";
@@ -68,14 +73,22 @@ const ROLE_LABEL: Record<JobRole, string> = {
 };
 
 const SALUD_COLOR: Record<string, string> = {
-  VERDE: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200",
-  AMARILLO: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200",
-  ROJO: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200",
+  VERDE: "bg-success/10 text-success",
+  AMARILLO: "bg-warning/10 text-warning",
+  ROJO: "bg-destructive/10 text-destructive",
 };
 
 // ─── Field descriptors per role (editable inputs only) ──────────────
 
-type FieldDef = { key: string; label: string; type: "int" | "num" | "text"; min?: number; max?: number };
+type FieldDef = {
+  key: string;
+  label: string;
+  type: "int" | "num" | "text";
+  min?: number;
+  max?: number;
+  /** Monetary amount: rendered with MoneyInput (decimal keypad + "$"). */
+  money?: boolean;
+};
 
 const FIELDS: Record<Exclude<JobRole, "DIRECCION">, FieldDef[]> = {
   COMERCIAL: [
@@ -96,11 +109,11 @@ const FIELDS: Record<Exclude<JobRole, "DIRECCION">, FieldDef[]> = {
     { key: "notas", label: "Notas", type: "text" },
   ],
   ADMINISTRACION: [
-    { key: "porCobrar", label: "Por cobrar", type: "num", min: 0 },
-    { key: "cobrado", label: "Cobrado", type: "num", min: 0 },
+    { key: "porCobrar", label: "Por cobrar", type: "num", min: 0, money: true },
+    { key: "cobrado", label: "Cobrado", type: "num", min: 0, money: true },
     { key: "facturasPagadas", label: "Facturas pagadas", type: "int", min: 0 },
     { key: "facturasTotal", label: "Facturas totales", type: "int", min: 0 },
-    { key: "vencido30", label: "Vencido +30 días", type: "num", min: 0 },
+    { key: "vencido30", label: "Vencido +30 días", type: "num", min: 0, money: true },
     { key: "notas", label: "Notas", type: "text" },
   ],
 };
@@ -109,6 +122,90 @@ function fmtNum(v: unknown): string {
   const n = Number(v);
   if (!Number.isFinite(n)) return "0";
   return n.toLocaleString("es-MX", { maximumFractionDigits: 1 });
+}
+
+/** GET JSON and throw the server's message on failure. */
+async function getJson<T>(url: string): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(url);
+  } catch {
+    throw new Error("Sin conexión con el servidor.");
+  }
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((body as { error?: string }).error || `Error ${res.status}`);
+  return body as T;
+}
+
+function SaludBadge({ value }: { value: string | null | undefined }) {
+  return (
+    <span
+      className={cn(
+        "inline-block rounded-md px-2 py-0.5 text-xs font-semibold",
+        value ? SALUD_COLOR[value] : "bg-secondary text-muted-foreground",
+      )}
+    >
+      {value || "Sin datos"}
+    </span>
+  );
+}
+
+function StatusBadge({ sent }: { sent: boolean }) {
+  return sent ? (
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-success/30 bg-success/10 px-2.5 py-1 text-xs font-semibold text-success">
+      <CheckCircle2 className="h-3.5 w-3.5" /> Enviado
+    </span>
+  ) : (
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-warning/30 bg-warning/10 px-2.5 py-1 text-xs font-semibold text-warning">
+      <Clock className="h-3.5 w-3.5" /> Pendiente
+    </span>
+  );
+}
+
+function FormSkeleton() {
+  return (
+    <div className="space-y-6" aria-busy="true" aria-label="Cargando">
+      <div className="flex items-center gap-3">
+        <Skeleton className="h-9 w-9 rounded-xl" />
+        <div className="space-y-2">
+          <Skeleton className="h-6 w-40" />
+          <Skeleton className="h-4 w-24" />
+        </div>
+      </div>
+      <Card className="p-5">
+        <div className="grid gap-4 sm:grid-cols-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="space-y-2">
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="h-10 w-full rounded-lg" />
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function CardsGridSkeleton() {
+  return (
+    <div className="grid gap-4 md:grid-cols-2" aria-busy="true" aria-label="Cargando">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <Card key={i} className="space-y-3 p-5">
+          <div className="flex items-center justify-between">
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-3 w-20" />
+            </div>
+            <Skeleton className="h-6 w-20 rounded-full" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
 }
 
 // ─── Read-only payload renderer (for history + DIRECCION cards) ─────
@@ -121,7 +218,7 @@ function PayloadView({ role, payload }: { role: JobRole | null; payload: Payload
       {defs.map((f) => (
         <div key={f.key} className={cn("flex flex-col", f.type === "text" && "col-span-2")}>
           <span className="text-xs text-muted-foreground">{f.label}</span>
-          <span className="font-medium text-foreground break-words">
+          <span className="break-words font-medium text-foreground">
             {f.type === "text" ? String(payload[f.key] ?? "—") || "—" : fmtNum(payload[f.key])}
           </span>
         </div>
@@ -135,9 +232,7 @@ function PayloadView({ role, payload }: { role: JobRole | null; payload: Payload
           <div className="flex flex-col">
             <span className="text-xs text-muted-foreground">Salud general</span>
             <span>
-              <span className={cn("inline-block rounded px-2 py-0.5 text-xs font-semibold", payload.saludGeneral ? SALUD_COLOR[String(payload.saludGeneral)] : "bg-secondary text-muted-foreground")}>
-                {payload.saludGeneral ? String(payload.saludGeneral) : "Sin datos"}
-              </span>
+              <SaludBadge value={payload.saludGeneral ? String(payload.saludGeneral) : null} />
             </span>
           </div>
         </>
@@ -151,7 +246,9 @@ function PayloadView({ role, payload }: { role: JobRole | null; payload: Payload
 function SubmitterView({ jobRole }: { jobRole: Exclude<JobRole, "DIRECCION"> }) {
   const { toast } = useToast();
   const [data, setData] = useState<OwnData | null>(null);
+  const hasData = useRef(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [fecha, setFecha] = useState<string>("");
   const [form, setForm] = useState<Record<string, string>>({});
@@ -161,9 +258,10 @@ function SubmitterView({ jobRole }: { jobRole: Exclude<JobRole, "DIRECCION"> }) 
     setLoading(true);
     try {
       const qs = f ? `?fecha=${f}` : "";
-      const res = await fetch(`/api/reportes${qs}`);
-      const d: OwnData = await res.json();
+      const d = await getJson<OwnData>(`/api/reportes${qs}`);
       setData(d);
+      hasData.current = true;
+      setError(null);
       if (!fecha) setFecha(d.fecha);
       // Prefill from existing report.
       const p = d.report?.payload ?? {};
@@ -172,11 +270,14 @@ function SubmitterView({ jobRole }: { jobRole: Exclude<JobRole, "DIRECCION"> }) 
         next[def.key] = p[def.key] != null ? String(p[def.key]) : "";
       }
       setForm(next);
-    } catch {
-      /* noop */
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "No se pudo cargar el reporte";
+      setError(msg);
+      // With data already on screen, a failed refresh is a toast, not a blank page.
+      if (hasData.current) toast(msg, "error", { action: { label: "Reintentar", onClick: () => load(f) } });
     }
     setLoading(false);
-  }, [jobRole, fecha]);
+  }, [jobRole, fecha, toast]);
 
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -193,13 +294,7 @@ function SubmitterView({ jobRole }: { jobRole: Exclude<JobRole, "DIRECCION"> }) 
         if (def.type === "text") payload[def.key] = form[def.key] ?? "";
         else payload[def.key] = form[def.key] === "" ? "" : Number(form[def.key]);
       }
-      const res = await fetch("/api/reportes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ payload }),
-      });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.error || "Error");
+      await apiSend("/api/reportes", "POST", { payload });
       toast("Reporte guardado", "success");
       await load(data?.today);
       setFecha(data?.today ?? fecha);
@@ -209,69 +304,98 @@ function SubmitterView({ jobRole }: { jobRole: Exclude<JobRole, "DIRECCION"> }) 
     setSaving(false);
   };
 
-  if (loading && !data) {
-    return <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+  if (loading && !data) return <FormSkeleton />;
+
+  if (!data) {
+    return (
+      <div className="space-y-6">
+        <PageHeader icon={ClipboardList} title="Reporte diario" description={ROLE_LABEL[jobRole]} />
+        <Card>
+          <ErrorState message={error} onRetry={() => load(fecha || undefined)} />
+        </Card>
+      </div>
+    );
   }
-  if (!data) return null;
 
   const frozen = data.frozen;
   const computed = data.computed;
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
-            <ClipboardList className="h-6 w-6 text-primary" /> Reporte diario
-          </h1>
-          <p className="text-sm text-muted-foreground">{ROLE_LABEL[jobRole]}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-muted-foreground">Día</label>
-          <input
-            type="date"
-            value={fecha}
-            max={data.today}
-            onChange={(e) => onDateChange(e.target.value)}
-            className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm"
-          />
-        </div>
-      </div>
+      <PageHeader
+        icon={ClipboardList}
+        title="Reporte diario"
+        description={ROLE_LABEL[jobRole]}
+        actions={
+          <Field label="Día" className="w-full sm:w-44">
+            <Input
+              type="date"
+              value={fecha}
+              max={data.today}
+              onChange={(e) => onDateChange(e.target.value)}
+            />
+          </Field>
+        }
+      />
 
       {frozen && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+        <div className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-2.5 text-sm text-warning">
           Estás viendo un día pasado. Los reportes anteriores no se pueden editar (congelados).
         </div>
       )}
 
-      <div className="rounded-xl border border-border bg-card p-5">
+      <Card className="p-5" aria-busy={loading || undefined}>
         <div className="grid gap-4 sm:grid-cols-2">
-          {FIELDS[jobRole].map((f) => (
-            <div key={f.key} className={cn("flex flex-col gap-1", f.type === "text" && "sm:col-span-2")}>
-              <label className="text-sm font-medium text-foreground">{f.label}</label>
-              {f.type === "text" ? (
-                <textarea
-                  value={form[f.key] ?? ""}
-                  disabled={frozen}
-                  onChange={(e) => setForm((s) => ({ ...s, [f.key]: e.target.value }))}
-                  rows={3}
-                  className="rounded-lg border border-border bg-background px-3 py-2.5 text-base disabled:opacity-60 sm:text-sm"
-                />
-              ) : (
-                <input
+          {FIELDS[jobRole].map((f) => {
+            const common = {
+              value: form[f.key] ?? "",
+              disabled: frozen,
+            };
+            const onChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+              setForm((s) => ({ ...s, [f.key]: e.target.value }));
+
+            let control: React.ReactElement;
+            if (f.type === "text") {
+              control = <Textarea {...common} onChange={onChange} rows={3} />;
+            } else if (f.money) {
+              control = (
+                <MoneyInput
+                  {...common}
                   type="number"
-                  inputMode={f.type === "int" ? "numeric" : "decimal"}
-                  value={form[f.key] ?? ""}
-                  disabled={frozen}
+                  min={f.min}
+                  max={f.max}
+                  step="any"
+                  onChange={onChange}
+                />
+              );
+            } else {
+              control = (
+                <Input
+                  {...common}
+                  type="number"
+                  // Integers: numeric keypad. Decimals: decimal keypad, except when
+                  // negatives are allowed (no min), where the default number keyboard keeps "-".
+                  inputMode={f.type === "int" ? "numeric" : f.min != null ? "decimal" : undefined}
                   min={f.min}
                   max={f.max}
                   step={f.type === "int" ? 1 : "any"}
-                  onChange={(e) => setForm((s) => ({ ...s, [f.key]: e.target.value }))}
-                  className="min-h-[44px] rounded-lg border border-border bg-background px-3 py-2.5 text-base disabled:opacity-60 sm:text-sm"
+                  onChange={onChange}
+                  className="tabular-nums"
                 />
-              )}
-            </div>
-          ))}
+              );
+            }
+
+            return (
+              <Field
+                key={f.key}
+                label={f.label}
+                optional={f.type === "text"}
+                className={cn(f.type === "text" && "sm:col-span-2")}
+              >
+                {control}
+              </Field>
+            );
+          })}
         </div>
 
         {jobRole === "OPERACIONES" && computed && (
@@ -283,9 +407,7 @@ function SubmitterView({ jobRole }: { jobRole: Exclude<JobRole, "DIRECCION"> }) 
             <div className="flex flex-col">
               <span className="text-xs text-muted-foreground">Salud general (solo lectura)</span>
               <div className="mt-0.5 flex items-center gap-2">
-                <span className={cn("inline-block rounded px-2 py-0.5 text-xs font-semibold", computed.saludGeneral ? SALUD_COLOR[computed.saludGeneral] : "bg-secondary text-muted-foreground")}>
-                  {computed.saludGeneral ?? "Sin datos"}
-                </span>
+                <SaludBadge value={computed.saludGeneral} />
                 <span className="text-xs text-muted-foreground">
                   V {computed.counts.verde} · A {computed.counts.amarillo} · R {computed.counts.rojo}
                 </span>
@@ -296,30 +418,36 @@ function SubmitterView({ jobRole }: { jobRole: Exclude<JobRole, "DIRECCION"> }) 
 
         {!frozen && (
           <div className="mt-5 flex justify-end">
-            <button
-              onClick={save}
-              disabled={saving}
-              className="inline-flex w-full min-h-[48px] items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-base font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60 sm:w-auto sm:min-h-0 sm:py-2 sm:text-sm"
-            >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            <Button onClick={save} loading={saving} size="lg" className="w-full sm:w-auto">
+              {!saving && <Save />}
               Guardar reporte
-            </button>
+            </Button>
           </div>
         )}
-      </div>
+      </Card>
 
       {/* Historial */}
-      <div>
+      <section>
         <h2 className="mb-3 text-lg font-semibold text-foreground">Historial</h2>
         {data.history.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Aún no tienes reportes.</p>
+          <Card>
+            <EmptyState
+              icon={History}
+              title="Aún no tienes reportes"
+              description="Tus reportes diarios guardados aparecerán aquí."
+            />
+          </Card>
         ) : (
           <div className="space-y-2">
             {data.history.map((h) => {
               const open = openHist.has(h.id);
+              const panelId = `hist-${h.id}`;
               return (
-                <div key={h.id} className="rounded-lg border border-border bg-card">
+                <Card key={h.id}>
                   <button
+                    type="button"
+                    aria-expanded={open}
+                    aria-controls={panelId}
                     onClick={() =>
                       setOpenHist((prev) => {
                         const next = new Set(prev);
@@ -327,22 +455,22 @@ function SubmitterView({ jobRole }: { jobRole: Exclude<JobRole, "DIRECCION"> }) 
                         return next;
                       })
                     }
-                    className="flex w-full items-center justify-between px-4 py-3 text-left"
+                    className="flex min-h-[44px] w-full items-center justify-between rounded-xl px-4 py-3 text-left transition-colors hover:bg-secondary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <span className="text-sm font-medium text-foreground">{h.fecha}</span>
                     <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", open && "rotate-180")} />
                   </button>
                   {open && (
-                    <div className="border-t border-border px-4 py-3">
+                    <div id={panelId} className="border-t border-border px-4 py-3">
                       <PayloadView role={h.jobRole} payload={h.payload} />
                     </div>
                   )}
-                </div>
+                </Card>
               );
             })}
           </div>
         )}
-      </div>
+      </section>
     </div>
   );
 }
@@ -350,8 +478,11 @@ function SubmitterView({ jobRole }: { jobRole: Exclude<JobRole, "DIRECCION"> }) 
 // ─── DIRECCION consolidated view ────────────────────────────────────
 
 function DireccionView() {
+  const { toast } = useToast();
   const [data, setData] = useState<AllData | null>(null);
+  const hasData = useRef(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [fecha, setFecha] = useState<string>("");
   const [person, setPerson] = useState<string>("all");
 
@@ -359,85 +490,103 @@ function DireccionView() {
     setLoading(true);
     try {
       const qs = f ? `?scope=all&fecha=${f}` : "?scope=all";
-      const res = await fetch(`/api/reportes${qs}`);
-      const d: AllData = await res.json();
+      const d = await getJson<AllData>(`/api/reportes${qs}`);
       setData(d);
+      hasData.current = true;
+      setError(null);
       if (!fecha) setFecha(d.fecha);
-    } catch {
-      /* noop */
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "No se pudieron cargar los reportes";
+      setError(msg);
+      // With data already on screen, a failed refresh is a toast, not a blank page.
+      if (hasData.current) toast(msg, "error", { action: { label: "Reintentar", onClick: () => load(f) } });
     }
     setLoading(false);
-  }, [fecha]);
+  }, [fecha, toast]);
 
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const header = (actions?: React.ReactNode) => (
+    <PageHeader
+      icon={ClipboardList}
+      title="Reportes de hoy"
+      description="Vista consolidada por puesto"
+      actions={actions}
+    />
+  );
+
   if (loading && !data) {
-    return <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+    return (
+      <div className="space-y-6">
+        {header()}
+        <CardsGridSkeleton />
+      </div>
+    );
   }
-  if (!data) return null;
+  if (!data) {
+    return (
+      <div className="space-y-6">
+        {header()}
+        <Card>
+          <ErrorState message={error} onRetry={() => load(fecha || undefined)} />
+        </Card>
+      </div>
+    );
+  }
 
   const reportByUser = new Map(data.reports.map((r) => [r.userId, r]));
   const members = data.members.filter((m) => person === "all" || m.userId === person);
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
-            <ClipboardList className="h-6 w-6 text-primary" /> Reportes de hoy
-          </h1>
-          <p className="text-sm text-muted-foreground">Vista consolidada por puesto</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={person}
-            onChange={(e) => setPerson(e.target.value)}
-            className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm"
-          >
-            <option value="all">Todas las personas</option>
-            {data.members.map((m) => (
-              <option key={m.userId} value={m.userId}>{m.name}</option>
-            ))}
-          </select>
-          <input
-            type="date"
-            value={fecha}
-            max={data.today}
-            onChange={(e) => { setFecha(e.target.value); load(e.target.value); }}
-            className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm"
-          />
-        </div>
-      </div>
+      {header(
+        <div className="grid w-full grid-cols-1 gap-3 sm:w-auto sm:grid-cols-2">
+          <Field label="Persona" className="sm:w-52">
+            <Select value={person} onChange={(e) => setPerson(e.target.value)}>
+              <option value="all">Todas las personas</option>
+              {data.members.map((m) => (
+                <option key={m.userId} value={m.userId}>{m.name}</option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Día" className="sm:w-44">
+            <Input
+              type="date"
+              value={fecha}
+              max={data.today}
+              onChange={(e) => { setFecha(e.target.value); load(e.target.value); }}
+            />
+          </Field>
+        </div>,
+      )}
 
       {members.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No hay miembros con puesto que envíe reporte.</p>
+        <Card>
+          <EmptyState
+            icon={data.members.length === 0 ? Users : UserX}
+            title={data.members.length === 0 ? "Sin miembros que reporten" : "Sin resultados"}
+            description="No hay miembros con puesto que envíe reporte."
+          />
+        </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className={cn("grid gap-4 md:grid-cols-2", loading && "opacity-60 transition-opacity")} aria-busy={loading || undefined}>
           {members.map((m) => {
             const rep = reportByUser.get(m.userId);
             return (
-              <div key={m.userId} className="rounded-xl border border-border bg-card p-5">
-                <div className="mb-3 flex items-center justify-between">
-                  <div>
-                    <p className="font-semibold text-foreground">{m.name}</p>
+              <Card key={m.userId} className="p-5">
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-foreground">{m.name}</p>
                     <p className="text-xs text-muted-foreground">{m.jobRole ? ROLE_LABEL[m.jobRole] : "—"}</p>
                   </div>
-                  {rep ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
-                      <CheckCircle2 className="h-3.5 w-3.5" /> Enviado
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200">
-                      <Clock className="h-3.5 w-3.5" /> Pendiente
-                    </span>
-                  )}
+                  <StatusBadge sent={!!rep} />
                 </div>
                 {rep ? (
                   <PayloadView role={rep.jobRole} payload={rep.payload} />
                 ) : (
                   <p className="text-sm text-muted-foreground">Sin reporte para este día.</p>
                 )}
-              </div>
+              </Card>
             );
           })}
         </div>
@@ -451,25 +600,45 @@ function DireccionView() {
 export default function ReportesPage() {
   const [jobRole, setJobRole] = useState<JobRole | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetch("/api/user")
-      .then((r) => r.json())
+  const loadRole = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    getJson<{ jobRole?: JobRole | null }>("/api/user")
       .then((d) => setJobRole(d.jobRole ?? null))
-      .catch(() => {})
+      .catch((e) => setError(e instanceof Error ? e.message : "No se pudo cargar tu perfil"))
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) {
-    return <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+  useEffect(() => { loadRole(); }, [loadRole]);
+
+  if (loading) return <FormSkeleton />;
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <PageHeader icon={ClipboardList} title="Reportes" />
+        <Card>
+          <ErrorState message={error} onRetry={loadRole} />
+        </Card>
+      </div>
+    );
   }
 
   if (jobRole === "DIRECCION") return <DireccionView />;
   if (jobRole) return <SubmitterView jobRole={jobRole} />;
 
   return (
-    <div className="py-20 text-center text-sm text-muted-foreground">
-      Tu puesto no tiene reportes diarios.
+    <div className="space-y-6">
+      <PageHeader icon={ClipboardList} title="Reportes" />
+      <Card>
+        <EmptyState
+          icon={ClipboardList}
+          title="Sin reportes diarios"
+          description="Tu puesto no tiene reportes diarios."
+        />
+      </Card>
     </div>
   );
 }

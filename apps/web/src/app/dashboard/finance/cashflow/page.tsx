@@ -1,7 +1,15 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { Plus, Settings, X, ChevronLeft, Trash2, Loader2, Download, Lock, Unlock, ArrowLeftRight } from "lucide-react";
+import Link from "next/link";
+import { Plus, Settings, ChevronLeft, Trash2, Loader2, Download, Lock, Unlock, ArrowLeftRight, Check, AlertCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Field, Input, Select, MoneyInput } from "@/components/ui/field";
+import { ErrorState, RowsSkeleton, CardsSkeleton } from "@/components/ui/states";
+import { useConfirm } from "@/components/ui/confirm";
+import { useToast } from "@/components/toast";
+import { useMe } from "@/hooks/use-me";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -115,48 +123,102 @@ interface CellProps {
   readOnly?: boolean;
   placeholder?: string;
   align?: "left" | "right";
+  /** Accessible name, e.g. "Depósito" (falls back to the placeholder). */
+  label?: string;
+  /** Numeric cell: rejects non-numeric input instead of silently saving null. */
+  numeric?: boolean;
 }
 
-function Cell({ value, onChange, type = "text", className = "", readOnly = false, placeholder = "", align = "left" }: CellProps) {
+/**
+ * Spreadsheet-style cell. Not editing: a focusable button (Tab moves cell to
+ * cell; Enter/F2 or click edits). Editing: Enter/Tab saves, Escape cancels and
+ * returns focus to the cell.
+ */
+function Cell({ value, onChange, type = "text", className = "", readOnly = false, placeholder = "", align = "left", label, numeric }: CellProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
+  const [invalid, setInvalid] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const done = useRef(false);
 
   const display = type === "date" ? toDateStr(value as string) : (value !== null && value !== undefined ? String(value) : "");
+  const name = label || placeholder || "Celda";
 
   const startEdit = () => {
     if (readOnly) return;
+    done.current = false;
+    setInvalid(false);
     setDraft(display);
     setEditing(true);
-    setTimeout(() => inputRef.current?.focus(), 10);
+    setTimeout(() => {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }, 0);
   };
 
-  const commit = () => {
+  const finish = (save: boolean, refocus: boolean) => {
+    if (done.current) return;
+    if (save && draft !== display && numeric && draft.trim() !== "") {
+      const num = parseFloat(draft.replace(/[^0-9.\-]/g, ""));
+      if (Number.isNaN(num)) {
+        setInvalid(true);
+        return; // keep editing until the value is valid or cancelled
+      }
+    }
+    done.current = true;
     setEditing(false);
-    if (draft !== display) onChange(draft);
+    if (save && draft !== display) onChange(draft);
+    if (refocus) setTimeout(() => buttonRef.current?.focus(), 0);
   };
 
   if (editing) {
     return (
       <input
         ref={inputRef}
-        type={type}
+        type={type === "number" ? "text" : type}
+        inputMode={numeric ? "decimal" : undefined}
+        aria-label={name}
+        aria-invalid={invalid || undefined}
         value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Tab") commit(); if (e.key === "Escape") setEditing(false); }}
-        className={`w-full bg-[#1a1a2e] border border-[#3D7FFF] rounded px-1 py-0.5 text-xs outline-none tabular-nums ${align === "right" ? "text-right" : "text-left"} ${className}`}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          setInvalid(false);
+        }}
+        onBlur={() => finish(true, false)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") { e.preventDefault(); finish(true, true); }
+          if (e.key === "Escape") { e.preventDefault(); finish(false, true); }
+          if (e.key === "Tab") finish(true, false);
+        }}
+        className={`w-full rounded border bg-background px-1.5 py-1 text-xs tabular-nums outline-none ring-2 ${invalid ? "border-destructive ring-destructive/25" : "border-ring ring-ring/20"} ${align === "right" ? "text-right" : "text-left"} ${className}`}
       />
     );
   }
 
+  const content = display || <span className="text-xs text-muted-foreground/60">{placeholder}</span>;
+
+  if (readOnly) {
+    return (
+      <div className={`w-full min-h-[28px] truncate rounded px-1.5 py-1 text-xs ${align === "right" ? "text-right tabular-nums" : "text-left"} ${className}`}>
+        {content}
+      </div>
+    );
+  }
+
   return (
-    <div
+    <button
+      ref={buttonRef}
+      type="button"
       onClick={startEdit}
-      className={`w-full min-h-[22px] px-1 py-0.5 text-xs rounded truncate ${readOnly ? "cursor-default" : "cursor-pointer hover:bg-white/5"} ${align === "right" ? "text-right tabular-nums" : "text-left"} ${className}`}
+      onKeyDown={(e) => {
+        if (e.key === "F2") { e.preventDefault(); startEdit(); }
+      }}
+      aria-label={`${name}: ${display || "vacío"}. Enter para editar`}
+      className={`block w-full min-h-[28px] truncate rounded px-1.5 py-1 text-xs transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${align === "right" ? "text-right tabular-nums" : "text-left"} ${className}`}
     >
-      {display || <span className="text-muted-foreground/30 text-[10px]">{placeholder}</span>}
-    </div>
+      {content}
+    </button>
   );
 }
 
@@ -168,127 +230,133 @@ interface TxRowProps {
   categories: CashFlowCategory[];
   readOnly: boolean;
   onUpdate: (id: string, field: string, value: unknown) => void;
-  onDelete: (id: string) => void;
+  onDelete: (tx: CashFlowTransaction) => void;
+}
+
+/** Category amounts after setting `catCode` to `val` (empty removes it). */
+function nextCategories(current: Record<string, number> | undefined, catCode: string, val: string) {
+  const parsed = parseFloat(val.replace(/[^0-9.\-]/g, ""));
+  const updated = { ...(current ?? {}) };
+  if (!val.trim() || isNaN(parsed)) delete updated[catCode];
+  else updated[catCode] = parsed;
+  return Object.keys(updated).length === 0 ? null : updated;
+}
+
+function moneyValue(v: number | undefined | null) {
+  return v !== null && v !== undefined ? fmxNum(v) : "";
 }
 
 function TxRow({ index, tx, categories, readOnly, onUpdate, onDelete }: TxRowProps) {
   const incCats = categories.filter((c) => c.type === "income" || c.type === "both");
   const expCats = categories.filter((c) => c.type === "expense" || c.type === "both");
-
-  const updateCatValue = (catCode: string, catType: "income" | "expense", val: string) => {
-    const key = catType === "income" ? "incomeCategories" : "expenseCategories";
-    const current: Record<string, number> = catType === "income"
-      ? (tx.incomeCategories ?? {})
-      : (tx.expenseCategories ?? {});
-    const parsed = parseFloat(val);
-    const updated = { ...current };
-    if (!val || isNaN(parsed)) {
-      delete updated[catCode];
-    } else {
-      updated[catCode] = parsed;
-    }
-    onUpdate(tx.id, key, Object.keys(updated).length === 0 ? null : updated);
-  };
+  const locked = readOnly || !!tx.isTransfer;
 
   return (
-    <tr className="border-b border-border/30 hover:bg-white/[0.02] group">
-      <td className="px-2 py-1 text-xs text-muted-foreground/50 text-center w-8">{index + 1}</td>
-      <td className="px-1 py-1 min-w-[100px]">
+    <tr className="group border-b border-border/40 hover:bg-secondary/40">
+      <td className="w-8 px-2 py-1 text-center text-xs text-muted-foreground">{index + 1}</td>
+      <td className="min-w-[110px] px-1 py-1">
+        <Cell value={toDateStr(tx.date)} type="date" readOnly={locked} onChange={(v) => onUpdate(tx.id, "date", v)} placeholder="fecha" label="Fecha" />
+      </td>
+      <td className="min-w-[130px] px-1 py-1">
+        <Cell value={tx.bankReference} readOnly={readOnly} onChange={(v) => onUpdate(tx.id, "bankReference", v)} placeholder="referencia bancaria" label="Referencia bancaria" />
+      </td>
+      <td className="min-w-[110px] px-1 py-1">
+        <Cell value={tx.movementType} readOnly={locked} onChange={(v) => onUpdate(tx.id, "movementType", v)} placeholder="tipo" label="Tipo de movimiento" className={tx.isTransfer ? "text-info" : ""} />
+      </td>
+      <td className="min-w-[100px] px-1 py-1">
         <Cell
-          value={toDateStr(tx.date)}
-          type="date"
-          readOnly={readOnly || tx.isTransfer}
-          onChange={(v) => onUpdate(tx.id, "date", v)}
-          placeholder="fecha"
-        />
-      </td>
-      <td className="px-1 py-1 min-w-[130px]">
-        <Cell value={tx.bankReference} readOnly={readOnly} onChange={(v) => onUpdate(tx.id, "bankReference", v)} placeholder="referencia bancaria" />
-      </td>
-      <td className="px-1 py-1 min-w-[110px]">
-        <Cell value={tx.movementType} readOnly={readOnly || tx.isTransfer} onChange={(v) => onUpdate(tx.id, "movementType", v)} placeholder="tipo" className={tx.isTransfer ? "text-[#3D7FFF]" : ""} />
-      </td>
-      <td className="px-1 py-1 min-w-[100px]">
-        <Cell
-          value={tx.deposit !== null && tx.deposit !== undefined ? fmxNum(tx.deposit) : ""}
-          readOnly={readOnly || tx.isTransfer}
+          value={moneyValue(tx.deposit)}
+          readOnly={locked}
+          numeric
           onChange={(v) => onUpdate(tx.id, "deposit", v)}
           placeholder="0.00"
+          label="Depósito"
           align="right"
-          className={`${tx.isTransfer ? "text-[#3D7FFF]" : "text-[#00E87B]"} whitespace-nowrap`}
+          className={`${tx.isTransfer ? "text-info" : "text-success"} whitespace-nowrap`}
         />
       </td>
-      <td className="px-1 py-1 min-w-[100px]">
+      <td className="min-w-[100px] px-1 py-1">
         <Cell
-          value={tx.withdrawal !== null && tx.withdrawal !== undefined ? fmxNum(tx.withdrawal) : ""}
-          readOnly={readOnly || tx.isTransfer}
+          value={moneyValue(tx.withdrawal)}
+          readOnly={locked}
+          numeric
           onChange={(v) => onUpdate(tx.id, "withdrawal", v)}
           placeholder="0.00"
+          label="Retiro"
           align="right"
-          className={`${tx.isTransfer ? "text-[#3D7FFF]" : "text-[#FF4444]"} whitespace-nowrap`}
+          className={`${tx.isTransfer ? "text-info" : "text-destructive"} whitespace-nowrap`}
         />
       </td>
-      <td className="px-1 py-1 min-w-[110px]">
-        <div className={`text-xs text-right px-1 py-0.5 font-medium tabular-nums whitespace-nowrap ${tx.balance >= 0 ? "text-[#00E87B]" : "text-[#FF4444]"}`}>
+      <td className="min-w-[110px] px-1 py-1">
+        <div className={`whitespace-nowrap px-1.5 py-1 text-right text-xs font-medium tabular-nums ${tx.balance >= 0 ? "text-success" : "text-destructive"}`}>
           {fmx(tx.balance)}
         </div>
       </td>
-      <td className="px-1 py-1 min-w-[140px]">
-        <Cell value={tx.concept} readOnly={readOnly} onChange={(v) => onUpdate(tx.id, "concept", v)} placeholder="concepto" />
+      <td className="min-w-[140px] px-1 py-1">
+        <Cell value={tx.concept} readOnly={readOnly} onChange={(v) => onUpdate(tx.id, "concept", v)} placeholder="concepto" label="Concepto" />
       </td>
-      <td className="px-1 py-1 min-w-[120px]">
-        <Cell value={tx.provider} readOnly={readOnly} onChange={(v) => onUpdate(tx.id, "provider", v)} placeholder="proveedor" />
+      <td className="min-w-[120px] px-1 py-1">
+        <Cell value={tx.provider} readOnly={readOnly} onChange={(v) => onUpdate(tx.id, "provider", v)} placeholder="proveedor" label="Proveedor" />
       </td>
-      <td className="px-1 py-1 min-w-[100px]">
-        <Cell value={tx.reference} readOnly={readOnly} onChange={(v) => onUpdate(tx.id, "reference", v)} placeholder="referencia" />
+      <td className="min-w-[100px] px-1 py-1">
+        <Cell value={tx.reference} readOnly={readOnly} onChange={(v) => onUpdate(tx.id, "reference", v)} placeholder="referencia" label="Referencia" />
       </td>
-      <td className="px-1 py-1 min-w-[120px]">
-        <Cell value={tx.invoiceUuid} readOnly={readOnly} onChange={(v) => onUpdate(tx.id, "invoiceUuid", v)} placeholder="folio/uuid" />
+      <td className="min-w-[120px] px-1 py-1">
+        <Cell value={tx.invoiceUuid} readOnly={readOnly} onChange={(v) => onUpdate(tx.id, "invoiceUuid", v)} placeholder="folio/uuid" label="Folio o UUID" />
       </td>
-      <td className="px-1 py-1 min-w-[80px]">
+      <td className="min-w-[80px] px-1 py-1">
         <Cell
           value={tx.taxRate !== null && tx.taxRate !== undefined ? String(tx.taxRate) : ""}
           readOnly={readOnly}
+          numeric
           onChange={(v) => onUpdate(tx.id, "taxRate", v)}
           placeholder="0%"
+          label="Impuesto"
           align="right"
         />
       </td>
-      <td className="px-1 py-1 min-w-[100px]">
-        <Cell value={tx.salesType} readOnly={readOnly} onChange={(v) => onUpdate(tx.id, "salesType", v)} placeholder="ventas" />
+      <td className="min-w-[100px] px-1 py-1">
+        <Cell value={tx.salesType} readOnly={readOnly} onChange={(v) => onUpdate(tx.id, "salesType", v)} placeholder="ventas" label="Ventas" />
       </td>
       {incCats.map((cat) => (
-        <td key={`inc-${cat.id}`} className="px-1 py-1 min-w-[90px]">
+        <td key={`inc-${cat.id}`} className="min-w-[90px] px-1 py-1">
           <Cell
             value={tx.incomeCategories?.[cat.code] !== undefined ? fmxNum(tx.incomeCategories[cat.code]) : ""}
             readOnly={readOnly}
-            onChange={(v) => updateCatValue(cat.code, "income", v)}
+            numeric
+            onChange={(v) => onUpdate(tx.id, "incomeCategories", nextCategories(tx.incomeCategories, cat.code, v))}
             align="right"
             placeholder="0.00"
-            className="text-[#00E87B] whitespace-nowrap"
+            label={`Ingreso ${cat.code}`}
+            className="whitespace-nowrap text-success"
           />
         </td>
       ))}
       {expCats.map((cat) => (
-        <td key={`exp-${cat.id}`} className="px-1 py-1 min-w-[90px]">
+        <td key={`exp-${cat.id}`} className="min-w-[90px] px-1 py-1">
           <Cell
             value={tx.expenseCategories?.[cat.code] !== undefined ? fmxNum(tx.expenseCategories[cat.code]) : ""}
             readOnly={readOnly}
-            onChange={(v) => updateCatValue(cat.code, "expense", v)}
+            numeric
+            onChange={(v) => onUpdate(tx.id, "expenseCategories", nextCategories(tx.expenseCategories, cat.code, v))}
             align="right"
             placeholder="0.00"
-            className="text-[#FF4444] whitespace-nowrap"
+            label={`Gasto ${cat.code}`}
+            className="whitespace-nowrap text-destructive"
           />
         </td>
       ))}
-      <td className="px-2 py-1 w-8">
+      <td className="w-10 px-1 py-1">
         {!readOnly && (
-          <button
-            onClick={() => onDelete(tx.id)}
-            className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-[#FF4444] transition-opacity"
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => onDelete(tx)}
+            aria-label={`Eliminar movimiento ${index + 1}`}
+            className="text-muted-foreground opacity-0 hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
           >
-            <Trash2 size={12} />
-          </button>
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
         )}
       </td>
     </tr>
@@ -302,63 +370,66 @@ function TxCard({ index, tx, readOnly, onUpdate, onDelete }: {
   tx: CashFlowTransaction;
   readOnly: boolean;
   onUpdate: (id: string, field: string, value: unknown) => void;
-  onDelete: (id: string) => void;
+  onDelete: (tx: CashFlowTransaction) => void;
 }) {
+  const locked = readOnly || !!tx.isTransfer;
   return (
-    <div className="rounded-lg border border-border/50 bg-card/40 p-3 space-y-2">
+    <div className="space-y-2 rounded-lg border border-border bg-card p-3">
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-[10px] text-muted-foreground/50 shrink-0">{index + 1}</span>
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="shrink-0 text-xs text-muted-foreground">{index + 1}</span>
           <div className="min-w-0 flex-1">
-            <Cell value={toDateStr(tx.date)} type="date" readOnly={readOnly || tx.isTransfer} onChange={(v) => onUpdate(tx.id, "date", v)} placeholder="fecha" />
+            <Cell value={toDateStr(tx.date)} type="date" readOnly={locked} onChange={(v) => onUpdate(tx.id, "date", v)} placeholder="fecha" label="Fecha" />
           </div>
         </div>
         {!readOnly && (
-          <button onClick={() => onDelete(tx.id)} className="text-muted-foreground hover:text-[#FF4444] shrink-0">
-            <Trash2 size={13} />
-          </button>
+          <Button variant="ghost" size="icon" onClick={() => onDelete(tx)} aria-label={`Eliminar movimiento ${index + 1}`} className="shrink-0 text-muted-foreground hover:text-destructive">
+            <Trash2 className="h-4 w-4" />
+          </Button>
         )}
       </div>
 
       <div className="min-w-0">
-        <Cell value={tx.concept} readOnly={readOnly} onChange={(v) => onUpdate(tx.id, "concept", v)} placeholder="concepto" className="font-medium" />
+        <Cell value={tx.concept} readOnly={readOnly} onChange={(v) => onUpdate(tx.id, "concept", v)} placeholder="concepto" label="Concepto" className="font-medium" />
       </div>
       {tx.isTransfer ? (
-        <div className="min-w-0">
-          <p className="text-xs font-medium text-[#3D7FFF]">{tx.movementType || "Transferencia"}</p>
-        </div>
+        <p className="px-1.5 text-xs font-medium text-info">{tx.movementType || "Transferencia"}</p>
       ) : (
         <div className="min-w-0">
-          <Cell value={tx.provider} readOnly={readOnly} onChange={(v) => onUpdate(tx.id, "provider", v)} placeholder="proveedor / referencia" className="text-muted-foreground" />
+          <Cell value={tx.provider} readOnly={readOnly} onChange={(v) => onUpdate(tx.id, "provider", v)} placeholder="proveedor / referencia" label="Proveedor" className="text-muted-foreground" />
         </div>
       )}
 
-      <div className="grid grid-cols-3 gap-2 pt-1 border-t border-border/30">
+      <div className="grid grid-cols-3 gap-2 border-t border-border/50 pt-1">
         <div className="min-w-0">
-          <p className="text-[9px] uppercase tracking-widest text-[#00E87B]/70">Depósito</p>
+          <p className="px-1.5 text-xs text-muted-foreground">Depósito</p>
           <Cell
-            value={tx.deposit !== null && tx.deposit !== undefined ? fmxNum(tx.deposit) : ""}
-            readOnly={readOnly || tx.isTransfer}
+            value={moneyValue(tx.deposit)}
+            readOnly={locked}
+            numeric
             onChange={(v) => onUpdate(tx.id, "deposit", v)}
             placeholder="0.00"
+            label="Depósito"
             align="right"
-            className={`${tx.isTransfer ? "text-[#3D7FFF]" : "text-[#00E87B]"} whitespace-nowrap`}
+            className={`${tx.isTransfer ? "text-info" : "text-success"} whitespace-nowrap`}
           />
         </div>
         <div className="min-w-0">
-          <p className="text-[9px] uppercase tracking-widest text-[#FF4444]/70">Retiro</p>
+          <p className="px-1.5 text-xs text-muted-foreground">Retiro</p>
           <Cell
-            value={tx.withdrawal !== null && tx.withdrawal !== undefined ? fmxNum(tx.withdrawal) : ""}
-            readOnly={readOnly || tx.isTransfer}
+            value={moneyValue(tx.withdrawal)}
+            readOnly={locked}
+            numeric
             onChange={(v) => onUpdate(tx.id, "withdrawal", v)}
             placeholder="0.00"
+            label="Retiro"
             align="right"
-            className={`${tx.isTransfer ? "text-[#3D7FFF]" : "text-[#FF4444]"} whitespace-nowrap`}
+            className={`${tx.isTransfer ? "text-info" : "text-destructive"} whitespace-nowrap`}
           />
         </div>
         <div className="min-w-0">
-          <p className="text-[9px] uppercase tracking-widest text-muted-foreground">Saldo</p>
-          <p className={`text-xs text-right px-1 py-0.5 font-medium tabular-nums whitespace-nowrap truncate ${tx.balance >= 0 ? "text-[#00E87B]" : "text-[#FF4444]"}`}>
+          <p className="px-1.5 text-right text-xs text-muted-foreground">Saldo</p>
+          <p className={`truncate whitespace-nowrap px-1.5 py-1 text-right text-xs font-medium tabular-nums ${tx.balance >= 0 ? "text-success" : "text-destructive"}`}>
             {fmx(tx.balance)}
           </p>
         </div>
@@ -378,34 +449,74 @@ interface AccountLedgerProps {
   onSettings: (closedThroughMes: string | null) => void;
 }
 
+const NUMERIC_FIELDS = new Set(["deposit", "withdrawal", "taxRate"]);
+
+function normalizeField(field: string, value: unknown): unknown {
+  if (!NUMERIC_FIELDS.has(field)) return value;
+  if (value === "" || value === null || value === undefined) return null;
+  const num = parseFloat(String(value).replace(/[^0-9.\-]/g, ""));
+  return isNaN(num) ? null : num;
+}
+
+async function errorMessage(res: Response, fallback: string) {
+  const data = await res.json().catch(() => ({}));
+  return (data as { error?: string }).error || fallback;
+}
+
+type SaveState = "idle" | "saving" | "saved" | "error";
+
+function StatTile({ label, value, tone }: { label: string; value: string; tone?: "success" | "destructive" }) {
+  const color = tone === "success" ? "text-success" : tone === "destructive" ? "text-destructive" : "";
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className={`whitespace-nowrap text-sm font-medium tabular-nums ${color}`}>{value}</p>
+    </div>
+  );
+}
+
 function AccountLedger({ account, accounts, categories, mes, readOnly, onSettings }: AccountLedgerProps) {
+  const { toast } = useToast();
+  const confirm = useConfirm();
   const [transactions, setTransactions] = useState<CashFlowTransaction[]>([]);
   const [saldoInicial, setSaldoInicial] = useState(0);
-  const [saldoFinal, setSaldoFinal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [saveState, setSaveState] = useState<SaveState>("idle");
   const [showTransfer, setShowTransfer] = useState(false);
-  const debounceRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
-  const recalc = useCallback((rows: CashFlowTransaction[], base: number) => {
-    let bal = base;
-    const out = rows.map((t) => {
+  // Edits are batched per row: fields accumulate for 500 ms and go out in one
+  // PATCH. On failure the row reverts to its last saved state.
+  const txRef = useRef(transactions);
+  txRef.current = transactions;
+  const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const pending = useRef<Record<string, Record<string, unknown>>>({});
+  const snapshots = useRef<Record<string, CashFlowTransaction>>({});
+  const inflight = useRef(0);
+
+  // Running balance is always derived, so it can't drift from the rows.
+  const { rows, saldoFinal } = useMemo(() => {
+    let bal = saldoInicial;
+    const out = transactions.map((t) => {
       bal += (Number(t.deposit) || 0) - (Number(t.withdrawal) || 0);
       return { ...t, balance: bal };
     });
-    setTransactions(out);
-    setSaldoFinal(bal);
-  }, []);
+    return { rows: out, saldoFinal: bal };
+  }, [transactions, saldoInicial]);
 
   const fetchTransactions = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await fetch(`/api/cashflow/accounts/${account.id}/transactions?mes=${mes}`);
+      if (!res.ok) throw new Error(await errorMessage(res, "No se pudieron cargar los movimientos"));
       const data = await res.json();
       setTransactions(data.transactions ?? []);
       setSaldoInicial(data.saldoInicial ?? account.openingBalance);
-      setSaldoFinal(data.saldoFinal ?? account.openingBalance);
       onSettings(data.closedThroughMes ?? null);
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : "No se pudieron cargar los movimientos");
     } finally {
       setLoading(false);
     }
@@ -418,74 +529,101 @@ function AccountLedger({ account, accounts, categories, mes, readOnly, onSetting
   const addRow = async () => {
     // New rows land in the selected month (mid-month, MX noon) so they belong to it.
     const iso = new Date(`${mes}-15T18:00:00.000Z`).toISOString();
+    setAdding(true);
     try {
       const res = await fetch(`/api/cashflow/accounts/${account.id}/transactions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ date: iso }),
       });
-      if (res.ok) {
-        await fetchTransactions();
-      }
-    } catch {}
+      if (!res.ok) throw new Error(await errorMessage(res, "No se pudo agregar la fila"));
+      await fetchTransactions();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "No se pudo agregar la fila", "error");
+    } finally {
+      setAdding(false);
+    }
   };
 
-  const handleUpdate = useCallback(
-    (id: string, field: string, value: unknown) => {
-      let normalized: unknown = value;
-      if (field === "deposit" || field === "withdrawal" || field === "taxRate") {
-        if (value === "" || value === null || value === undefined) {
-          normalized = null;
-        } else {
-          const cleaned = String(value).replace(/[^0-9.\-]/g, "");
-          const num = parseFloat(cleaned);
-          normalized = isNaN(num) ? null : num;
-        }
+  const flush = async (id: string) => {
+    const fields = pending.current[id];
+    const before = snapshots.current[id];
+    delete pending.current[id];
+    delete snapshots.current[id];
+    delete timers.current[id];
+    if (!fields) return;
+
+    inflight.current += 1;
+    setSaveState("saving");
+    try {
+      const res = await fetch(`/api/cashflow/transactions/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(fields),
+      });
+      if (!res.ok) throw new Error(await errorMessage(res, "No se pudo guardar el cambio"));
+      inflight.current -= 1;
+      if (inflight.current === 0) setSaveState((s) => (s === "error" ? s : "saved"));
+    } catch (e) {
+      inflight.current -= 1;
+      setSaveState("error");
+      // Revert only the fields that failed, keeping any newer edits.
+      if (before) {
+        setTransactions((prev) =>
+          prev.map((t) => {
+            if (t.id !== id) return t;
+            const reverted = { ...t } as Record<string, unknown>;
+            for (const k of Object.keys(fields)) {
+              if (!(pending.current[id] && k in pending.current[id])) reverted[k] = (before as unknown as Record<string, unknown>)[k];
+            }
+            return reverted as unknown as CashFlowTransaction;
+          }),
+        );
       }
-
-      setTransactions((prev) => {
-        const idx = prev.findIndex((t) => t.id === id);
-        if (idx === -1) return prev;
-        const updated = [...prev];
-        updated[idx] = { ...updated[idx], [field]: normalized };
-        let bal = saldoInicial;
-        const out = updated.map((t) => {
-          bal += (Number(t.deposit) || 0) - (Number(t.withdrawal) || 0);
-          return { ...t, balance: bal };
-        });
-        setSaldoFinal(bal);
-        return out;
+      toast(e instanceof Error ? e.message : "No se pudo guardar el cambio", "error", {
+        action: { label: "Reintentar", onClick: () => queue(id, fields) },
+        duration: 10000,
       });
+    }
+  };
 
-      if (debounceRefs.current[id]) clearTimeout(debounceRefs.current[id]);
-      debounceRefs.current[id] = setTimeout(async () => {
-        setSaving(true);
-        try {
-          await fetch(`/api/cashflow/transactions/${id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ [field]: normalized }),
-          });
-        } finally {
-          setSaving(false);
-        }
-      }, 500);
-    },
-    [saldoInicial]
-  );
+  const queue = (id: string, fields: Record<string, unknown>) => {
+    const current = txRef.current.find((t) => t.id === id);
+    if (!current) return;
+    if (!snapshots.current[id]) snapshots.current[id] = current;
+    pending.current[id] = { ...pending.current[id], ...fields };
+    setTransactions((prev) => prev.map((t) => (t.id === id ? { ...t, ...fields } : t)));
+    if (timers.current[id]) clearTimeout(timers.current[id]);
+    timers.current[id] = setTimeout(() => flush(id), 500);
+  };
 
-  const handleDelete = async (id: string) => {
-    setTransactions((prev) => {
-      const filtered = prev.filter((t) => t.id !== id);
-      let bal = saldoInicial;
-      const out = filtered.map((t) => {
-        bal += (Number(t.deposit) || 0) - (Number(t.withdrawal) || 0);
-        return { ...t, balance: bal };
-      });
-      setSaldoFinal(bal);
-      return out;
+  const handleUpdate = (id: string, field: string, value: unknown) => {
+    queue(id, { [field]: normalizeField(field, value) });
+  };
+
+  const handleDelete = async (tx: CashFlowTransaction) => {
+    const ok = await confirm({
+      title: "¿Eliminar este movimiento?",
+      description: tx.isTransfer
+        ? "Es una transferencia: se eliminarán ambos lados (esta cuenta y la otra)."
+        : "Se recalculará el saldo de la cuenta.",
+      confirmLabel: "Eliminar",
+      destructive: true,
     });
-    await fetch(`/api/cashflow/transactions/${id}`, { method: "DELETE" });
+    if (!ok) return;
+    if (timers.current[tx.id]) clearTimeout(timers.current[tx.id]);
+    delete pending.current[tx.id];
+    delete snapshots.current[tx.id];
+    const prev = txRef.current;
+    setTransactions((rows) => rows.filter((t) => t.id !== tx.id));
+    try {
+      const res = await fetch(`/api/cashflow/transactions/${tx.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(await errorMessage(res, "No se pudo eliminar el movimiento"));
+      toast("Movimiento eliminado", "success");
+    } catch (e) {
+      setTransactions(prev);
+      toast(e instanceof Error ? e.message : "No se pudo eliminar el movimiento", "error");
+    }
   };
 
   const incCats = categories.filter((c) => c.type === "income" || c.type === "both");
@@ -498,133 +636,111 @@ function AccountLedger({ account, accounts, categories, mes, readOnly, onSetting
   const otherAccounts = accounts.filter((a) => a.id !== account.id);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full flex-col">
       {/* Saldo band */}
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 border-b border-border/50">
-        <div>
-          <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Banco</p>
-          <p className="text-sm font-medium">{account.bankName || "—"}</p>
-        </div>
-        <div>
-          <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Cuenta</p>
-          <p className="text-sm font-medium">{account.accountNumber || "—"}</p>
-        </div>
-        <div>
-          <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Saldo inicial</p>
-          <p className="text-sm font-medium tabular-nums whitespace-nowrap">{fmx(saldoInicial)}</p>
-        </div>
-        <div>
-          <p className="text-[10px] text-[#00E87B] uppercase tracking-widest">Depósitos</p>
-          <p className="text-sm font-medium tabular-nums whitespace-nowrap text-[#00E87B]">{fmx(totalDeposits)}</p>
-        </div>
-        <div>
-          <p className="text-[10px] text-[#FF4444] uppercase tracking-widest">Retiros</p>
-          <p className="text-sm font-medium tabular-nums whitespace-nowrap text-[#FF4444]">{fmx(totalWithdrawals)}</p>
-        </div>
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-border px-4 py-3">
+        <StatTile label="Banco" value={account.bankName || "—"} />
+        <StatTile label="Cuenta" value={account.accountNumber || "—"} />
+        <StatTile label="Saldo inicial" value={fmx(saldoInicial)} />
+        <StatTile label="Depósitos" value={fmx(totalDeposits)} tone="success" />
+        <StatTile label="Retiros" value={fmx(totalWithdrawals)} tone="destructive" />
         <div className="sm:ml-auto">
-          <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Saldo final</p>
-          <p className={`text-base font-bold tabular-nums whitespace-nowrap ${saldoFinal >= 0 ? "text-[#00E87B]" : "text-[#FF4444]"}`}>{fmx(saldoFinal)}</p>
+          <p className="text-xs text-muted-foreground">Saldo final</p>
+          <p className={`whitespace-nowrap text-base font-bold tabular-nums ${saldoFinal >= 0 ? "text-success" : "text-destructive"}`}>{fmx(saldoFinal)}</p>
         </div>
         <div className="flex items-center gap-2">
           {!readOnly && otherAccounts.length > 0 && (
-            <button
-              onClick={() => setShowTransfer(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#3D7FFF]/10 border border-[#3D7FFF]/30 text-xs text-[#3D7FFF] hover:bg-[#3D7FFF]/20 transition-colors whitespace-nowrap"
-            >
-              <ArrowLeftRight size={13} />
+            <Button variant="outline" size="sm" onClick={() => setShowTransfer(true)}>
+              <ArrowLeftRight className="h-3.5 w-3.5" />
               Transferir
-            </button>
+            </Button>
           )}
-          <a
-            href={`/api/cashflow/export?mes=${mes}&accountId=${account.id}`}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 border border-border text-xs text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap"
-          >
-            <Download size={13} />
-            Descargar mes
-          </a>
+          <Button variant="outline" size="sm" asChild>
+            <a href={`/api/cashflow/export?mes=${mes}&accountId=${account.id}`}>
+              <Download className="h-3.5 w-3.5" />
+              Descargar mes
+            </a>
+          </Button>
         </div>
-        {saving && (
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Loader2 size={12} className="animate-spin" />
-            Guardando...
-          </div>
-        )}
+        <div aria-live="polite" className="min-w-[110px] text-xs">
+          {saveState === "saving" && (
+            <span className="flex items-center gap-1 text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" /> Guardando…
+            </span>
+          )}
+          {saveState === "saved" && (
+            <span className="flex items-center gap-1 text-success">
+              <Check className="h-3 w-3" /> Guardado
+            </span>
+          )}
+          {saveState === "error" && (
+            <span className="flex items-center gap-1 text-destructive">
+              <AlertCircle className="h-3 w-3" /> Error al guardar
+            </span>
+          )}
+        </div>
       </div>
 
-      <div className="overflow-auto flex-1">
+      <div className="flex-1 overflow-auto">
         {loading ? (
-          <div className="flex items-center justify-center py-20 text-muted-foreground text-sm">
-            <Loader2 size={16} className="animate-spin mr-2" />
-            Cargando...
+          <RowsSkeleton rows={6} className="p-4" />
+        ) : loadError ? (
+          <div className="p-4">
+            <ErrorState message={loadError} onRetry={fetchTransactions} />
           </div>
         ) : (
           <>
             {/* Mobile: stacked cards */}
-            <div className="sm:hidden p-3 space-y-3">
-              {transactions.map((tx, i) => (
+            <div className="space-y-3 p-3 sm:hidden">
+              {rows.map((tx, i) => (
                 <TxCard key={tx.id} index={i} tx={tx} readOnly={readOnly} onUpdate={handleUpdate} onDelete={handleDelete} />
               ))}
-              {transactions.length === 0 && (
-                <p className="px-2 py-10 text-center text-muted-foreground text-sm">
-                  Sin movimientos en {mesLabel(mes)}.
-                </p>
+              {rows.length === 0 && (
+                <p className="px-2 py-10 text-center text-sm text-muted-foreground">Sin movimientos en {mesLabel(mes)}.</p>
               )}
             </div>
 
             {/* Desktop: table */}
-            <table className="hidden sm:table w-full border-collapse text-xs min-w-max">
-              <thead className="sticky top-0 z-10 bg-background border-b border-border">
+            <table className="hidden w-full min-w-max border-collapse text-xs sm:table">
+              <caption className="sr-only">Movimientos de {account.name} en {mesLabel(mes)}</caption>
+              <thead className="sticky top-0 z-10 border-b border-border bg-background text-xs font-medium text-muted-foreground">
                 <tr>
-                  <th className="px-2 py-2 text-center text-muted-foreground uppercase tracking-widest text-[10px] w-8">#</th>
-                  <th className="px-1 py-2 text-left text-muted-foreground uppercase tracking-widest text-[10px]">Fecha</th>
-                  <th className="px-1 py-2 text-left text-muted-foreground uppercase tracking-widest text-[10px]">Ref. Bancaria</th>
-                  <th className="px-1 py-2 text-left text-muted-foreground uppercase tracking-widest text-[10px]">Tipo Movimiento</th>
-                  <th className="px-1 py-2 text-right text-[#00E87B] uppercase tracking-widest text-[10px]">Deposito</th>
-                  <th className="px-1 py-2 text-right text-[#FF4444] uppercase tracking-widest text-[10px]">Retiro</th>
-                  <th className="px-1 py-2 text-right text-muted-foreground uppercase tracking-widest text-[10px]">Saldo</th>
-                  <th className="px-1 py-2 text-left text-muted-foreground uppercase tracking-widest text-[10px]">Concepto</th>
-                  <th className="px-1 py-2 text-left text-muted-foreground uppercase tracking-widest text-[10px]">Proveedor</th>
-                  <th className="px-1 py-2 text-left text-muted-foreground uppercase tracking-widest text-[10px]">Referencia</th>
-                  <th className="px-1 py-2 text-left text-muted-foreground uppercase tracking-widest text-[10px]">Folio/UUID</th>
-                  <th className="px-1 py-2 text-right text-muted-foreground uppercase tracking-widest text-[10px]">Impuesto</th>
-                  <th className="px-1 py-2 text-left text-muted-foreground uppercase tracking-widest text-[10px]">Ventas</th>
+                  <th scope="col" className="w-8 px-2 py-2 text-center">#</th>
+                  <th scope="col" className="px-2 py-2 text-left">Fecha</th>
+                  <th scope="col" className="px-2 py-2 text-left">Ref. bancaria</th>
+                  <th scope="col" className="px-2 py-2 text-left">Tipo de movimiento</th>
+                  <th scope="col" className="px-2 py-2 text-right text-success">Depósito</th>
+                  <th scope="col" className="px-2 py-2 text-right text-destructive">Retiro</th>
+                  <th scope="col" className="px-2 py-2 text-right">Saldo</th>
+                  <th scope="col" className="px-2 py-2 text-left">Concepto</th>
+                  <th scope="col" className="px-2 py-2 text-left">Proveedor</th>
+                  <th scope="col" className="px-2 py-2 text-left">Referencia</th>
+                  <th scope="col" className="px-2 py-2 text-left">Folio/UUID</th>
+                  <th scope="col" className="px-2 py-2 text-right">Impuesto</th>
+                  <th scope="col" className="px-2 py-2 text-left">Ventas</th>
                   {incCats.map((cat) => (
-                    <th key={cat.id} className="px-1 py-2 text-right text-[#00E87B] uppercase tracking-widest text-[10px]">
-                      {cat.code}
-                    </th>
+                    <th scope="col" key={cat.id} title={cat.name} className="px-2 py-2 text-right text-success">{cat.code}</th>
                   ))}
                   {expCats.map((cat) => (
-                    <th key={cat.id} className="px-1 py-2 text-right text-[#FF4444] uppercase tracking-widest text-[10px]">
-                      {cat.code}
-                    </th>
+                    <th scope="col" key={cat.id} title={cat.name} className="px-2 py-2 text-right text-destructive">{cat.code}</th>
                   ))}
-                  <th className="w-8" />
+                  <th scope="col" className="w-10"><span className="sr-only">Acciones</span></th>
                 </tr>
               </thead>
               <tbody>
-                <tr className="border-b border-border/50 bg-white/[0.02]">
+                <tr className="border-b border-border bg-secondary/40">
                   <td />
-                  <td colSpan={5} className="px-2 py-1.5 text-[10px] uppercase tracking-widest text-muted-foreground">
-                    Saldo inicial — {mesLabel(mes)}
-                  </td>
-                  <td className="px-1 py-1.5 text-right text-xs font-semibold tabular-nums whitespace-nowrap">{fmx(saldoInicial)}</td>
+                  <td colSpan={5} className="px-2 py-1.5 text-xs font-medium text-muted-foreground">Saldo inicial — {mesLabel(mes)}</td>
+                  <td className="whitespace-nowrap px-1.5 py-1.5 text-right text-xs font-semibold tabular-nums">{fmx(saldoInicial)}</td>
                   <td colSpan={100} />
                 </tr>
-                {transactions.map((tx, i) => (
-                  <TxRow
-                    key={tx.id}
-                    index={i}
-                    tx={tx}
-                    categories={categories}
-                    readOnly={readOnly}
-                    onUpdate={handleUpdate}
-                    onDelete={handleDelete}
-                  />
+                {rows.map((tx, i) => (
+                  <TxRow key={tx.id} index={i} tx={tx} categories={categories} readOnly={readOnly} onUpdate={handleUpdate} onDelete={handleDelete} />
                 ))}
-                {transactions.length === 0 && (
+                {rows.length === 0 && (
                   <tr>
-                    <td colSpan={13 + incCats.length + expCats.length} className="px-4 py-12 text-center text-muted-foreground text-sm">
-                      {readOnly ? `Sin movimientos en ${mesLabel(mes)}.` : 'Sin movimientos. Haz clic en "Agregar fila" para comenzar.'}
+                    <td colSpan={14 + incCats.length + expCats.length} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                      {readOnly ? `Sin movimientos en ${mesLabel(mes)}.` : "Sin movimientos. Usa «Agregar fila» para comenzar."}
                     </td>
                   </tr>
                 )}
@@ -635,42 +751,41 @@ function AccountLedger({ account, accounts, categories, mes, readOnly, onSetting
       </div>
 
       {!readOnly && (
-        <div className="px-4 py-3 border-t border-border/50">
-          <button
-            onClick={addRow}
-            className="flex items-center gap-2 text-xs text-[#3D7FFF] hover:text-[#3D7FFF]/80 transition-colors"
-          >
-            <Plus size={14} />
+        <div className="border-t border-border px-4 py-3">
+          <Button variant="ghost" size="sm" onClick={addRow} loading={adding} className="text-primary">
+            {!adding && <Plus className="h-4 w-4" />}
             Agregar fila
-          </button>
+          </Button>
         </div>
       )}
 
-      {showTransfer && (
-        <TransferModal
-          fromAccount={account}
-          otherAccounts={otherAccounts}
-          mes={mes}
-          onClose={() => setShowTransfer(false)}
-          onDone={() => {
-            setShowTransfer(false);
-            fetchTransactions();
-          }}
-        />
-      )}
+      <TransferDialog
+        open={showTransfer}
+        fromAccount={account}
+        otherAccounts={otherAccounts}
+        mes={mes}
+        onClose={() => setShowTransfer(false)}
+        onDone={() => {
+          setShowTransfer(false);
+          toast("Transferencia registrada", "success");
+          fetchTransactions();
+        }}
+      />
     </div>
   );
 }
 
-// ─── Transfer modal ──────────────────────────────────────────────────
+// ─── Transfer dialog ─────────────────────────────────────────────────
 
-function TransferModal({
+function TransferDialog({
+  open,
   fromAccount,
   otherAccounts,
   mes,
   onClose,
   onDone,
 }: {
+  open: boolean;
   fromAccount: CashFlowAccount;
   otherAccounts: CashFlowAccount[];
   mes: string;
@@ -682,19 +797,25 @@ function TransferModal({
   const [date, setDate] = useState(`${mes}-15`);
   const [concept, setConcept] = useState("");
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<{ to?: string; amount?: string; form?: string }>({});
 
-  const save = async () => {
-    setError(null);
+  useEffect(() => {
+    if (!open) return;
+    setToAccountId("");
+    setAmount("");
+    setDate(`${mes}-15`);
+    setConcept("");
+    setErrors({});
+  }, [open, mes]);
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
     const monto = parseFloat(amount.replace(/[^0-9.\-]/g, ""));
-    if (!toAccountId) {
-      setError("Selecciona la cuenta destino");
-      return;
-    }
-    if (!Number.isFinite(monto) || monto <= 0) {
-      setError("El monto debe ser mayor a 0");
-      return;
-    }
+    const next: typeof errors = {};
+    if (!toAccountId) next.to = "Selecciona la cuenta destino";
+    if (!Number.isFinite(monto) || monto <= 0) next.amount = "El monto debe ser mayor a 0";
+    setErrors(next);
+    if (next.to || next.amount) return;
     setSaving(true);
     try {
       const res = await fetch("/api/cashflow/transfers", {
@@ -708,99 +829,59 @@ function TransferModal({
           concept: concept.trim() || null,
         }),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(data.error || "No se pudo transferir");
-        setSaving(false);
-        return;
-      }
+      if (!res.ok) throw new Error(await errorMessage(res, "No se pudo transferir"));
       onDone();
-    } catch {
-      setError("No se pudo transferir");
+    } catch (err) {
+      setErrors({ form: err instanceof Error ? err.message : "No se pudo transferir" });
+    } finally {
       setSaving(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className="w-full max-w-md rounded-2xl border border-border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <h3 className="flex items-center gap-2 font-semibold">
-            <ArrowLeftRight size={16} className="text-[#3D7FFF]" />
-            Transferir entre cuentas
-          </h3>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
-            <X size={18} />
-          </button>
-        </div>
-        <div className="space-y-3 p-6">
-          <p className="text-xs text-muted-foreground">
-            No cuenta como entrada ni salida del mes; solo mueve el saldo entre cuentas.
-          </p>
-          <div>
-            <label className="text-[11px] uppercase tracking-widest text-muted-foreground">Cuenta origen</label>
-            <div className="mt-1 rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm">{fromAccount.name}</div>
-          </div>
-          <div>
-            <label className="text-[11px] uppercase tracking-widest text-muted-foreground">Cuenta destino *</label>
-            <select
-              className="mt-1 w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-              value={toAccountId}
-              onChange={(e) => setToAccountId(e.target.value)}
-            >
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent
+        title="Transferir entre cuentas"
+        description="No cuenta como entrada ni salida del mes; solo mueve el saldo entre cuentas."
+        footer={
+          <>
+            <Button variant="outline" onClick={onClose}>Cancelar</Button>
+            <Button type="submit" form="transfer-form" loading={saving}>
+              {!saving && <ArrowLeftRight className="h-4 w-4" />}
+              Transferir
+            </Button>
+          </>
+        }
+      >
+        <form id="transfer-form" onSubmit={save} className="space-y-4" noValidate>
+          <Field label="Cuenta origen">
+            <Input value={fromAccount.name} readOnly disabled />
+          </Field>
+          <Field label="Cuenta destino" error={errors.to}>
+            <Select value={toAccountId} onChange={(e) => setToAccountId(e.target.value)}>
               <option value="">Selecciona…</option>
               {otherAccounts.map((a) => (
                 <option key={a.id} value={a.id}>{a.name}</option>
               ))}
-            </select>
-          </div>
+            </Select>
+          </Field>
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-[11px] uppercase tracking-widest text-muted-foreground">Monto *</label>
-              <input
-                inputMode="decimal"
-                className="mt-1 w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm text-right tabular-nums"
-                placeholder="0.00"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="text-[11px] uppercase tracking-widest text-muted-foreground">Fecha</label>
-              <input
-                type="date"
-                className="mt-1 w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-              />
-            </div>
+            <Field label="Monto" error={errors.amount}>
+              <MoneyInput placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} />
+            </Field>
+            <Field label="Fecha">
+              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            </Field>
           </div>
-          <div>
-            <label className="text-[11px] uppercase tracking-widest text-muted-foreground">Concepto (opcional)</label>
-            <input
-              className="mt-1 w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-              placeholder="Ej. Pago de tarjeta"
-              value={concept}
-              onChange={(e) => setConcept(e.target.value)}
-            />
-          </div>
-          {error && <p className="text-xs text-[#FF4444]">{error}</p>}
-        </div>
-        <div className="flex gap-3 border-t border-border px-6 py-4">
-          <button onClick={onClose} className="flex-1 rounded-lg border border-border py-2 text-sm text-muted-foreground hover:text-foreground">
-            Cancelar
-          </button>
-          <button
-            onClick={save}
-            disabled={saving}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#3D7FFF] py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
-          >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowLeftRight className="h-4 w-4" />}
-            Transferir
-          </button>
-        </div>
-      </div>
-    </div>
+          <Field label="Concepto" optional>
+            <Input placeholder="Ej. Pago de tarjeta" value={concept} onChange={(e) => setConcept(e.target.value)} />
+          </Field>
+          {errors.form && (
+            <p role="alert" className="text-sm text-destructive">{errors.form}</p>
+          )}
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -828,140 +909,145 @@ interface ReportData {
   closedThroughMes?: string | null;
 }
 
-interface CategoryPanelProps {
+interface CategoryDialogProps {
+  open: boolean;
   categories: CashFlowCategory[];
   onClose: () => void;
   onRefresh: () => void;
 }
 
-function CategoryPanel({ categories, onClose, onRefresh }: CategoryPanelProps) {
+function CategoryDialog({ open, categories, onClose, onRefresh }: CategoryDialogProps) {
+  const { toast } = useToast();
+  const confirm = useConfirm();
   const [newCode, setNewCode] = useState("");
   const [newName, setNewName] = useState("");
   const [newType, setNewType] = useState<"income" | "expense">("income");
   const [creating, setCreating] = useState(false);
 
-  const createCategory = async () => {
+  const createCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!newCode.trim() || !newName.trim()) return;
     setCreating(true);
     try {
-      await fetch("/api/cashflow/categories", {
+      const res = await fetch("/api/cashflow/categories", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code: newCode.trim().toUpperCase(), name: newName.trim(), type: newType }),
       });
+      if (!res.ok) throw new Error(await errorMessage(res, "No se pudo crear la categoría"));
       setNewCode("");
       setNewName("");
+      toast("Categoría creada", "success");
       onRefresh();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "No se pudo crear la categoría", "error");
     } finally {
       setCreating(false);
     }
   };
 
-  const deleteCategory = async (id: string) => {
-    await fetch(`/api/cashflow/categories/${id}`, { method: "DELETE" });
-    onRefresh();
+  const deleteCategory = async (cat: CashFlowCategory) => {
+    const ok = await confirm({
+      title: `¿Eliminar la categoría ${cat.code}?`,
+      description: "Dejará de aparecer como columna en las cuentas y en el reporte.",
+      confirmLabel: "Eliminar",
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      const res = await fetch(`/api/cashflow/categories/${cat.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(await errorMessage(res, "No se pudo eliminar la categoría"));
+      onRefresh();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "No se pudo eliminar la categoría", "error");
+    }
   };
 
   const incCats = categories.filter((c) => c.type === "income" || c.type === "both");
   const expCats = categories.filter((c) => c.type === "expense" || c.type === "both");
 
+  const list = (title: string, cats: CashFlowCategory[], tone: string, empty: string) => (
+    <section>
+      <h3 className={`mb-2 text-sm font-medium ${tone}`}>{title}</h3>
+      <ul className="space-y-1">
+        {cats.map((cat) => (
+          <li key={cat.id} className="flex items-center gap-3 rounded-lg bg-secondary px-3 py-1.5">
+            <span className="font-mono text-xs font-medium">{cat.code}</span>
+            <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">{cat.name}</span>
+            <Button variant="ghost" size="icon-sm" onClick={() => deleteCategory(cat)} aria-label={`Eliminar categoría ${cat.code}`} className="text-muted-foreground hover:text-destructive">
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </li>
+        ))}
+        {cats.length === 0 && <li className="text-sm text-muted-foreground">{empty}</li>}
+      </ul>
+    </section>
+  );
+
   return (
-    <div className="fixed inset-y-0 right-0 w-80 max-w-full bg-card border-l border-border shadow-2xl z-50 flex flex-col">
-      <div className="flex items-center justify-between px-4 py-4 border-b border-border">
-        <h3 className="font-semibold text-sm">Categorias</h3>
-        <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
-          <X size={16} />
-        </button>
-      </div>
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent title="Categorías" description="Columnas de ingreso y gasto para clasificar movimientos." size="md">
+        <div className="space-y-5">
+          {list("Ingresos", incCats, "text-success", "Sin categorías de ingreso")}
+          {list("Gastos", expCats, "text-destructive", "Sin categorías de gasto")}
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        <div>
-          <p className="text-xs text-[#00E87B] uppercase tracking-widest mb-2">Ingresos</p>
-          <div className="space-y-1">
-            {incCats.map((cat) => (
-              <div key={cat.id} className="flex items-center justify-between px-3 py-2 rounded bg-white/5">
-                <span className="text-xs font-mono font-medium">{cat.code}</span>
-                <span className="text-xs text-muted-foreground flex-1 mx-3 truncate">{cat.name}</span>
-                <button onClick={() => deleteCategory(cat.id)} className="text-muted-foreground hover:text-[#FF4444]">
-                  <Trash2 size={12} />
+          <form onSubmit={createCategory} className="space-y-3 border-t border-border pt-4">
+            <h3 className="text-sm font-medium">Nueva categoría</h3>
+            <div className="grid grid-cols-[6rem_1fr] gap-2">
+              <Field label="Clave">
+                <Input value={newCode} onChange={(e) => setNewCode(e.target.value)} placeholder="VTA" maxLength={10} />
+              </Field>
+              <Field label="Nombre">
+                <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Ventas" />
+              </Field>
+            </div>
+            <div role="radiogroup" aria-label="Tipo de categoría" className="grid grid-cols-2 gap-2">
+              {(["income", "expense"] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  role="radio"
+                  aria-checked={newType === t}
+                  onClick={() => setNewType(t)}
+                  className={`rounded-lg border py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                    newType === t
+                      ? t === "income"
+                        ? "border-success/40 bg-success/10 text-success"
+                        : "border-destructive/40 bg-destructive/10 text-destructive"
+                      : "border-border text-muted-foreground hover:bg-secondary"
+                  }`}
+                >
+                  {t === "income" ? "Ingreso" : "Gasto"}
                 </button>
-              </div>
-            ))}
-            {incCats.length === 0 && <p className="text-xs text-muted-foreground/50">Sin categorias de ingreso</p>}
-          </div>
+              ))}
+            </div>
+            <Button type="submit" className="w-full" loading={creating} disabled={!newCode.trim() || !newName.trim()}>
+              Crear categoría
+            </Button>
+          </form>
         </div>
-
-        <div>
-          <p className="text-xs text-[#FF4444] uppercase tracking-widest mb-2">Gastos</p>
-          <div className="space-y-1">
-            {expCats.map((cat) => (
-              <div key={cat.id} className="flex items-center justify-between px-3 py-2 rounded bg-white/5">
-                <span className="text-xs font-mono font-medium">{cat.code}</span>
-                <span className="text-xs text-muted-foreground flex-1 mx-3 truncate">{cat.name}</span>
-                <button onClick={() => deleteCategory(cat.id)} className="text-muted-foreground hover:text-[#FF4444]">
-                  <Trash2 size={12} />
-                </button>
-              </div>
-            ))}
-            {expCats.length === 0 && <p className="text-xs text-muted-foreground/50">Sin categorias de gasto</p>}
-          </div>
-        </div>
-      </div>
-
-      <div className="border-t border-border p-4 space-y-3">
-        <p className="text-xs text-muted-foreground uppercase tracking-widest">Nueva categoria</p>
-        <div className="flex gap-2">
-          <input
-            value={newCode}
-            onChange={(e) => setNewCode(e.target.value)}
-            placeholder="Clave"
-            className="w-20 bg-white/5 border border-border rounded px-2 py-1.5 text-xs outline-none focus:border-[#3D7FFF]"
-          />
-          <input
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="Nombre"
-            className="flex-1 bg-white/5 border border-border rounded px-2 py-1.5 text-xs outline-none focus:border-[#3D7FFF]"
-          />
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setNewType("income")}
-            className={`flex-1 py-1.5 rounded text-xs font-medium transition-colors ${newType === "income" ? "bg-[#00E87B]/20 text-[#00E87B] border border-[#00E87B]/30" : "bg-white/5 text-muted-foreground border border-transparent"}`}
-          >
-            Ingreso
-          </button>
-          <button
-            onClick={() => setNewType("expense")}
-            className={`flex-1 py-1.5 rounded text-xs font-medium transition-colors ${newType === "expense" ? "bg-[#FF4444]/20 text-[#FF4444] border border-[#FF4444]/30" : "bg-white/5 text-muted-foreground border border-transparent"}`}
-          >
-            Gasto
-          </button>
-        </div>
-        <button
-          onClick={createCategory}
-          disabled={creating || !newCode.trim() || !newName.trim()}
-          className="w-full py-2 rounded bg-[#3D7FFF] text-white text-xs font-medium hover:bg-[#3D7FFF]/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {creating ? "Creando..." : "Crear categoria"}
-        </button>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
 function ReportTab({ mes, onCategoriesUpdated, onSettings }: { mes: string; onCategoriesUpdated: () => void; onSettings: (c: string | null) => void }) {
   const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showCategories, setShowCategories] = useState(false);
 
   const fetchReport = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const res = await fetch(`/api/cashflow/report?mes=${mes}`);
+      if (!res.ok) throw new Error(await errorMessage(res, "No se pudo cargar el reporte"));
       const d = await res.json();
       setData(d);
       onSettings(d?.closedThroughMes ?? null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo cargar el reporte");
     } finally {
       setLoading(false);
     }
@@ -971,86 +1057,99 @@ function ReportTab({ mes, onCategoriesUpdated, onSettings }: { mes: string; onCa
     fetchReport();
   }, [fetchReport]);
 
-  if (loading) {
+  if (loading) return <CardsSkeleton count={3} className="p-4" />;
+  if (error) {
     return (
-      <div className="flex items-center justify-center py-20 text-muted-foreground text-sm">
-        <Loader2 size={16} className="animate-spin mr-2" />
-        Cargando reporte...
+      <div className="p-4">
+        <ErrorState message={error} onRetry={fetchReport} />
       </div>
     );
   }
-
   if (!data || !data.totals || !Array.isArray(data.accounts)) return null;
 
   const categoryTotals = data.totals.categoryTotals ?? {};
   const incCats = (data.categories ?? []).filter((c) => c.type === "income" || c.type === "both");
   const expCats = (data.categories ?? []).filter((c) => c.type === "expense" || c.type === "both");
 
+  const categoryTable = (title: string, cats: CashFlowCategory[], tone: string, chip: string) => (
+    <div className="overflow-hidden rounded-xl border border-border bg-card">
+      <h3 className={`border-b border-border px-4 py-3 text-sm font-medium ${tone}`}>{title}</h3>
+      <table className="w-full text-sm">
+        <tbody>
+          {cats.map((cat) => (
+            <tr key={cat.id} className="border-b border-border/50 last:border-0">
+              <td className="px-4 py-2">
+                <span className={`rounded px-1.5 py-0.5 font-mono text-xs ${chip}`}>{cat.code}</span>
+              </td>
+              <td className="px-4 py-2 text-muted-foreground">{cat.name}</td>
+              <td className={`whitespace-nowrap px-4 py-2 text-right font-medium tabular-nums ${tone}`}>{fmx(categoryTotals[cat.code] ?? 0)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+
   return (
-    <div className="p-4 space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="font-semibold text-base">Reporte de Flujo de Efectivo — {mesLabel(mes)}</h2>
-        <button
-          onClick={() => setShowCategories(true)}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-border text-xs text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <Settings size={13} />
-          Categorias
-        </button>
+    <div className="space-y-6 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-base font-semibold">Reporte — {mesLabel(mes)}</h2>
+        <Button variant="outline" size="sm" onClick={() => setShowCategories(true)}>
+          <Settings className="h-3.5 w-3.5" />
+          Categorías
+        </Button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="rounded-2xl border border-border bg-card p-4">
-          <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Total Depositos</p>
-          <p className="text-xl font-bold text-[#00E87B] tabular-nums whitespace-nowrap">{fmx(data.totals.totalDeposits)}</p>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="rounded-xl border border-border bg-card p-4">
+          <p className="mb-1 text-sm text-muted-foreground">Total depósitos</p>
+          <p className="whitespace-nowrap text-xl font-bold tabular-nums text-success">{fmx(data.totals.totalDeposits)}</p>
         </div>
-        <div className="rounded-2xl border border-border bg-card p-4">
-          <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Total Retiros</p>
-          <p className="text-xl font-bold text-[#FF4444] tabular-nums whitespace-nowrap">{fmx(data.totals.totalWithdrawals)}</p>
+        <div className="rounded-xl border border-border bg-card p-4">
+          <p className="mb-1 text-sm text-muted-foreground">Total retiros</p>
+          <p className="whitespace-nowrap text-xl font-bold tabular-nums text-destructive">{fmx(data.totals.totalWithdrawals)}</p>
         </div>
-        <div className="rounded-2xl border border-border bg-card p-4">
-          <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Saldo Total</p>
-          <p className={`text-xl font-bold tabular-nums whitespace-nowrap ${data.totals.totalBalance >= 0 ? "text-[#00E87B]" : "text-[#FF4444]"}`}>
+        <div className="rounded-xl border border-border bg-card p-4">
+          <p className="mb-1 text-sm text-muted-foreground">Saldo total</p>
+          <p className={`whitespace-nowrap text-xl font-bold tabular-nums ${data.totals.totalBalance >= 0 ? "text-success" : "text-destructive"}`}>
             {fmx(data.totals.totalBalance)}
           </p>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-border bg-card overflow-hidden">
-        <div className="px-4 py-3 border-b border-border/50">
-          <p className="text-xs text-muted-foreground uppercase tracking-widest">Cuentas Bancarias</p>
-        </div>
+      <div className="overflow-hidden rounded-xl border border-border bg-card">
+        <h3 className="border-b border-border px-4 py-3 text-sm font-medium">Cuentas bancarias</h3>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[640px]">
-            <thead>
-              <tr className="border-b border-border/30">
-                <th className="px-4 py-2 text-left text-muted-foreground text-xs uppercase tracking-widest">Cuenta</th>
-                <th className="px-4 py-2 text-left text-muted-foreground text-xs uppercase tracking-widest">Banco</th>
-                <th className="px-4 py-2 text-right text-muted-foreground text-xs uppercase tracking-widest">Saldo Inicial</th>
-                <th className="px-4 py-2 text-right text-[#00E87B] text-xs uppercase tracking-widest">Depositos</th>
-                <th className="px-4 py-2 text-right text-[#FF4444] text-xs uppercase tracking-widest">Retiros</th>
-                <th className="px-4 py-2 text-right text-muted-foreground text-xs uppercase tracking-widest">Saldo Final</th>
-                <th className="px-4 py-2 text-right text-muted-foreground text-xs uppercase tracking-widest">Movimientos</th>
+          <table className="w-full min-w-[640px] text-sm">
+            <thead className="text-xs font-medium text-muted-foreground">
+              <tr className="border-b border-border/50">
+                <th scope="col" className="px-4 py-2 text-left">Cuenta</th>
+                <th scope="col" className="px-4 py-2 text-left">Banco</th>
+                <th scope="col" className="px-4 py-2 text-right">Saldo inicial</th>
+                <th scope="col" className="px-4 py-2 text-right text-success">Depósitos</th>
+                <th scope="col" className="px-4 py-2 text-right text-destructive">Retiros</th>
+                <th scope="col" className="px-4 py-2 text-right">Saldo final</th>
+                <th scope="col" className="px-4 py-2 text-right">Movimientos</th>
               </tr>
             </thead>
             <tbody>
               {data.accounts.map((acc) => (
-                <tr key={acc.id} className="border-b border-border/20 hover:bg-white/[0.02]">
-                  <td className="px-4 py-2 font-medium text-sm">{acc.name}</td>
-                  <td className="px-4 py-2 text-muted-foreground text-sm">{acc.bankName || "—"}</td>
-                  <td className="px-4 py-2 text-right text-sm tabular-nums whitespace-nowrap">{fmx(acc.openingBalance)}</td>
-                  <td className="px-4 py-2 text-right text-[#00E87B] text-sm tabular-nums whitespace-nowrap">{fmx(acc.totalDeposits)}</td>
-                  <td className="px-4 py-2 text-right text-[#FF4444] text-sm tabular-nums whitespace-nowrap">{fmx(acc.totalWithdrawals)}</td>
-                  <td className={`px-4 py-2 text-right font-semibold text-sm tabular-nums whitespace-nowrap ${acc.currentBalance >= 0 ? "text-[#00E87B]" : "text-[#FF4444]"}`}>
+                <tr key={acc.id} className="border-b border-border/50 last:border-0 hover:bg-secondary/40">
+                  <td className="px-4 py-2 font-medium">{acc.name}</td>
+                  <td className="px-4 py-2 text-muted-foreground">{acc.bankName || "—"}</td>
+                  <td className="whitespace-nowrap px-4 py-2 text-right tabular-nums">{fmx(acc.openingBalance)}</td>
+                  <td className="whitespace-nowrap px-4 py-2 text-right tabular-nums text-success">{fmx(acc.totalDeposits)}</td>
+                  <td className="whitespace-nowrap px-4 py-2 text-right tabular-nums text-destructive">{fmx(acc.totalWithdrawals)}</td>
+                  <td className={`whitespace-nowrap px-4 py-2 text-right font-semibold tabular-nums ${acc.currentBalance >= 0 ? "text-success" : "text-destructive"}`}>
                     {fmx(acc.currentBalance)}
                   </td>
-                  <td className="px-4 py-2 text-right text-muted-foreground text-sm">{acc.transactionCount}</td>
+                  <td className="px-4 py-2 text-right text-muted-foreground">{acc.transactionCount}</td>
                 </tr>
               ))}
               {data.accounts.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground text-sm">
-                    Sin cuentas bancarias. Agrega una cuenta para comenzar.
+                  <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                    Sin cuentas bancarias. Usa «Agregar cuenta» para comenzar.
                   </td>
                 </tr>
               )}
@@ -1060,86 +1159,50 @@ function ReportTab({ mes, onCategoriesUpdated, onSettings }: { mes: string; onCa
       </div>
 
       {(incCats.length > 0 || expCats.length > 0) && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {incCats.length > 0 && (
-            <div className="rounded-2xl border border-border bg-card overflow-hidden">
-              <div className="px-4 py-3 border-b border-border/50">
-                <p className="text-xs text-[#00E87B] uppercase tracking-widest">Ingresos por Categoria</p>
-              </div>
-              <table className="w-full text-sm">
-                <tbody>
-                  {incCats.map((cat) => {
-                    const amount = categoryTotals[cat.code] ?? 0;
-                    return (
-                      <tr key={cat.id} className="border-b border-border/20">
-                        <td className="px-4 py-2">
-                          <span className="font-mono text-xs bg-[#00E87B]/10 text-[#00E87B] px-1.5 py-0.5 rounded">{cat.code}</span>
-                        </td>
-                        <td className="px-4 py-2 text-muted-foreground text-xs">{cat.name}</td>
-                        <td className="px-4 py-2 text-right text-[#00E87B] font-medium tabular-nums whitespace-nowrap">{fmx(amount)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-          {expCats.length > 0 && (
-            <div className="rounded-2xl border border-border bg-card overflow-hidden">
-              <div className="px-4 py-3 border-b border-border/50">
-                <p className="text-xs text-[#FF4444] uppercase tracking-widest">Gastos por Categoria</p>
-              </div>
-              <table className="w-full text-sm">
-                <tbody>
-                  {expCats.map((cat) => {
-                    const amount = categoryTotals[cat.code] ?? 0;
-                    return (
-                      <tr key={cat.id} className="border-b border-border/20">
-                        <td className="px-4 py-2">
-                          <span className="font-mono text-xs bg-[#FF4444]/10 text-[#FF4444] px-1.5 py-0.5 rounded">{cat.code}</span>
-                        </td>
-                        <td className="px-4 py-2 text-muted-foreground text-xs">{cat.name}</td>
-                        <td className="px-4 py-2 text-right text-[#FF4444] font-medium tabular-nums whitespace-nowrap">{fmx(amount)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {incCats.length > 0 && categoryTable("Ingresos por categoría", incCats, "text-success", "bg-success/10 text-success")}
+          {expCats.length > 0 && categoryTable("Gastos por categoría", expCats, "text-destructive", "bg-destructive/10 text-destructive")}
         </div>
       )}
 
-      {showCategories && (
-        <CategoryPanel
-          categories={data.categories}
-          onClose={() => setShowCategories(false)}
-          onRefresh={() => {
-            fetchReport();
-            onCategoriesUpdated();
-          }}
-        />
-      )}
+      <CategoryDialog
+        open={showCategories}
+        categories={data.categories ?? []}
+        onClose={() => setShowCategories(false)}
+        onRefresh={() => {
+          fetchReport();
+          onCategoriesUpdated();
+        }}
+      />
     </div>
   );
 }
 
-// ─── Add Account Modal ───────────────────────────────────────────────
+// ─── Add Account Dialog ──────────────────────────────────────────────
 
-interface AddAccountModalProps {
-  onClose: () => void;
-  onCreated: (account: CashFlowAccount) => void;
-}
-
-function AddAccountModal({ onClose, onCreated }: AddAccountModalProps) {
+function AddAccountDialog({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (account: CashFlowAccount) => void }) {
   const [name, setName] = useState("");
   const [bankName, setBankName] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [openingBalance, setOpeningBalance] = useState("");
   const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const create = async () => {
-    if (!name.trim()) return;
+  useEffect(() => {
+    if (!open) return;
+    setName("");
+    setBankName("");
+    setAccountNumber("");
+    setOpeningBalance("");
+    setError(null);
+  }, [open]);
+
+  const create = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) {
+      setError("Ponle un nombre a la cuenta");
+      return;
+    }
     setCreating(true);
     try {
       const res = await fetch("/api/cashflow/accounts", {
@@ -1149,88 +1212,48 @@ function AddAccountModal({ onClose, onCreated }: AddAccountModalProps) {
           name: name.trim(),
           bankName: bankName.trim() || null,
           accountNumber: accountNumber.trim() || null,
-          openingBalance: parseFloat(openingBalance) || 0,
+          openingBalance: parseFloat(openingBalance.replace(/[^0-9.\-]/g, "")) || 0,
         }),
       });
+      if (!res.ok) throw new Error(await errorMessage(res, "No se pudo crear la cuenta"));
       const data = await res.json();
-      if (data.account) {
-        onCreated(data.account);
-        onClose();
-      }
+      if (!data.account) throw new Error("No se pudo crear la cuenta");
+      onCreated(data.account);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo crear la cuenta");
     } finally {
       setCreating(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-card border border-border rounded-2xl w-full max-w-md shadow-2xl">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-          <h3 className="font-semibold">Agregar Cuenta Bancaria</h3>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="p-6 space-y-4">
-          <div>
-            <label className="text-xs text-muted-foreground uppercase tracking-widest mb-1.5 block">Nombre de la cuenta *</label>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Ej: Cuenta Operaciones BBVA"
-              autoFocus
-              onKeyDown={(e) => e.key === "Enter" && create()}
-              className="w-full bg-white/5 border border-border rounded-lg px-3 py-2 text-sm outline-none focus:border-[#3D7FFF] transition-colors"
-            />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground uppercase tracking-widest mb-1.5 block">Banco</label>
-            <input
-              value={bankName}
-              onChange={(e) => setBankName(e.target.value)}
-              placeholder="Ej: BBVA, Santander, HSBC..."
-              className="w-full bg-white/5 border border-border rounded-lg px-3 py-2 text-sm outline-none focus:border-[#3D7FFF] transition-colors"
-            />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground uppercase tracking-widest mb-1.5 block">Numero de cuenta / CLABE</label>
-            <input
-              value={accountNumber}
-              onChange={(e) => setAccountNumber(e.target.value)}
-              placeholder="Ultimos 4 digitos o CLABE completa"
-              className="w-full bg-white/5 border border-border rounded-lg px-3 py-2 text-sm outline-none focus:border-[#3D7FFF] transition-colors"
-            />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground uppercase tracking-widest mb-1.5 block">Saldo inicial</label>
-            <input
-              value={openingBalance}
-              onChange={(e) => setOpeningBalance(e.target.value)}
-              type="number"
-              placeholder="0.00"
-              className="w-full bg-white/5 border border-border rounded-lg px-3 py-2 text-sm outline-none focus:border-[#3D7FFF] transition-colors"
-            />
-          </div>
-        </div>
-
-        <div className="flex gap-3 px-6 py-4 border-t border-border">
-          <button
-            onClick={onClose}
-            className="flex-1 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={create}
-            disabled={creating || !name.trim()}
-            className="flex-1 py-2 rounded-lg bg-[#3D7FFF] text-white text-sm font-medium hover:bg-[#3D7FFF]/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {creating ? "Creando..." : "Crear cuenta"}
-          </button>
-        </div>
-      </div>
-    </div>
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent
+        title="Agregar cuenta bancaria"
+        footer={
+          <>
+            <Button variant="outline" onClick={onClose}>Cancelar</Button>
+            <Button type="submit" form="add-account-form" loading={creating}>Crear cuenta</Button>
+          </>
+        }
+      >
+        <form id="add-account-form" onSubmit={create} className="space-y-4" noValidate>
+          <Field label="Nombre de la cuenta" error={error}>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Operaciones BBVA" autoFocus />
+          </Field>
+          <Field label="Banco" optional>
+            <Input value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="BBVA, Santander, HSBC…" />
+          </Field>
+          <Field label="Número de cuenta / CLABE" optional>
+            <Input value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} placeholder="Últimos 4 dígitos o CLABE" />
+          </Field>
+          <Field label="Saldo inicial" optional>
+            <MoneyInput value={openingBalance} onChange={(e) => setOpeningBalance(e.target.value)} placeholder="0.00" />
+          </Field>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1239,6 +1262,9 @@ function AddAccountModal({ onClose, onCreated }: AddAccountModalProps) {
 const MES_STORAGE_KEY = "cashflow.mes";
 
 export default function CashFlowPage() {
+  const { toast } = useToast();
+  const confirm = useConfirm();
+  const me = useMe();
   const [accounts, setAccounts] = useState<CashFlowAccount[]>([]);
   const [categories, setCategories] = useState<CashFlowCategory[]>([]);
   const [activeTab, setActiveTab] = useState<"report" | string>("report");
@@ -1246,7 +1272,6 @@ export default function CashFlowPage() {
   const [loadingAccounts, setLoadingAccounts] = useState(true);
   const [mes, setMes] = useState<string>(currentMonthMX());
   const [closedThroughMes, setClosedThroughMes] = useState<string | null>(null);
-  const [jobRole, setJobRole] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
 
   const options = useMemo(() => monthOptions(), []);
@@ -1264,28 +1289,31 @@ export default function CashFlowPage() {
     try { localStorage.setItem(MES_STORAGE_KEY, next); } catch {}
   }, []);
 
-  useEffect(() => {
-    fetch("/api/user")
-      .then((r) => r.json())
-      .then((d) => setJobRole(d.jobRole ?? null))
-      .catch(() => {});
-  }, []);
-
   const fetchAccounts = useCallback(async () => {
     setLoadingAccounts(true);
     try {
       const res = await fetch("/api/cashflow/accounts");
+      if (!res.ok) throw new Error(await errorMessage(res, "No se pudieron cargar las cuentas"));
       const data = await res.json();
       if (data.accounts) setAccounts(data.accounts);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "No se pudieron cargar las cuentas", "error", {
+        action: { label: "Reintentar", onClick: () => fetchAccounts() },
+      });
     } finally {
       setLoadingAccounts(false);
     }
-  }, []);
+  }, [toast]);
 
   const fetchCategories = useCallback(async () => {
-    const res = await fetch("/api/cashflow/categories");
-    const data = await res.json();
-    if (data.categories) setCategories(data.categories);
+    try {
+      const res = await fetch("/api/cashflow/categories");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.categories) setCategories(data.categories);
+    } catch {
+      // Columns just won't show; the ledger still works.
+    }
   }, []);
 
   useEffect(() => {
@@ -1299,14 +1327,31 @@ export default function CashFlowPage() {
 
   const deleteActiveAccount = async () => {
     if (!activeAccount) return;
-    if (!confirm(`¿Eliminar el banco "${activeAccount.name}"? Se ocultará junto con sus movimientos.`)) return;
-    await fetch(`/api/cashflow/accounts/${activeAccount.id}`, { method: "DELETE" });
-    setAccounts((prev) => prev.filter((a) => a.id !== activeAccount.id));
-    setActiveTab("report");
+    const ok = await confirm({
+      title: `¿Eliminar el banco «${activeAccount.name}»?`,
+      description: "Se ocultará junto con todos sus movimientos.",
+      confirmLabel: "Eliminar banco",
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      const res = await fetch(`/api/cashflow/accounts/${activeAccount.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(await errorMessage(res, "No se pudo eliminar el banco"));
+      setAccounts((prev) => prev.filter((a) => a.id !== activeAccount.id));
+      setActiveTab("report");
+      toast("Banco eliminado", "success");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "No se pudo eliminar el banco", "error");
+    }
   };
 
   const closeMonth = async () => {
-    if (!confirm(`¿Cerrar ${mesLabel(mes)}? Ya no se podrán editar sus movimientos.`)) return;
+    const ok = await confirm({
+      title: `¿Cerrar ${mesLabel(mes)}?`,
+      description: "Ya no se podrán editar sus movimientos. Solo Dirección puede reabrirlo.",
+      confirmLabel: "Cerrar mes",
+    });
+    if (!ok) return;
     setClosing(true);
     try {
       const res = await fetch("/api/cashflow/close", {
@@ -1314,21 +1359,26 @@ export default function CashFlowPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mes }),
       });
+      if (!res.ok) throw new Error(await errorMessage(res, "No se pudo cerrar el mes"));
       const data = await res.json();
-      if (!res.ok) {
-        alert(data.error || "No se pudo cerrar el mes");
-        return;
-      }
       setClosedThroughMes(data.closedThroughMes ?? mes);
+      toast(`${mesLabel(mes)} cerrado`, "success");
       // Move working month forward to the next month.
       changeMes(shiftMes(mes, 1));
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "No se pudo cerrar el mes", "error");
     } finally {
       setClosing(false);
     }
   };
 
   const reopenMonth = async () => {
-    if (!confirm(`¿Reabrir ${mesLabel(mes)} y los meses posteriores?`)) return;
+    const ok = await confirm({
+      title: `¿Reabrir ${mesLabel(mes)}?`,
+      description: "También se reabren los meses posteriores.",
+      confirmLabel: "Reabrir",
+    });
+    if (!ok) return;
     setClosing(true);
     try {
       const res = await fetch("/api/cashflow/reopen", {
@@ -1336,121 +1386,94 @@ export default function CashFlowPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mes }),
       });
+      if (!res.ok) throw new Error(await errorMessage(res, "No se pudo reabrir el mes"));
       const data = await res.json();
-      if (!res.ok) {
-        alert(data.error || "No se pudo reabrir el mes");
-        return;
-      }
       setClosedThroughMes(data.closedThroughMes ?? null);
+      toast(`${mesLabel(mes)} reabierto`, "success");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "No se pudo reabrir el mes", "error");
     } finally {
       setClosing(false);
     }
   };
 
+  const tabClass = (active: boolean) =>
+    `whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${
+      active ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+    }`;
+
   return (
-    <div className="flex flex-col h-full min-h-[calc(100vh-64px)] bg-background">
-      <div className="px-4 pt-4 pb-0 border-b border-border">
-        <div className="flex flex-wrap items-center gap-3 mb-4">
-          <a href="/dashboard/finance" className="text-muted-foreground hover:text-foreground transition-colors">
-            <ChevronLeft size={18} />
-          </a>
+    <div className="flex h-full min-h-[calc(100vh-64px)] flex-col bg-background">
+      <div className="border-b border-border px-4 pb-0 pt-4">
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <Button variant="ghost" size="icon-sm" asChild>
+            <Link href="/dashboard/finance" aria-label="Volver a Finanzas">
+              <ChevronLeft className="h-4 w-4" />
+            </Link>
+          </Button>
           <div className="mr-auto">
-            <h1 className="text-lg font-bold">Flujo de Efectivo</h1>
-            <p className="text-xs text-muted-foreground">Gestion de cuentas bancarias y movimientos</p>
+            <h1 className="text-lg font-bold">Flujo de efectivo</h1>
+            <p className="text-sm text-muted-foreground">Cuentas bancarias y movimientos del mes</p>
           </div>
 
           {/* Month selector + lock controls */}
           <div className="flex flex-wrap items-center gap-2">
-            <select
-              value={mes}
-              onChange={(e) => changeMes(e.target.value)}
-              className="bg-white/5 border border-border rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#3D7FFF] transition-colors"
-            >
+            <label htmlFor="cashflow-mes" className="sr-only">Mes</label>
+            <Select id="cashflow-mes" value={mes} onChange={(e) => changeMes(e.target.value)} className="h-9 w-auto py-1.5">
               {options.map((m) => (
                 <option key={m} value={m}>{mesLabel(m)}</option>
               ))}
-            </select>
+            </Select>
 
             {monthClosed ? (
-              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#FF4444]/10 border border-[#FF4444]/30 text-xs text-[#FF4444] font-medium whitespace-nowrap">
-                <Lock size={13} />
+              <span className="flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-warning/40 bg-warning/10 px-3 py-1.5 text-xs font-medium text-warning-foreground dark:text-warning">
+                <Lock className="h-3.5 w-3.5" />
                 Mes cerrado
               </span>
             ) : (
-              <button
-                onClick={closeMonth}
-                disabled={closing}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 border border-border text-xs text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors whitespace-nowrap"
-              >
-                <Lock size={13} />
+              <Button variant="outline" size="sm" onClick={closeMonth} disabled={closing}>
+                <Lock className="h-3.5 w-3.5" />
                 Cerrar mes
-              </button>
+              </Button>
             )}
 
-            {monthClosed && jobRole === "DIRECCION" && (
-              <button
-                onClick={reopenMonth}
-                disabled={closing}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 border border-border text-xs text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors whitespace-nowrap"
-                title="Reabrir este mes (solo Dirección)"
-              >
-                <Unlock size={13} />
+            {monthClosed && me?.jobRole === "DIRECCION" && (
+              <Button variant="outline" size="sm" onClick={reopenMonth} disabled={closing} title="Reabrir este mes (solo Dirección)">
+                <Unlock className="h-3.5 w-3.5" />
                 Reabrir
-              </button>
+              </Button>
             )}
           </div>
         </div>
 
-        <div className="flex items-center gap-1 overflow-x-auto pb-0">
-          <button
-            onClick={() => setActiveTab("report")}
-            className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-              activeTab === "report"
-                ? "border-[#3D7FFF] text-[#3D7FFF]"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
+        <div className="flex items-center gap-1 overflow-x-auto" role="tablist" aria-label="Reporte y cuentas">
+          <button role="tab" aria-selected={activeTab === "report"} onClick={() => setActiveTab("report")} className={tabClass(activeTab === "report")}>
             Reporte
           </button>
           {accounts.map((acc) => (
-            <button
-              key={acc.id}
-              onClick={() => setActiveTab(acc.id)}
-              className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-                activeTab === acc.id
-                  ? "border-[#3D7FFF] text-[#3D7FFF]"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
-            >
+            <button key={acc.id} role="tab" aria-selected={activeTab === acc.id} onClick={() => setActiveTab(acc.id)} className={tabClass(activeTab === acc.id)}>
               {acc.name}
             </button>
           ))}
           {loadingAccounts && (
-            <div className="px-4 py-2.5">
-              <Loader2 size={14} className="animate-spin text-muted-foreground" />
+            <div className="px-4 py-2.5" aria-label="Cargando cuentas">
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
             </div>
           )}
-          <button
-            onClick={() => setShowAddAccount(true)}
-            className="px-3 py-2.5 text-sm font-medium text-[#3D7FFF] hover:text-[#3D7FFF]/80 flex items-center gap-1 whitespace-nowrap transition-colors"
-          >
-            <Plus size={14} />
+          <Button variant="ghost" size="sm" onClick={() => setShowAddAccount(true)} className="text-primary">
+            <Plus className="h-4 w-4" />
             Agregar cuenta
-          </button>
+          </Button>
           {activeAccount && (
-            <button
-              onClick={deleteActiveAccount}
-              title={`Eliminar banco "${activeAccount.name}"`}
-              className="px-3 py-2.5 text-sm font-medium text-red-500 hover:text-red-600 flex items-center gap-1 whitespace-nowrap transition-colors"
-            >
-              <Trash2 size={14} />
+            <Button variant="ghost" size="sm" onClick={deleteActiveAccount} className="text-destructive hover:text-destructive">
+              <Trash2 className="h-4 w-4" />
               Eliminar banco
-            </button>
+            </Button>
           )}
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden" role="tabpanel">
         {activeTab === "report" ? (
           <div className="h-full overflow-y-auto">
             <ReportTab mes={mes} onCategoriesUpdated={fetchCategories} onSettings={setClosedThroughMes} />
@@ -1468,15 +1491,15 @@ export default function CashFlowPage() {
         ) : null}
       </div>
 
-      {showAddAccount && (
-        <AddAccountModal
-          onClose={() => setShowAddAccount(false)}
-          onCreated={(acc) => {
-            setAccounts((prev) => [...prev, acc]);
-            setActiveTab(acc.id);
-          }}
-        />
-      )}
+      <AddAccountDialog
+        open={showAddAccount}
+        onClose={() => setShowAddAccount(false)}
+        onCreated={(acc) => {
+          setAccounts((prev) => [...prev, acc]);
+          setActiveTab(acc.id);
+          toast("Cuenta creada", "success");
+        }}
+      />
     </div>
   );
 }

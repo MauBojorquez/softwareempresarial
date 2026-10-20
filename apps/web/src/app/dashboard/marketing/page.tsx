@@ -1,13 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Megaphone, MousePointerClick, DollarSign, Eye, Target, BarChart3, Loader2, LinkIcon, TrendingUp, Calendar, Download, X, AlertTriangle, RefreshCw } from "lucide-react";
+import { Megaphone, MousePointerClick, DollarSign, Eye, Target, BarChart3, LinkIcon, TrendingUp, Calendar, AlertTriangle, RefreshCw, History } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { cn, formatCurrency } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Field, Select } from "@/components/ui/field";
+import { PageHeader, Card } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, CardsSkeleton, RowsSkeleton, Skeleton } from "@/components/ui/states";
 
 export default function MarketingPage() {
   const [campaigns, setCampaigns] = useState<any>(null);
   const [acq, setAcq] = useState<any>(null);
+  const [acqError, setAcqError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"overview" | "campaigns" | "history">("overview");
@@ -35,23 +40,51 @@ export default function MarketingPage() {
 
   // Automatic "Adquisición" block: our own META leads + conversion, fed by the
   // shared Resumen marketing computation (Meta metrics + Lead/Venta tables).
-  useEffect(() => {
+  const loadAcq = () => {
+    setAcqError(null);
     fetch("/api/resumen?blocks=marketing")
-      .then((r) => (r.ok ? r.json() : null))
+      .then(async (r) => {
+        // Sin permiso para el bloque: simplemente no se muestra.
+        if (r.status === 401 || r.status === 403) return null;
+        if (!r.ok) {
+          const body = await r.json().catch(() => ({}));
+          throw new Error(body.error || "No se pudo cargar la adquisición");
+        }
+        return r.json();
+      })
       .then((j) => setAcq(j?.blocks?.marketing ?? null))
-      .catch(() => {});
-  }, []);
+      .catch((e: Error) => setAcqError(e.message || "No se pudo cargar la adquisición"));
+  };
 
-  if (loading) {
-    return <div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+  useEffect(() => { loadAcq(); }, []);
+
+  const refreshButton = (
+    <Button variant="outline" size="sm" onClick={() => load()} loading={loading} aria-label="Actualizar datos">
+      {!loading && <RefreshCw />}
+      <span className="hidden sm:inline">Actualizar</span>
+    </Button>
+  );
+
+  if (loading && !campaigns) {
+    return (
+      <div className="space-y-5">
+        <PageHeader icon={Megaphone} title="Marketing" description="Datos en tiempo real de Meta Ads" actions={refreshButton} />
+        <CardsSkeleton count={4} className="grid-cols-2" />
+        <Skeleton className="h-10 w-64 rounded-lg" />
+        <Card>
+          <div className="border-b border-border p-4"><Skeleton className="h-5 w-40" /></div>
+          <RowsSkeleton rows={4} />
+        </Card>
+      </div>
+    );
   }
 
   if (error) return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-destructive/30 bg-card py-16">
-      <div className="rounded-full bg-destructive/10 p-3 mb-4"><X className="h-6 w-6 text-destructive" /></div>
-      <h3 className="text-lg font-semibold">Error al cargar datos</h3>
-      <p className="mt-1 text-sm text-muted-foreground">{error}</p>
-      <button onClick={() => load()} className="mt-4 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90">Reintentar</button>
+    <div className="space-y-5">
+      <PageHeader icon={Megaphone} title="Marketing" description="Datos en tiempo real de Meta Ads" actions={refreshButton} />
+      <Card>
+        <ErrorState message={error} onRetry={() => load()} />
+      </Card>
     </div>
   );
 
@@ -60,21 +93,20 @@ export default function MarketingPage() {
 
   if (!metaConnected) {
     return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Marketing</h1>
-          <p className="text-sm text-muted-foreground">Rendimiento de campañas y adquisición</p>
-        </div>
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-border bg-card py-16 sm:py-20">
-          <LinkIcon className="h-8 w-8 text-muted-foreground mb-3 sm:h-10 sm:w-10 sm:mb-4" />
-          <h3 className="text-base font-semibold sm:text-lg">Conecta Meta Ads</h3>
-          <p className="mt-1 text-sm text-muted-foreground text-center max-w-md px-4">
-            Para ver tus métricas de marketing, conecta la cuenta de Meta Ads de la empresa.
-          </p>
-          <a href="/api/integrations/meta" className="mt-4 rounded-lg gradient-bg px-4 py-2 text-sm font-medium text-white hover:opacity-90">
-            Conectar Meta Ads
-          </a>
-        </div>
+      <div className="space-y-5">
+        <PageHeader icon={Megaphone} title="Marketing" description="Rendimiento de campañas y adquisición" />
+        <Card>
+          <EmptyState
+            icon={LinkIcon}
+            title="Conecta Meta Ads"
+            description="Para ver tus métricas de marketing, conecta la cuenta de Meta Ads de la empresa."
+            action={
+              <Button asChild>
+                <a href="/api/integrations/meta">Conectar Meta Ads</a>
+              </Button>
+            }
+          />
+        </Card>
       </div>
     );
   }
@@ -93,42 +125,34 @@ export default function MarketingPage() {
   const totalResults = n(current.results);
 
   const statusLabel = (s: string) => {
-    if (s === "ACTIVE") return { text: "Activa", cls: "text-emerald-400 bg-emerald-500/15" };
-    if (s === "PAUSED") return { text: "Pausada", cls: "text-amber-400 bg-amber-500/15" };
-    if (s === "DELETED" || s === "ARCHIVED") return { text: "Archivada", cls: "text-red-400 bg-red-500/15" };
-    if (s === "WITH_ISSUES") return { text: "Con problemas", cls: "text-red-400 bg-red-500/15" };
-    if (s === "INACTIVE") return { text: "Inactiva", cls: "text-muted-foreground bg-secondary/50" };
-    if (s === "COMPLETED") return { text: "Completada", cls: "text-blue-400 bg-blue-500/15" };
-    if (s === "IN_PROCESS") return { text: "En proceso", cls: "text-purple-400 bg-purple-500/15" };
-    return { text: "—", cls: "text-muted-foreground bg-secondary/50" };
+    if (s === "ACTIVE") return { text: "Activa", cls: "text-success bg-success/10" };
+    if (s === "PAUSED") return { text: "Pausada", cls: "text-warning bg-warning/10" };
+    if (s === "DELETED" || s === "ARCHIVED") return { text: "Archivada", cls: "text-muted-foreground bg-secondary" };
+    if (s === "WITH_ISSUES") return { text: "Con problemas", cls: "text-destructive bg-destructive/10" };
+    if (s === "INACTIVE") return { text: "Inactiva", cls: "text-muted-foreground bg-secondary" };
+    if (s === "COMPLETED") return { text: "Completada", cls: "text-info bg-info/10" };
+    if (s === "IN_PROCESS") return { text: "En proceso", cls: "text-primary bg-primary/10" };
+    return { text: "—", cls: "text-muted-foreground bg-secondary" };
   };
 
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Marketing</h1>
-          <p className="text-sm text-muted-foreground">Datos en tiempo real de Meta Ads</p>
-        </div>
-        <div className="flex items-center gap-3">
-          {campaigns && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground sm:text-sm">
-              <Megaphone className="h-4 w-4" />
-              <span>{campaigns.activeCampaigns || 0} activas de {campaigns.totalCampaigns || 0}</span>
-            </div>
-          )}
-          <button
-            onClick={() => load()}
-            disabled={loading}
-            className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium transition-colors hover:bg-secondary disabled:opacity-50"
-            title="Actualizar datos"
-          >
-            <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
-            <span className="hidden sm:inline">Actualizar</span>
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        icon={Megaphone}
+        title="Marketing"
+        description="Datos en tiempo real de Meta Ads"
+        actions={
+          <>
+            {campaigns && (
+              <span className="text-xs text-muted-foreground sm:text-sm">
+                {campaigns.activeCampaigns || 0} activas de {campaigns.totalCampaigns || 0}
+              </span>
+            )}
+            {refreshButton}
+          </>
+        }
+      />
 
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <MetricCard title="Gasto" value={fmtMoney(current.spend)} change={changes.spend ?? undefined} icon={DollarSign} />
@@ -137,11 +161,17 @@ export default function MarketingPage() {
         <MetricCard title="Clics" value={fmt(current.clicks)} change={changes.clicks ?? undefined} icon={MousePointerClick} />
       </div>
 
+      {acqError && !acq && (
+        <Card>
+          <ErrorState message={acqError} onRetry={loadAcq} className="py-8" />
+        </Card>
+      )}
+
       {acq && (
-        <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-          <div className="flex items-center gap-2 mb-3">
+        <Card className="p-4 sm:p-5">
+          <div className="mb-3 flex items-center gap-2">
             <Target className="h-4 w-4 text-primary" />
-            <h3 className="text-sm font-semibold sm:text-base">Adquisición (leads Meta)</h3>
+            <h2 className="text-sm font-semibold sm:text-base">Adquisición (leads Meta)</h2>
           </div>
           {acq.porCampana === undefined && acq.gasto === undefined ? (
             // Count-only view (COMERCIAL).
@@ -167,7 +197,7 @@ export default function MarketingPage() {
                   <div key={t.label} className="rounded-xl border border-border bg-background/50 p-3">
                     <p className="text-xs text-muted-foreground">{t.label}</p>
                     <p className="mt-1 text-lg font-bold">{t.value}</p>
-                    {t.sub && <p className="mt-0.5 text-[11px] text-muted-foreground">{t.sub}</p>}
+                    {t.sub && <p className="mt-0.5 text-xs text-muted-foreground">{t.sub}</p>}
                   </div>
                 ))}
               </div>
@@ -186,17 +216,20 @@ export default function MarketingPage() {
               )}
             </div>
           )}
-        </div>
+        </Card>
       )}
 
-      <div className="flex items-center gap-1 rounded-lg border border-border bg-secondary/50 p-1 w-fit overflow-x-auto">
+      <div role="tablist" aria-label="Vistas de marketing" className="flex w-fit max-w-full items-center gap-1 overflow-x-auto rounded-lg border border-border bg-secondary p-1">
         {(["overview", "campaigns", "history"] as const).map((t) => (
           <button
             key={t}
+            type="button"
+            role="tab"
+            aria-selected={tab === t}
             onClick={() => setTab(t)}
             className={cn(
-              "rounded-md px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap sm:px-4 sm:text-sm",
-              tab === t ? "bg-primary text-white" : "text-muted-foreground hover:text-foreground"
+              "whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition-colors sm:px-4 sm:text-sm",
+              tab === t ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
             )}
           >
             {t === "overview" ? "Resumen" : t === "campaigns" ? "Campañas" : "Historial"}
@@ -205,7 +238,7 @@ export default function MarketingPage() {
       </div>
 
       {tokenExpired && (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 sm:p-4">
+        <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 sm:p-4">
           <div className="flex items-start gap-3">
             <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
             <div>
@@ -213,50 +246,57 @@ export default function MarketingPage() {
               <p className="text-xs text-muted-foreground mt-1">
                 {campaigns?.error || "Tu token de acceso expiró. Reconecta tu cuenta para ver datos actualizados."}
               </p>
-              <a href="/api/integrations/meta" className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-destructive/30 px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors">
-                <RefreshCw className="h-3 w-3" />
-                Reconectar
-              </a>
+              <Button asChild variant="outline" size="sm" className="mt-2 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive">
+                <a href="/api/integrations/meta">
+                  <RefreshCw />
+                  Reconectar
+                </a>
+              </Button>
             </div>
           </div>
         </div>
       )}
 
       {fetchError && !tokenExpired && (
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/15 p-3 text-sm text-amber-400">
-          {fetchError}
+        <div role="alert" className="flex items-start gap-2 rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm text-foreground">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+          <span>{fetchError}</span>
         </div>
       )}
 
       {campaigns?.adAccounts?.length > 0 && (
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Cuenta:</span>
-          {campaigns.adAccounts.length === 1 ? (
-            <span className="text-xs font-medium text-foreground">{campaigns.adAccounts[0].name}</span>
-          ) : (
-            <select
+        campaigns.adAccounts.length === 1 ? (
+          <p className="text-sm text-muted-foreground">
+            Cuenta: <span className="font-medium text-foreground">{campaigns.adAccounts[0].name}</span>
+          </p>
+        ) : (
+          <Field label="Cuenta publicitaria" className="max-w-xs">
+            <Select
               value={selectedAccount || campaigns.adAccounts[0]?.id || ""}
-              onChange={(e) => { setSelectedAccount(e.target.value); localStorage.setItem("mkt_account", e.target.value); load(e.target.value); }}
-              className="rounded-md border border-border bg-card px-2 py-1 text-xs font-medium text-foreground"
+              onChange={(e) => {
+                setSelectedAccount(e.target.value);
+                try { localStorage.setItem("mkt_account", e.target.value); } catch { /* sin almacenamiento: solo se pierde la preferencia */ }
+                load(e.target.value);
+              }}
             >
               {campaigns.adAccounts.map((a: any) => (
                 <option key={a.id} value={a.id}>{a.name}</option>
               ))}
-            </select>
-          )}
-        </div>
+            </Select>
+          </Field>
+        )
       )}
 
       {tab === "overview" && (
         <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
-          <div className="rounded-2xl border border-border bg-card p-5">
-            <h3 className="text-sm font-semibold sm:text-base">Métricas de Alcance</h3>
+          <Card className="p-5">
+            <h2 className="text-sm font-semibold sm:text-base">Métricas de Alcance</h2>
             <div className="mt-3 space-y-3 sm:mt-4">
               {[
-                { icon: Eye, color: "text-blue-600", label: "Impresiones", value: fmt(current.impressions) },
-                { icon: Megaphone, color: "text-purple-600", label: "Alcance", value: fmt(current.reach) },
-                { icon: MousePointerClick, color: "text-emerald-600", label: "Clics", value: fmt(current.clicks) },
-                { icon: Target, color: "text-amber-600", label: "Resultados", value: fmt(totalResults) },
+                { icon: Eye, color: "text-info", label: "Impresiones", value: fmt(current.impressions) },
+                { icon: Megaphone, color: "text-primary", label: "Alcance", value: fmt(current.reach) },
+                { icon: MousePointerClick, color: "text-success", label: "Clics", value: fmt(current.clicks) },
+                { icon: Target, color: "text-warning", label: "Resultados", value: fmt(totalResults) },
               ].map((item, i, arr) => (
                 <div key={item.label} className={cn("flex items-center justify-between", i < arr.length - 1 && "border-b border-border pb-3")}>
                   <div className="flex items-center gap-2 sm:gap-3">
@@ -267,15 +307,15 @@ export default function MarketingPage() {
                 </div>
               ))}
             </div>
-          </div>
+          </Card>
 
-          <div className="rounded-2xl border border-border bg-card p-5">
-            <h3 className="text-sm font-semibold sm:text-base">Costos</h3>
+          <Card className="p-5">
+            <h2 className="text-sm font-semibold sm:text-base">Costos</h2>
             <div className="mt-3 space-y-3 sm:mt-4">
               {[
-                { icon: DollarSign, color: "text-blue-600", label: "CPC", value: fmtMoney(current.cpc) },
-                { icon: BarChart3, color: "text-purple-600", label: "CPM", value: fmtMoney(current.cpm) },
-                { icon: DollarSign, color: "text-emerald-600", label: "Gasto Total", value: fmtMoney(current.spend) },
+                { icon: DollarSign, color: "text-info", label: "CPC", value: fmtMoney(current.cpc) },
+                { icon: BarChart3, color: "text-primary", label: "CPM", value: fmtMoney(current.cpm) },
+                { icon: DollarSign, color: "text-success", label: "Gasto Total", value: fmtMoney(current.spend) },
               ].map((item, i, arr) => (
                 <div key={item.label} className={cn("flex items-center justify-between", i < arr.length - 1 && "border-b border-border pb-3")}>
                   <div className="flex items-center gap-2 sm:gap-3">
@@ -286,24 +326,25 @@ export default function MarketingPage() {
                 </div>
               ))}
             </div>
-          </div>
+          </Card>
         </div>
       )}
 
       {tab === "campaigns" && (
-        <div className="rounded-2xl border border-border bg-card">
+        <Card>
           <div className="border-b border-border p-3 sm:p-4">
-            <h3 className="text-sm font-semibold sm:text-base">Campañas ({campaignList.length})</h3>
+            <h2 className="text-sm font-semibold sm:text-base">Campañas ({campaignList.length})</h2>
           </div>
           {campaignList.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground sm:py-16">
-              <Megaphone className="h-8 w-8 mb-2" />
-              <p className="text-sm">No se encontraron campañas</p>
-            </div>
+            <EmptyState
+              icon={Megaphone}
+              title="No se encontraron campañas"
+              description="Esta cuenta de Meta Ads no tiene campañas en los últimos 6 meses."
+            />
           ) : (
             <>
-              <div className="hidden sm:block overflow-x-auto">
-                <table className="w-full text-sm">
+              <div className="hidden overflow-x-auto md:block">
+                <table className="w-full min-w-[760px] text-sm">
                   <thead>
                     <tr className="border-b border-border text-left text-xs text-muted-foreground">
                       <th scope="col" className="p-3 font-medium">Campaña</th>
@@ -320,18 +361,18 @@ export default function MarketingPage() {
                     {campaignList.map((c: any) => {
                       const st = statusLabel(c.status);
                       return (
-                        <tr key={c.id} className="border-b border-border last:border-0 hover:bg-secondary/30">
+                        <tr key={c.id} className="border-b border-border last:border-0 hover:bg-secondary/60">
                           <td className="p-3">
                             <p className="font-medium truncate max-w-[250px]">{c.name}</p>
                           </td>
                           <td className="p-3">
-                            <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", st.cls)}>{st.text}</span>
+                            <span className={cn("whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold", st.cls)}>{st.text}</span>
                           </td>
                           <td className="p-3 text-right">
                             {n(c.results) > 0 ? (
                               <>
                                 <span className="block font-semibold">{fmt(c.results)}</span>
-                                <span className="block text-[10px] text-muted-foreground">{c.resultType}</span>
+                                <span className="block text-xs text-muted-foreground">{c.resultType}</span>
                               </>
                             ) : "—"}
                           </td>
@@ -346,16 +387,16 @@ export default function MarketingPage() {
                   </tbody>
                 </table>
               </div>
-              <div className="sm:hidden divide-y divide-border">
+              <div className="divide-y divide-border md:hidden">
                 {campaignList.map((c: any) => {
                   const st = statusLabel(c.status);
                   return (
                     <div key={c.id} className="p-3 space-y-2">
                       <div className="flex items-center justify-between">
                         <p className="text-sm font-medium truncate flex-1 mr-2">{c.name}</p>
-                        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold shrink-0", st.cls)}>{st.text}</span>
+                        <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold", st.cls)}>{st.text}</span>
                       </div>
-                      <div className="grid grid-cols-4 gap-2 text-xs text-muted-foreground">
+                      <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground sm:grid-cols-4">
                         <div><span className="block font-medium text-foreground">{n(c.results) > 0 ? fmt(c.results) : "—"}</span>{n(c.results) > 0 ? c.resultType : "Resultados"}</div>
                         <div><span className="block font-medium text-foreground">{n(c.costPerResult) > 0 ? fmtMoney(c.costPerResult) : "—"}</span>Costo/Res.</div>
                         <div><span className="block font-medium text-foreground">{fmtMoney(c.spend)}</span>Gasto</div>
@@ -367,30 +408,30 @@ export default function MarketingPage() {
               </div>
             </>
           )}
-        </div>
+        </Card>
       )}
 
       {tab === "history" && (
         <div className="space-y-4 sm:space-y-6">
-          <div className="rounded-2xl border border-border bg-card p-4 sm:p-6">
-            <div className="flex items-center gap-2 mb-4 sm:mb-6">
+          <Card className="p-4 sm:p-6">
+            <div className="mb-4 flex items-center gap-2 sm:mb-6">
               <Calendar className="h-4 w-4 text-muted-foreground" />
-              <h3 className="text-sm font-semibold sm:text-base">Gasto Mensual (6 meses)</h3>
+              <h2 className="text-sm font-semibold sm:text-base">Gasto Mensual (6 meses)</h2>
             </div>
             {monthlyData.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">Sin datos históricos</p>
+              <EmptyState icon={History} title="Sin datos históricos" description="Aún no hay gasto registrado en los últimos 6 meses." className="py-8" />
             ) : (
               <div className="space-y-2 sm:space-y-3">
                 {monthlyData.map((m: any) => (
                   <div key={m.month} className="flex items-center gap-2 sm:gap-4">
                     <span className="w-16 text-xs text-muted-foreground shrink-0 sm:w-24 sm:text-sm">{m.month}</span>
-                    <div className="flex-1 h-6 bg-secondary/50 rounded-lg overflow-hidden sm:h-8">
+                    <div className="h-6 flex-1 overflow-hidden rounded-lg bg-secondary sm:h-8">
                       {m.hasData === false && n(m.spend) === 0 ? (
                         <div className="h-full flex items-center px-2">
-                          <span className="text-[10px] text-muted-foreground">Sin datos</span>
+                          <span className="text-xs text-muted-foreground">Sin datos</span>
                         </div>
                       ) : (
-                        <div className="h-full gradient-bg rounded-lg" style={{ width: `${Math.max((n(m.spend) / maxSpend) * 100, 2)}%` }} />
+                        <div className="h-full rounded-lg bg-primary" style={{ width: `${Math.max((n(m.spend) / maxSpend) * 100, 2)}%` }} />
                       )}
                     </div>
                     <span className={cn("w-20 text-xs font-semibold text-right shrink-0 sm:w-28 sm:text-sm", m.hasData === false && "text-muted-foreground")}>{fmtMoney(m.spend)}</span>
@@ -398,13 +439,13 @@ export default function MarketingPage() {
                 ))}
               </div>
             )}
-          </div>
+          </Card>
 
-          <div className="rounded-2xl border border-border bg-card">
+          <Card>
             <div className="border-b border-border p-3 sm:p-4">
               <div className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                <h3 className="text-sm font-semibold sm:text-base">Detalle Mensual</h3>
+                <h2 className="text-sm font-semibold sm:text-base">Detalle Mensual</h2>
               </div>
             </div>
             <div className="hidden sm:block overflow-x-auto">
@@ -445,7 +486,7 @@ export default function MarketingPage() {
                 </div>
               ))}
             </div>
-          </div>
+          </Card>
         </div>
       )}
     </div>

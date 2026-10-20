@@ -1,10 +1,20 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Plus, Loader2, KanbanSquare, X, Check, Trash2, StickyNote, Upload } from "lucide-react";
-import { formatCurrency } from "@/lib/utils";
+import { useState, useCallback } from "react";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { Plus, KanbanSquare, X, Check, Trash2, StickyNote, Upload, Pencil, Users } from "lucide-react";
+import { formatCurrency, cn } from "@/lib/utils";
 import { useToast } from "@/components/toast";
 import { ImportLeadsModal } from "@/components/crm/import-leads-modal";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Field, Input, Select, Textarea, MoneyInput } from "@/components/ui/field";
+import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, Skeleton, RowsSkeleton } from "@/components/ui/states";
+import { useConfirm } from "@/components/ui/confirm";
+import { useApi, apiSend } from "@/hooks/use-api";
+
+type ToastFn = (m: string, t?: "success" | "error" | "info") => void;
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -78,13 +88,13 @@ const ETAPA_LABEL: Record<Etapa, string> = {
 };
 
 const ETAPA_ACCENT: Record<Etapa, string> = {
-  NUEVO: "text-slate-500",
-  CONTACTADO: "text-blue-500",
-  SESION_AGENDADA: "text-indigo-500",
-  DIAGNOSTICO_VENDIDO: "text-violet-500",
-  PROPUESTA_ENVIADA: "text-amber-500",
-  CERRADO_GANADO: "text-emerald-500",
-  CERRADO_PERDIDO: "text-red-500",
+  NUEVO: "text-muted-foreground",
+  CONTACTADO: "text-info",
+  SESION_AGENDADA: "text-info",
+  DIAGNOSTICO_VENDIDO: "text-primary",
+  PROPUESTA_ENVIADA: "text-warning",
+  CERRADO_GANADO: "text-success",
+  CERRADO_PERDIDO: "text-destructive",
 };
 
 const ORIGENES: Origen[] = ["META", "ORGANICO", "OUTBOUND", "REFERIDO", "RED_DIRECTA"];
@@ -98,11 +108,11 @@ const ORIGEN_LABEL: Record<Origen, string> = {
 };
 
 const ORIGEN_STYLE: Record<Origen, string> = {
-  META: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
-  ORGANICO: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-  OUTBOUND: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-  REFERIDO: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
-  RED_DIRECTA: "bg-pink-500/10 text-pink-600 dark:text-pink-400",
+  META: "bg-info/10 text-info",
+  ORGANICO: "bg-success/10 text-success",
+  OUTBOUND: "bg-warning/10 text-warning",
+  REFERIDO: "bg-primary/10 text-primary",
+  RED_DIRECTA: "bg-secondary text-foreground",
 };
 
 // Client-side mirror of the API validation. Empty is always valid (optional).
@@ -134,77 +144,66 @@ function fmtDate(iso?: string | null) {
   return new Date(iso).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+interface LeadsResponse {
+  leads: Lead[];
+  members: Member[];
+}
+
 export default function CrmPage() {
   const { toast } = useToast();
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [members, setMembers] = useState<Member[]>([]);
-  const [loading, setLoading] = useState(true);
+  const confirm = useConfirm();
+  const { data, setData, error, initialLoading, reload } = useApi<LeadsResponse>("/api/leads");
+  const leads = data?.leads ?? [];
+  const members = data?.members ?? [];
 
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<Etapa | null>(null);
 
   const [showNew, setShowNew] = useState(false);
   const [showImport, setShowImport] = useState(false);
-  const [detail, setDetail] = useState<Lead | null>(null);
+  // The panel always reads the latest copy of the lead from `leads`.
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const detail = detailId ? leads.find((l) => l.id === detailId) ?? null : null;
 
   // Modal that must collect data before a move can complete.
   const [ganadoModal, setGanadoModal] = useState<Lead | null>(null);
   const [perdidoModal, setPerdidoModal] = useState<Lead | null>(null);
 
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch("/api/leads");
-      const data = await res.json();
-      setLeads(data.leads ?? []);
-      setMembers(data.members ?? []);
-    } catch {
-      /* noop */
-    }
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  // Keep the open detail panel in sync with refreshed lead data (e.g. after a stage change).
-  useEffect(() => {
-    setDetail((cur) => (cur ? leads.find((l) => l.id === cur.id) ?? null : cur));
-  }, [leads]);
+  const setLeadEtapa = useCallback(
+    (id: string, etapa: Etapa) =>
+      setData((cur) => (cur ? { ...cur, leads: cur.leads.map((l) => (l.id === id ? { ...l, etapa } : l)) } : cur)),
+    [setData],
+  );
 
   // Core stage transition. `extra` carries the modal-collected data when needed.
+  // Without modal data the move is optimistic: the card jumps right away and
+  // goes back to its column if the server rejects it.
   const move = useCallback(
-    async (lead: Lead, etapa: Etapa, extra?: Record<string, unknown>) => {
+    async (lead: Lead, etapa: Etapa, extra?: Record<string, unknown>): Promise<boolean> => {
+      const optimistic = !extra;
+      if (optimistic) setLeadEtapa(lead.id, etapa);
       try {
-        const res = await fetch(`/api/leads/${lead.id}/move`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ etapa, ...extra }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          toast(data.error || "No se pudo mover el lead", "error");
-          return false;
-        }
-        if (etapa === "DIAGNOSTICO_VENDIDO" && data.venta) {
+        const res = await apiSend<{ venta?: unknown }>(`/api/leads/${lead.id}/move`, "POST", { etapa, ...extra });
+        if (etapa === "DIAGNOSTICO_VENDIDO" && res?.venta) {
           toast("Se generó una venta de diagnóstico ($9,997)", "success");
         } else if (etapa === "CERRADO_GANADO") {
           toast("Lead cerrado como ganado", "success");
         } else if (etapa === "CERRADO_PERDIDO") {
           toast("Lead marcado como perdido", "info");
         }
-        await load();
+        await reload();
         return true;
-      } catch {
-        toast("No se pudo mover el lead", "error");
+      } catch (e) {
+        if (optimistic) setLeadEtapa(lead.id, lead.etapa);
+        toast(e instanceof Error ? e.message : "No se pudo mover el lead", "error");
         return false;
       }
     },
-    [toast, load],
+    [toast, reload, setLeadEtapa],
   );
 
   // Route a stage change through the right modal, else move directly.
-  // Shared by drag-and-drop and the "Cambiar etapa" buttons in the detail panel.
+  // Shared by drag-and-drop and the "Cambiar etapa" control in the detail panel.
   const requestStage = useCallback(
     (lead: Lead, etapa: Etapa) => {
       if (lead.etapa === etapa) return;
@@ -232,133 +231,180 @@ export default function CrmPage() {
   };
 
   const removeLead = async (lead: Lead) => {
-    if (!confirm(`¿Eliminar el lead ${lead.nombre}?`)) return;
+    const ok = await confirm({
+      title: `¿Eliminar el lead ${lead.nombre}?`,
+      description: "Se eliminarán también sus notas. Esta acción no se puede deshacer.",
+      confirmLabel: "Eliminar",
+      destructive: true,
+    });
+    if (!ok) return;
     try {
-      const res = await fetch(`/api/leads/${lead.id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error();
-      setDetail(null);
+      await apiSend(`/api/leads/${lead.id}`, "DELETE");
+      setDetailId(null);
       toast("Lead eliminado", "success");
-      await load();
-    } catch {
-      toast("No se pudo eliminar", "error");
+      await reload();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "No se pudo eliminar", "error");
     }
   };
 
   const byEtapa = (e: Etapa) => leads.filter((l) => l.etapa === e);
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="rounded-xl bg-primary/10 p-2">
-            <KanbanSquare className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold tracking-tight sm:text-2xl">CRM · Pipeline</h1>
-            <p className="text-sm text-muted-foreground">Arrastra los leads entre etapas para avanzarlos.</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowImport(true)}
-            className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-secondary/60"
-          >
-            <Upload className="h-4 w-4" /> Importar CSV
-          </button>
-          <button
-            onClick={() => setShowNew(true)}
-            className="flex items-center gap-1.5 rounded-lg gradient-bg px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-          >
-            <Plus className="h-4 w-4" /> Nuevo lead
-          </button>
+  const actions = (
+    <>
+      <Button variant="outline" onClick={() => setShowImport(true)}>
+        <Upload /> Importar CSV
+      </Button>
+      <Button onClick={() => setShowNew(true)}>
+        <Plus /> Nuevo lead
+      </Button>
+    </>
+  );
+
+  let body: React.ReactNode;
+  if (initialLoading) {
+    body = <KanbanSkeleton />;
+  } else if (error && !data) {
+    body = (
+      <div className="rounded-xl border border-border bg-card">
+        <ErrorState message={error} onRetry={reload} />
+      </div>
+    );
+  } else if (leads.length === 0) {
+    body = (
+      <div className="rounded-xl border border-border bg-card">
+        <EmptyState
+          icon={Users}
+          title="Aún no hay leads"
+          description="Crea tu primer lead o importa tus contactos desde un CSV."
+          action={
+            <Button onClick={() => setShowNew(true)}>
+              <Plus /> Nuevo lead
+            </Button>
+          }
+        />
+      </div>
+    );
+  } else {
+    body = (
+      <div className="pb-4 sm:overflow-x-auto">
+        <p id="crm-card-hint" className="sr-only">
+          Presiona Enter para abrir el detalle del lead y cambiar su etapa.
+        </p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:gap-3">
+          {ETAPAS.map((etapa) => {
+            const cards = byEtapa(etapa);
+            const total = cards.reduce((s, c) => s + (c.valorEstimado ?? 0), 0);
+            const isTarget = dragOver === etapa && dragId !== null;
+            return (
+              <section
+                key={etapa}
+                aria-label={`${ETAPA_LABEL[etapa]}: ${cards.length} leads`}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  if (dragOver !== etapa) setDragOver(etapa);
+                }}
+                onDragLeave={(e) => {
+                  // Ignore leave events fired when moving over the column's own children.
+                  if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+                  setDragOver((cur) => (cur === etapa ? null : cur));
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  handleDrop(etapa);
+                }}
+                className={cn(
+                  "flex w-full flex-col rounded-xl border bg-secondary/40 transition-[box-shadow,border-color] sm:w-72 sm:flex-shrink-0",
+                  isTarget ? "border-primary ring-2 ring-primary" : "border-border",
+                )}
+              >
+                <div className="border-b border-border px-3 py-2.5">
+                  <div className="flex items-center justify-between">
+                    <h2 className={cn("text-sm font-semibold", ETAPA_ACCENT[etapa])}>{ETAPA_LABEL[etapa]}</h2>
+                    <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                      {cards.length}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{formatCurrency(total)}</p>
+                </div>
+                <div className="flex-1 space-y-2 p-2">
+                  {cards.length === 0 ? (
+                    <p className="py-6 text-center text-xs text-muted-foreground">
+                      {isTarget ? "Suelta aquí" : "Sin leads"}
+                    </p>
+                  ) : (
+                    cards.map((lead) => (
+                      <button
+                        key={lead.id}
+                        type="button"
+                        draggable
+                        aria-describedby="crm-card-hint"
+                        onDragStart={(e) => {
+                          e.dataTransfer.effectAllowed = "move";
+                          e.dataTransfer.setData("text/plain", lead.id);
+                          setDragId(lead.id);
+                        }}
+                        onDragEnd={() => {
+                          setDragId(null);
+                          setDragOver(null);
+                        }}
+                        onClick={() => setDetailId(lead.id)}
+                        className={cn(
+                          "block w-full cursor-grab rounded-xl border border-border bg-card p-3 text-left shadow-sm transition-[box-shadow,opacity,transform] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing",
+                          dragId === lead.id && "scale-[0.98] opacity-40 shadow-lg",
+                        )}
+                      >
+                        <span className="flex items-start justify-between gap-2">
+                          <span className="text-sm font-semibold leading-tight">{lead.nombre}</span>
+                          <span
+                            className={cn(
+                              "shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold",
+                              ORIGEN_STYLE[lead.origen],
+                            )}
+                          >
+                            {ORIGEN_LABEL[lead.origen]}
+                          </span>
+                        </span>
+                        {lead.empresa && (
+                          <span className="mt-0.5 block text-xs text-muted-foreground">{lead.empresa}</span>
+                        )}
+                        <span className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                          <span className="font-medium text-foreground">
+                            {lead.valorEstimado != null ? formatCurrency(lead.valorEstimado) : "—"}
+                          </span>
+                          <span className="flex items-center gap-2">
+                            {lead.ventasCount > 0 && <span>{lead.ventasCount} venta(s)</span>}
+                            {lead.notasCount > 0 && (
+                              <span className="flex items-center gap-0.5">
+                                <StickyNote className="h-3 w-3" aria-hidden />
+                                <span className="sr-only">Notas:</span>
+                                {lead.notasCount}
+                              </span>
+                            )}
+                          </span>
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </section>
+            );
+          })}
         </div>
       </div>
+    );
+  }
 
-      {loading ? (
-        <div className="flex justify-center py-20">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
-      ) : (
-        <div className="pb-4 sm:overflow-x-auto">
-          <div className="flex flex-col gap-4 sm:flex-row sm:gap-3">
-            {ETAPAS.map((etapa) => {
-              const cards = byEtapa(etapa);
-              const total = cards.reduce((s, c) => s + (c.valorEstimado ?? 0), 0);
-              return (
-                <div
-                  key={etapa}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    setDragOver(etapa);
-                  }}
-                  onDragLeave={() => setDragOver((cur) => (cur === etapa ? null : cur))}
-                  onDrop={() => handleDrop(etapa)}
-                  className={
-                    "flex w-full flex-col rounded-2xl border bg-secondary/30 sm:w-72 sm:flex-shrink-0 " +
-                    (dragOver === etapa ? "border-primary" : "border-border")
-                  }
-                >
-                  <div className="border-b border-border px-3 py-2.5">
-                    <div className="flex items-center justify-between">
-                      <span className={"text-sm font-semibold " + ETAPA_ACCENT[etapa]}>{ETAPA_LABEL[etapa]}</span>
-                      <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                        {cards.length}
-                      </span>
-                    </div>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">{formatCurrency(total)}</p>
-                  </div>
-                  <div className="flex-1 space-y-2 p-2">
-                    {cards.length === 0 ? (
-                      <p className="py-6 text-center text-[11px] text-muted-foreground">Sin leads</p>
-                    ) : (
-                      cards.map((lead) => (
-                        <div
-                          key={lead.id}
-                          draggable
-                          onDragStart={() => setDragId(lead.id)}
-                          onDragEnd={() => {
-                            setDragId(null);
-                            setDragOver(null);
-                          }}
-                          onClick={() => setDetail(lead)}
-                          className="cursor-grab rounded-xl border border-border bg-card p-3 shadow-sm transition-shadow hover:shadow active:cursor-grabbing"
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <p className="text-sm font-semibold leading-tight">{lead.nombre}</p>
-                            <span
-                              className={
-                                "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold " + ORIGEN_STYLE[lead.origen]
-                              }
-                            >
-                              {ORIGEN_LABEL[lead.origen]}
-                            </span>
-                          </div>
-                          {lead.empresa && <p className="mt-0.5 text-xs text-muted-foreground">{lead.empresa}</p>}
-                          <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
-                            <span className="font-medium text-foreground">
-                              {lead.valorEstimado != null ? formatCurrency(lead.valorEstimado) : "—"}
-                            </span>
-                            <span className="flex items-center gap-2">
-                              {lead.ventasCount > 0 && <span>{lead.ventasCount} venta(s)</span>}
-                              {lead.notasCount > 0 && (
-                                <span className="flex items-center gap-0.5">
-                                  <StickyNote className="h-3 w-3" />
-                                  {lead.notasCount}
-                                </span>
-                              )}
-                            </span>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        icon={KanbanSquare}
+        title="CRM · Pipeline"
+        description="Arrastra los leads entre etapas o abre uno para cambiar su etapa."
+        actions={actions}
+      />
+
+      {body}
 
       {showNew && (
         <NewLeadModal
@@ -366,7 +412,7 @@ export default function CrmPage() {
           onClose={() => setShowNew(false)}
           onSaved={async () => {
             setShowNew(false);
-            await load();
+            await reload();
           }}
           toast={toast}
         />
@@ -378,7 +424,7 @@ export default function CrmPage() {
           onClose={() => setShowImport(false)}
           onDone={async () => {
             setShowImport(false);
-            await load();
+            await reload();
           }}
           toast={toast}
         />
@@ -406,17 +452,54 @@ export default function CrmPage() {
         />
       )}
 
-      {detail && (
-        <DetailPanel
-          lead={detail}
-          members={members}
-          onClose={() => setDetail(null)}
-          onRemove={() => removeLead(detail)}
-          onSaved={load}
-          onChangeStage={(etapa) => requestStage(detail, etapa)}
-          toast={toast}
-        />
-      )}
+      <DialogPrimitive.Root open={!!detail} onOpenChange={(o) => !o && setDetailId(null)}>
+        {detail && (
+          <DetailPanel
+            key={detail.id}
+            lead={detail}
+            members={members}
+            onRemove={() => removeLead(detail)}
+            onSaved={reload}
+            onChangeStage={(etapa) => requestStage(detail, etapa)}
+            toast={toast}
+          />
+        )}
+      </DialogPrimitive.Root>
+    </div>
+  );
+}
+
+// ─── Loading skeleton shaped like the board ─────────────────────────
+
+function KanbanSkeleton() {
+  return (
+    <div className="pb-4 sm:overflow-hidden" aria-busy="true" aria-label="Cargando pipeline">
+      <div className="flex flex-col gap-4 sm:flex-row sm:gap-3">
+        {ETAPAS.slice(0, 5).map((e, i) => (
+          <div
+            key={e}
+            className={cn(
+              "w-full space-y-2 rounded-xl border border-border bg-secondary/40 p-2 sm:w-72 sm:flex-shrink-0",
+              i > 1 && "hidden sm:block",
+            )}
+          >
+            <div className="space-y-1.5 px-1 py-1.5">
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="h-3 w-16" />
+            </div>
+            {Array.from({ length: 3 - (i % 2) }).map((_, j) => (
+              <div key={j} className="space-y-2 rounded-xl border border-border bg-card p-3">
+                <div className="flex justify-between gap-2">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-4 w-12 rounded-full" />
+                </div>
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-3 w-16" />
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -432,7 +515,7 @@ function NewLeadModal({
   members: Member[];
   onClose: () => void;
   onSaved: () => void;
-  toast: (m: string, t?: "success" | "error" | "info") => void;
+  toast: ToastFn;
 }) {
   const [nombre, setNombre] = useState("");
   const [origen, setOrigen] = useState<"" | Origen>("");
@@ -444,11 +527,13 @@ function NewLeadModal({
   const [valorMensualEstimado, setValorMensualEstimado] = useState("");
   const [duenoId, setDuenoId] = useState("");
   const [saving, setSaving] = useState(false);
+  const [tried, setTried] = useState(false);
 
   const telError = phoneInvalid(telefono);
   const emailError = emailInvalid(email);
 
   const save = async () => {
+    setTried(true);
     if (!nombre.trim()) {
       toast("El nombre es obligatorio", "error");
       return;
@@ -463,130 +548,101 @@ function NewLeadModal({
     }
     setSaving(true);
     try {
-      const res = await fetch("/api/leads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nombre: nombre.trim(),
-          origen,
-          empresa: empresa || null,
-          contacto: contacto || null,
-          telefono: telefono || null,
-          email: email || null,
-          valorEstimado: valorEstimado || null,
-          valorMensualEstimado: valorMensualEstimado || null,
-          duenoId: duenoId || null,
-        }),
+      await apiSend("/api/leads", "POST", {
+        nombre: nombre.trim(),
+        origen,
+        empresa: empresa || null,
+        contacto: contacto || null,
+        telefono: telefono || null,
+        email: email || null,
+        valorEstimado: valorEstimado || null,
+        valorMensualEstimado: valorMensualEstimado || null,
+        duenoId: duenoId || null,
       });
-      if (!res.ok) throw new Error();
       toast("Lead creado", "success");
       onSaved();
-    } catch {
-      toast("No se pudo crear el lead", "error");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "No se pudo crear el lead", "error");
     }
     setSaving(false);
   };
 
   return (
-    <Modal title="Nuevo lead" onClose={onClose}>
-      <div className="space-y-3 p-6">
-        <input
-          className="min-h-[40px] w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-          placeholder="Nombre *"
-          value={nombre}
-          onChange={(e) => setNombre(e.target.value)}
-        />
-        <select
-          className="min-h-[40px] w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-          value={origen}
-          onChange={(e) => setOrigen(e.target.value as "" | Origen)}
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent
+        title="Nuevo lead"
+        footer={
+          <>
+            <Button variant="outline" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button onClick={save} loading={saving}>
+              {!saving && <Check />} Crear lead
+            </Button>
+          </>
+        }
+      >
+        <form
+          className="space-y-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            save();
+          }}
         >
-          <option value="">Origen *</option>
-          {ORIGENES.map((o) => (
-            <option key={o} value={o}>
-              {ORIGEN_LABEL[o]}
-            </option>
-          ))}
-        </select>
-        <div className="grid grid-cols-2 gap-3">
-          <input
-            className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-            placeholder="Empresa"
-            value={empresa}
-            onChange={(e) => setEmpresa(e.target.value)}
-          />
-          <input
-            className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-            placeholder="Contacto"
-            value={contacto}
-            onChange={(e) => setContacto(e.target.value)}
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <input
-              type="tel"
-              inputMode="tel"
-              className={
-                "w-full rounded-lg border bg-secondary/40 px-3 py-2 text-sm " +
-                (telError ? "border-red-500" : "border-border")
-              }
-              placeholder="Teléfono"
-              value={telefono}
-              onChange={(e) => setTelefono(e.target.value)}
-            />
-            {telError && (
-              <p className="mt-1 text-[11px] text-red-500">Teléfono inválido (incluye la lada, ej. 55 1234 5678)</p>
-            )}
+          <Field label="Nombre" error={tried && !nombre.trim() ? "El nombre es obligatorio" : null}>
+            <Input value={nombre} onChange={(e) => setNombre(e.target.value)} autoFocus />
+          </Field>
+          <Field label="Origen" error={tried && !origen ? "Selecciona el origen" : null}>
+            <Select value={origen} onChange={(e) => setOrigen(e.target.value as "" | Origen)}>
+              <option value="">Selecciona…</option>
+              {ORIGENES.map((o) => (
+                <option key={o} value={o}>
+                  {ORIGEN_LABEL[o]}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Empresa" optional>
+              <Input value={empresa} onChange={(e) => setEmpresa(e.target.value)} />
+            </Field>
+            <Field label="Contacto" optional>
+              <Input value={contacto} onChange={(e) => setContacto(e.target.value)} />
+            </Field>
           </div>
-          <div>
-            <input
-              type="email"
-              inputMode="email"
-              className={
-                "w-full rounded-lg border bg-secondary/40 px-3 py-2 text-sm " +
-                (emailError ? "border-red-500" : "border-border")
-              }
-              placeholder="Correo"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            {emailError && <p className="mt-1 text-[11px] text-red-500">Correo inválido</p>}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field
+              label="Teléfono"
+              optional
+              error={telError ? "Teléfono inválido (incluye la lada, ej. 55 1234 5678)" : null}
+            >
+              <Input type="tel" inputMode="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} />
+            </Field>
+            <Field label="Correo" optional error={emailError ? "Correo inválido" : null}>
+              <Input type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            </Field>
           </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <input
-            type="number"
-            inputMode="numeric"
-            className="min-h-[40px] w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-            placeholder="Valor estimado"
-            value={valorEstimado}
-            onChange={(e) => setValorEstimado(e.target.value)}
-          />
-          <input
-            type="number"
-            inputMode="numeric"
-            className="min-h-[40px] w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-            placeholder="Valor mensual estimado"
-            value={valorMensualEstimado}
-            onChange={(e) => setValorMensualEstimado(e.target.value)}
-          />
-        </div>
-        <select
-          className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-          value={duenoId}
-          onChange={(e) => setDuenoId(e.target.value)}
-        >
-          <option value="">Dueño (yo, por defecto)</option>
-          {members.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.name}
-            </option>
-          ))}
-        </select>
-      </div>
-      <ModalFooter onClose={onClose} onConfirm={save} saving={saving} confirmLabel="Crear lead" />
-    </Modal>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Valor estimado" optional>
+              <MoneyInput value={valorEstimado} onChange={(e) => setValorEstimado(e.target.value)} />
+            </Field>
+            <Field label="Valor mensual estimado" optional>
+              <MoneyInput value={valorMensualEstimado} onChange={(e) => setValorMensualEstimado(e.target.value)} />
+            </Field>
+          </div>
+          <Field label="Dueño" optional>
+            <Select value={duenoId} onChange={(e) => setDuenoId(e.target.value)}>
+              <option value="">Yo (por defecto)</option>
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -599,64 +655,63 @@ function GanadoModal({
 }: {
   lead: Lead;
   onClose: () => void;
-  onConfirm: (payload: { monto: number; tipo: Tipo; fechaCobroEsperada: string }) => void;
+  onConfirm: (payload: { monto: number; tipo: Tipo; fechaCobroEsperada: string }) => Promise<void>;
 }) {
   const [monto, setMonto] = useState(lead.valorEstimado != null ? String(lead.valorEstimado) : "");
   const [tipo, setTipo] = useState<"" | Tipo>("");
   const [fechaCobroEsperada, setFecha] = useState(today());
-  const [error, setError] = useState("");
+  const [errors, setErrors] = useState<{ monto?: string; tipo?: string; fecha?: string }>({});
+  const [saving, setSaving] = useState(false);
 
-  const confirm = () => {
+  const submit = async () => {
     const m = Number(monto);
-    if (!Number.isFinite(m) || m <= 0) {
-      setError("El monto debe ser mayor a 0");
-      return;
+    const next: typeof errors = {};
+    if (!Number.isFinite(m) || m <= 0) next.monto = "El monto debe ser mayor a 0";
+    if (!tipo) next.tipo = "Selecciona el tipo";
+    if (!fechaCobroEsperada) next.fecha = "Selecciona la fecha de cobro esperada";
+    setErrors(next);
+    if (Object.keys(next).length > 0 || !tipo) return;
+    setSaving(true);
+    try {
+      await onConfirm({ monto: m, tipo, fechaCobroEsperada });
+    } finally {
+      setSaving(false);
     }
-    if (!tipo) {
-      setError("Selecciona el tipo");
-      return;
-    }
-    if (!fechaCobroEsperada) {
-      setError("Selecciona la fecha de cobro esperada");
-      return;
-    }
-    onConfirm({ monto: m, tipo, fechaCobroEsperada });
   };
 
   return (
-    <Modal title={`Cerrar ganado · ${lead.nombre}`} onClose={onClose}>
-      <div className="space-y-3 p-6">
-        <p className="text-xs text-muted-foreground">Registra los datos de la venta ganada.</p>
-        <input
-          type="number"
-          inputMode="numeric"
-          className="min-h-[40px] w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-          placeholder="Monto *"
-          value={monto}
-          onChange={(e) => setMonto(e.target.value)}
-        />
-        <select
-          className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-          value={tipo}
-          onChange={(e) => setTipo(e.target.value as "" | Tipo)}
-        >
-          <option value="">Tipo *</option>
-          <option value="RECURRENTE">Recurrente</option>
-          <option value="UNICA">Única</option>
-        </select>
-        <label className="block text-xs text-muted-foreground">
-          Fecha de cobro esperada *
-          <input
-            type="date"
-            className="mt-1 w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-            value={fechaCobroEsperada}
-            onChange={(e) => setFecha(e.target.value)}
-          />
-        </label>
-        {error && <p className="text-[11px] text-red-500">{error}</p>}
-      </div>
-      <ModalFooter onClose={onClose} onConfirm={confirm} confirmLabel="Cerrar ganado" />
-    </Modal>
+    <Dialog open onOpenChange={(o) => !o && !saving && onClose()}>
+      <DialogContent
+        title={`Cerrar ganado · ${lead.nombre}`}
+        description="Registra los datos de la venta ganada."
+        footer={
+          <>
+            <Button variant="outline" onClick={onClose} disabled={saving}>
+              Cancelar
+            </Button>
+            <Button onClick={submit} loading={saving}>
+              {!saving && <Check />} Cerrar ganado
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <Field label="Monto" error={errors.monto}>
+            <MoneyInput value={monto} onChange={(e) => setMonto(e.target.value)} autoFocus />
+          </Field>
+          <Field label="Tipo" error={errors.tipo}>
+            <Select value={tipo} onChange={(e) => setTipo(e.target.value as "" | Tipo)}>
+              <option value="">Selecciona…</option>
+              <option value="RECURRENTE">Recurrente</option>
+              <option value="UNICA">Única</option>
+            </Select>
+          </Field>
+          <Field label="Fecha de cobro esperada" error={errors.fecha}>
+            <Input type="date" value={fechaCobroEsperada} onChange={(e) => setFecha(e.target.value)} />
+          </Field>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -669,42 +724,56 @@ function PerdidoModal({
 }: {
   lead: Lead;
   onClose: () => void;
-  onConfirm: (motivo: string) => void;
+  onConfirm: (motivo: string) => Promise<void>;
 }) {
   const [motivo, setMotivo] = useState("");
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  const confirm = () => {
+  const submit = async () => {
     if (!motivo.trim()) {
       setError("El motivo es obligatorio");
       return;
     }
-    onConfirm(motivo.trim());
+    setError("");
+    setSaving(true);
+    try {
+      await onConfirm(motivo.trim());
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
-    <Modal title={`Marcar perdido · ${lead.nombre}`} onClose={onClose}>
-      <div className="space-y-3 p-6">
-        <textarea
-          className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-          placeholder="Motivo de pérdida *"
-          rows={4}
-          value={motivo}
-          onChange={(e) => setMotivo(e.target.value)}
-        />
-        {error && <p className="text-[11px] text-red-500">{error}</p>}
-      </div>
-      <ModalFooter onClose={onClose} onConfirm={confirm} confirmLabel="Marcar perdido" />
-    </Modal>
+    <Dialog open onOpenChange={(o) => !o && !saving && onClose()}>
+      <DialogContent
+        title={`Marcar perdido · ${lead.nombre}`}
+        footer={
+          <>
+            <Button variant="outline" onClick={onClose} disabled={saving}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={submit} loading={saving}>
+              Marcar perdido
+            </Button>
+          </>
+        }
+      >
+        <Field label="Motivo de pérdida" error={error}>
+          <Textarea rows={4} value={motivo} onChange={(e) => setMotivo(e.target.value)} autoFocus />
+        </Field>
+      </DialogContent>
+    </Dialog>
   );
 }
 
 // ─── Detail panel (fields + notas) ──────────────────────────────────
+// Side sheet built on Radix Dialog: focus trap, Escape to close, focus returns
+// to the card that opened it.
 
 function DetailPanel({
   lead,
   members,
-  onClose,
   onRemove,
   onSaved,
   onChangeStage,
@@ -712,11 +781,10 @@ function DetailPanel({
 }: {
   lead: Lead;
   members: Member[];
-  onClose: () => void;
   onRemove: () => void;
   onSaved: () => void;
   onChangeStage: (etapa: Etapa) => void;
-  toast: (m: string, t?: "success" | "error" | "info") => void;
+  toast: ToastFn;
 }) {
   const [editing, setEditing] = useState(false);
   const [nombre, setNombre] = useState(lead.nombre);
@@ -730,28 +798,34 @@ function DetailPanel({
   const [valorMensualEstimado, setValorMensual] = useState(
     lead.valorMensualEstimado != null ? String(lead.valorMensualEstimado) : "",
   );
+  const [saving, setSaving] = useState(false);
 
-  const [notas, setNotas] = useState<Nota[]>([]);
+  const {
+    data: notasData,
+    setData: setNotasData,
+    error: notasError,
+    initialLoading: loadingNotas,
+    reload: reloadNotas,
+  } = useApi<{ notas: Nota[] }>(`/api/leads/${lead.id}/notas`);
+  const notas = notasData?.notas ?? [];
   const [nuevaNota, setNuevaNota] = useState("");
-  const [loadingNotas, setLoadingNotas] = useState(true);
-
-  const loadNotas = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/leads/${lead.id}/notas`);
-      const data = await res.json();
-      setNotas(data.notas ?? []);
-    } catch {
-      /* noop */
-    }
-    setLoadingNotas(false);
-  }, [lead.id]);
-
-  useEffect(() => {
-    loadNotas();
-  }, [loadNotas]);
+  const [addingNota, setAddingNota] = useState(false);
 
   const telError = phoneInvalid(telefono);
   const emailError = emailInvalid(email);
+
+  const startEdit = () => {
+    setNombre(lead.nombre);
+    setEmpresa(lead.empresa ?? "");
+    setContacto(lead.contacto ?? "");
+    setTelefono(lead.telefono ?? "");
+    setEmail(lead.email ?? "");
+    setOrigen(lead.origen);
+    setDuenoId(lead.duenoId);
+    setValorEstimado(lead.valorEstimado != null ? String(lead.valorEstimado) : "");
+    setValorMensual(lead.valorMensualEstimado != null ? String(lead.valorMensualEstimado) : "");
+    setEditing(true);
+  };
 
   const saveFields = async () => {
     if (!nombre.trim()) {
@@ -762,210 +836,168 @@ function DetailPanel({
       toast("Revisa el teléfono o el correo", "error");
       return;
     }
+    setSaving(true);
     try {
-      const res = await fetch(`/api/leads/${lead.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nombre: nombre.trim(),
-          empresa: empresa || null,
-          contacto: contacto || null,
-          telefono: telefono || null,
-          email: email || null,
-          origen,
-          duenoId,
-          valorEstimado: valorEstimado || null,
-          valorMensualEstimado: valorMensualEstimado || null,
-        }),
+      await apiSend(`/api/leads/${lead.id}`, "PATCH", {
+        nombre: nombre.trim(),
+        empresa: empresa || null,
+        contacto: contacto || null,
+        telefono: telefono || null,
+        email: email || null,
+        origen,
+        duenoId,
+        valorEstimado: valorEstimado || null,
+        valorMensualEstimado: valorMensualEstimado || null,
       });
-      if (!res.ok) throw new Error();
       toast("Lead actualizado", "success");
       setEditing(false);
       onSaved();
-    } catch {
-      toast("No se pudo actualizar", "error");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "No se pudo actualizar", "error");
     }
+    setSaving(false);
   };
 
   const addNota = async () => {
     if (!nuevaNota.trim()) return;
+    setAddingNota(true);
     try {
-      const res = await fetch(`/api/leads/${lead.id}/notas`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contenido: nuevaNota.trim() }),
+      const data = await apiSend<{ nota: Nota }>(`/api/leads/${lead.id}/notas`, "POST", {
+        contenido: nuevaNota.trim(),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error();
-      setNotas((prev) => [data.nota, ...prev]);
+      setNotasData((cur) => ({ notas: [data.nota, ...(cur?.notas ?? [])] }));
       setNuevaNota("");
       onSaved();
-    } catch {
-      toast("No se pudo agregar la nota", "error");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "No se pudo agregar la nota", "error");
     }
+    setAddingNota(false);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/50" onClick={onClose}>
-      <div
-        className="flex h-full w-full max-w-md flex-col border-l border-border bg-card shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <h3 className="font-semibold">Detalle del lead</h3>
+    <DialogPrimitive.Portal>
+      <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/50 backdrop-blur-[2px] data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0" />
+      <DialogPrimitive.Content className="fixed inset-y-0 right-0 z-50 flex h-full w-full max-w-md flex-col border-l border-border bg-card text-card-foreground shadow-2xl outline-none duration-200 data-[state=open]:animate-in data-[state=open]:slide-in-from-right data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right">
+        <div className="flex items-center justify-between gap-2 border-b border-border px-5 py-3">
+          <div className="min-w-0">
+            <DialogPrimitive.Title className="text-base font-semibold">Detalle del lead</DialogPrimitive.Title>
+            <DialogPrimitive.Description className="sr-only">
+              Datos, etapa y notas de {lead.nombre}
+            </DialogPrimitive.Description>
+          </div>
           <div className="flex items-center gap-1">
-            <button
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={onRemove}
-              title="Eliminar"
-              className="rounded-lg p-1.5 text-muted-foreground hover:bg-red-500/10 hover:text-red-500"
+              aria-label="Eliminar lead"
+              title="Eliminar lead"
+              className="hover:bg-destructive/10 hover:text-destructive"
             >
-              <Trash2 className="h-4 w-4" />
-            </button>
-            <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
-              <X size={18} />
-            </button>
+              <Trash2 />
+            </Button>
+            <DialogPrimitive.Close asChild>
+              <Button variant="ghost" size="icon" aria-label="Cerrar">
+                <X />
+              </Button>
+            </DialogPrimitive.Close>
           </div>
         </div>
 
-        <div className="flex-1 space-y-4 overflow-y-auto p-6">
+        <div className="flex-1 space-y-4 overflow-y-auto p-5">
           {/* Fields */}
           {editing ? (
-            <div className="space-y-3">
-              <input
-                className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-                placeholder="Nombre *"
-                value={nombre}
-                onChange={(e) => setNombre(e.target.value)}
-              />
-              <div className="grid grid-cols-2 gap-3">
-                <input
-                  className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-                  placeholder="Empresa"
-                  value={empresa}
-                  onChange={(e) => setEmpresa(e.target.value)}
-                />
-                <input
-                  className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-                  placeholder="Contacto"
-                  value={contacto}
-                  onChange={(e) => setContacto(e.target.value)}
-                />
+            <form
+              className="space-y-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                saveFields();
+              }}
+            >
+              <Field label="Nombre" error={!nombre.trim() ? "El nombre es obligatorio" : null}>
+                <Input value={nombre} onChange={(e) => setNombre(e.target.value)} autoFocus />
+              </Field>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Empresa" optional>
+                  <Input value={empresa} onChange={(e) => setEmpresa(e.target.value)} />
+                </Field>
+                <Field label="Contacto" optional>
+                  <Input value={contacto} onChange={(e) => setContacto(e.target.value)} />
+                </Field>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <input
-                    type="tel"
-                    inputMode="tel"
-                    className={
-                      "w-full rounded-lg border bg-secondary/40 px-3 py-2 text-sm " +
-                      (telError ? "border-red-500" : "border-border")
-                    }
-                    placeholder="Teléfono"
-                    value={telefono}
-                    onChange={(e) => setTelefono(e.target.value)}
-                  />
-                  {telError && (
-                    <p className="mt-1 text-[11px] text-red-500">Teléfono inválido (incluye la lada)</p>
-                  )}
-                </div>
-                <div>
-                  <input
-                    type="email"
-                    inputMode="email"
-                    className={
-                      "w-full rounded-lg border bg-secondary/40 px-3 py-2 text-sm " +
-                      (emailError ? "border-red-500" : "border-border")
-                    }
-                    placeholder="Correo"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                  {emailError && <p className="mt-1 text-[11px] text-red-500">Correo inválido</p>}
-                </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Teléfono" optional error={telError ? "Teléfono inválido (incluye la lada)" : null}>
+                  <Input type="tel" inputMode="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} />
+                </Field>
+                <Field label="Correo" optional error={emailError ? "Correo inválido" : null}>
+                  <Input type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+                </Field>
               </div>
-              <select
-                className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-                value={origen}
-                onChange={(e) => setOrigen(e.target.value as Origen)}
-              >
-                {ORIGENES.map((o) => (
-                  <option key={o} value={o}>
-                    {ORIGEN_LABEL[o]}
-                  </option>
-                ))}
-              </select>
-              <select
-                className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-                value={duenoId}
-                onChange={(e) => setDuenoId(e.target.value)}
-              >
-                {members.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
-              <div className="grid grid-cols-2 gap-3">
-                <input
-                  type="number"
-                  className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-                  placeholder="Valor estimado"
-                  value={valorEstimado}
-                  onChange={(e) => setValorEstimado(e.target.value)}
-                />
-                <input
-                  type="number"
-                  className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-                  placeholder="Valor mensual"
-                  value={valorMensualEstimado}
-                  onChange={(e) => setValorMensual(e.target.value)}
-                />
+              <Field label="Origen">
+                <Select value={origen} onChange={(e) => setOrigen(e.target.value as Origen)}>
+                  {ORIGENES.map((o) => (
+                    <option key={o} value={o}>
+                      {ORIGEN_LABEL[o]}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Dueño">
+                <Select value={duenoId} onChange={(e) => setDuenoId(e.target.value)}>
+                  {members.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Valor estimado" optional>
+                  <MoneyInput value={valorEstimado} onChange={(e) => setValorEstimado(e.target.value)} />
+                </Field>
+                <Field label="Valor mensual" optional>
+                  <MoneyInput value={valorMensualEstimado} onChange={(e) => setValorMensual(e.target.value)} />
+                </Field>
               </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setEditing(false)}
-                  className="flex-1 rounded-lg border border-border py-2 text-sm text-muted-foreground hover:text-foreground"
-                >
+              <div className="flex gap-2 pt-1">
+                <Button type="button" variant="outline" className="flex-1" onClick={() => setEditing(false)}>
                   Cancelar
-                </button>
-                <button
-                  onClick={saveFields}
-                  className="flex flex-1 items-center justify-center gap-1.5 rounded-lg gradient-bg py-2 text-sm font-semibold text-white hover:opacity-90"
-                >
-                  <Check className="h-4 w-4" /> Guardar
-                </button>
+                </Button>
+                <Button type="submit" className="flex-1" loading={saving}>
+                  {!saving && <Check />} Guardar
+                </Button>
               </div>
-            </div>
+            </form>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3">
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <p className="text-lg font-bold">{lead.nombre}</p>
                   {lead.empresa && <p className="text-sm text-muted-foreground">{lead.empresa}</p>}
                 </div>
-                <span className={"shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold " + ORIGEN_STYLE[lead.origen]}>
+                <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold", ORIGEN_STYLE[lead.origen])}>
                   {ORIGEN_LABEL[lead.origen]}
                 </span>
               </div>
-              <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-sm">
-                <Field label="Etapa" value={ETAPA_LABEL[lead.etapa]} />
-                <Field label="Contacto" value={lead.contacto || "—"} />
-                {lead.participantes && <Field label="Participantes" value={lead.participantes} />}
-                {lead.puesto && <Field label="Puesto" value={lead.puesto} />}
-                {lead.urgencia && <Field label="Urgencia" value={lead.urgencia} />}
-                {lead.campana && <Field label="Campaña" value={lead.campana} />}
-                <Field
+              <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                <InfoItem label="Etapa" value={ETAPA_LABEL[lead.etapa]} />
+                <InfoItem label="Contacto" value={lead.contacto || "—"} />
+                {lead.participantes && <InfoItem label="Participantes" value={lead.participantes} />}
+                {lead.puesto && <InfoItem label="Puesto" value={lead.puesto} />}
+                {lead.urgencia && <InfoItem label="Urgencia" value={lead.urgencia} />}
+                {lead.campana && <InfoItem label="Campaña" value={lead.campana} />}
+                <InfoItem
                   label="Valor estimado"
                   value={lead.valorEstimado != null ? formatCurrency(lead.valorEstimado) : "—"}
                 />
-                <Field
+                <InfoItem
                   label="Valor mensual"
                   value={lead.valorMensualEstimado != null ? formatCurrency(lead.valorMensualEstimado) : "—"}
                 />
-                <Field label="Dueño" value={lead.duenoNombre || "—"} />
-                <Field label="Ventas generadas" value={String(lead.ventasCount)} />
-                <Field label="Último movimiento" value={fmtDate(lead.fechaUltimoMovimiento)} />
-                <Field label="Creado" value={fmtDate(lead.createdAt)} />
+                <InfoItem label="Dueño" value={lead.duenoNombre || "—"} />
+                <InfoItem label="Ventas generadas" value={String(lead.ventasCount)} />
+                <InfoItem label="Último movimiento" value={fmtDate(lead.fechaUltimoMovimiento)} />
+                <InfoItem label="Creado" value={fmtDate(lead.createdAt)} />
               </dl>
               {(lead.telefono || lead.email) && (
                 <div className="flex flex-col gap-1 pt-1 text-sm">
@@ -982,73 +1014,87 @@ function DetailPanel({
                 </div>
               )}
               {lead.etapa === "CERRADO_PERDIDO" && lead.motivoPerdida && (
-                <p className="rounded-lg bg-red-500/10 p-2 text-xs text-red-600 dark:text-red-400">
+                <p className="rounded-lg border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive">
                   Motivo de pérdida: {lead.motivoPerdida}
                 </p>
               )}
 
               {/* Cambiar etapa: same flow as drag-and-drop (modals for ganado/perdido). */}
-              <div className="border-t border-border pt-3">
-                <p className="mb-2 text-[11px] uppercase tracking-wide text-muted-foreground">Cambiar etapa</p>
+              <div role="group" aria-labelledby="crm-cambiar-etapa" className="border-t border-border pt-3">
+                <p id="crm-cambiar-etapa" className="mb-2 text-xs font-medium text-muted-foreground">
+                  Cambiar etapa
+                </p>
                 <div className="flex flex-wrap gap-1.5">
                   {ETAPAS.map((e) => {
                     const active = e === lead.etapa;
                     return (
-                      <button
+                      <Button
                         key={e}
+                        size="sm"
+                        variant={active ? "secondary" : "outline"}
+                        aria-pressed={active}
+                        aria-current={active ? "step" : undefined}
                         disabled={active}
                         onClick={() => onChangeStage(e)}
-                        className={
-                          "rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors " +
-                          (active
-                            ? "cursor-default border-primary bg-primary/10 text-primary"
-                            : "border-border text-muted-foreground hover:border-primary hover:text-foreground")
-                        }
+                        className={cn(
+                          "h-9",
+                          active && "border border-primary bg-primary/10 text-primary disabled:opacity-100",
+                        )}
                       >
                         {ETAPA_LABEL[e]}
-                      </button>
+                      </Button>
                     );
                   })}
                 </div>
               </div>
 
-              <button
-                onClick={() => setEditing(true)}
-                className="mt-1 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground"
-              >
-                Editar campos
-              </button>
+              <Button variant="outline" size="sm" className="h-9" onClick={startEdit}>
+                <Pencil /> Editar campos
+              </Button>
             </div>
           )}
 
           {/* Notas */}
           <div className="border-t border-border pt-4">
-            <p className="mb-2 text-sm font-semibold">Notas</p>
+            <h3 className="mb-2 text-sm font-semibold">Notas</h3>
             <div className="flex items-end gap-2">
-              <textarea
-                className="flex-1 rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-                placeholder="Agregar una nota…"
-                rows={2}
-                value={nuevaNota}
-                onChange={(e) => setNuevaNota(e.target.value)}
-              />
-              <button
+              <Field label="Nueva nota" className="flex-1">
+                <Textarea
+                  rows={2}
+                  className="min-h-[64px]"
+                  value={nuevaNota}
+                  onChange={(e) => setNuevaNota(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                      e.preventDefault();
+                      addNota();
+                    }
+                  }}
+                />
+              </Field>
+              <Button
+                size="icon"
                 onClick={addNota}
-                className="rounded-lg gradient-bg px-3 py-2 text-sm font-semibold text-white hover:opacity-90"
+                loading={addingNota}
+                disabled={!nuevaNota.trim()}
+                aria-label="Agregar nota"
+                title="Agregar nota"
               >
-                <Plus className="h-4 w-4" />
-              </button>
+                {!addingNota && <Plus />}
+              </Button>
             </div>
             <div className="mt-3 space-y-2">
               {loadingNotas ? (
-                <Loader2 className="mx-auto h-4 w-4 animate-spin text-muted-foreground" />
+                <RowsSkeleton rows={2} className="rounded-lg border border-border" />
+              ) : notasError && !notasData ? (
+                <ErrorState message={notasError} onRetry={reloadNotas} className="py-6" />
               ) : notas.length === 0 ? (
                 <p className="text-xs text-muted-foreground">Sin notas todavía.</p>
               ) : (
                 notas.map((n) => (
-                  <div key={n.id} className="rounded-lg border border-border bg-secondary/30 p-2.5">
-                    <p className="text-sm">{n.contenido}</p>
-                    <p className="mt-1 text-[11px] text-muted-foreground">
+                  <div key={n.id} className="rounded-lg border border-border bg-secondary/40 p-2.5">
+                    <p className="whitespace-pre-wrap text-sm">{n.contenido}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
                       {n.autorNombre || "—"} · {fmtDate(n.createdAt)}
                     </p>
                   </div>
@@ -1057,68 +1103,16 @@ function DetailPanel({
             </div>
           </div>
         </div>
-      </div>
-    </div>
+      </DialogPrimitive.Content>
+    </DialogPrimitive.Portal>
   );
 }
 
-function Field({ label, value }: { label: string; value: string }) {
+function InfoItem({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</dt>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className="font-medium">{value}</dd>
-    </div>
-  );
-}
-
-// ─── Shared modal shell ─────────────────────────────────────────────
-
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div
-        className="w-full max-w-md rounded-2xl border border-border bg-card shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <h3 className="font-semibold">{title}</h3>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
-            <X size={18} />
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function ModalFooter({
-  onClose,
-  onConfirm,
-  saving,
-  confirmLabel,
-}: {
-  onClose: () => void;
-  onConfirm: () => void;
-  saving?: boolean;
-  confirmLabel: string;
-}) {
-  return (
-    <div className="flex gap-3 border-t border-border px-6 py-4">
-      <button
-        onClick={onClose}
-        className="flex-1 rounded-lg border border-border py-2 text-sm text-muted-foreground hover:text-foreground"
-      >
-        Cancelar
-      </button>
-      <button
-        onClick={onConfirm}
-        disabled={saving}
-        className="flex flex-1 items-center justify-center gap-1.5 rounded-lg gradient-bg py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
-      >
-        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-        {confirmLabel}
-      </button>
     </div>
   );
 }

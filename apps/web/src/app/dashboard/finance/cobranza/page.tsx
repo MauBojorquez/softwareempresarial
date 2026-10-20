@@ -1,9 +1,15 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Plus, Trash2, Loader2, Receipt } from "lucide-react";
-import { formatCurrency } from "@/lib/utils";
+import { useState, useRef } from "react";
+import { Plus, Trash2, Receipt, FilterX } from "lucide-react";
+import { cn, formatCurrency } from "@/lib/utils";
 import { useToast } from "@/components/toast";
+import { Button } from "@/components/ui/button";
+import { Field, Input, Select, MoneyInput } from "@/components/ui/field";
+import { PageHeader, Card } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, RowsSkeleton, Skeleton } from "@/components/ui/states";
+import { useConfirm } from "@/components/ui/confirm";
+import { useApi, apiSend } from "@/hooks/use-api";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -40,6 +46,13 @@ interface Totals {
 interface ClienteOpt { id: string; nombre: string; }
 interface Member { id: string; name: string | null; }
 
+interface ReceivablesResponse {
+  receivables?: Receivable[];
+  totals?: Totals;
+  members?: Member[];
+  clientes?: ClienteOpt[];
+}
+
 const EMPTY_TOTALS: Totals = {
   porCobrar: 0, cobrado: 0, vencido: 0, pagadas: 0, pendientes: 0, vencidas: 0,
   recurrente: { cobrado: 0, porCobrar: 0 },
@@ -47,9 +60,9 @@ const EMPTY_TOTALS: Totals = {
 };
 
 const STATUS_STYLE: Record<Status, string> = {
-  PENDIENTE: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-  PAGADA: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-  VENCIDA: "bg-red-500/10 text-red-600 dark:text-red-400",
+  PENDIENTE: "bg-warning/10 text-warning",
+  PAGADA: "bg-success/10 text-success",
+  VENCIDA: "bg-destructive/10 text-destructive",
 };
 
 const STATUS_LABEL: Record<Status, string> = {
@@ -60,6 +73,8 @@ const STATUS_LABEL: Record<Status, string> = {
 
 const TIPO_LABEL: Record<Tipo, string> = { RECURRENTE: "Recurrente", UNICA: "Única" };
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 function today() { return new Date().toISOString().slice(0, 10); }
 
 function fmtDate(iso?: string | null) {
@@ -67,406 +82,501 @@ function fmtDate(iso?: string | null) {
   return new Date(iso).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+/** Optimistic status guess until the server reload arrives. */
+function guessStatus(r: Receivable, pagado: boolean): Status {
+  if (pagado) return "PAGADA";
+  if (r.status !== "PAGADA") return r.status;
+  return Date.now() - new Date(r.issueDate).getTime() > 30 * DAY_MS ? "VENCIDA" : "PENDIENTE";
+}
+
+const EMPTY_FORM = {
+  clienteId: "",
+  clienteManual: "",
+  tipo: "" as "" | Tipo,
+  vendedorId: "",
+  invoiceFolio: "",
+  concept: "",
+  amount: "",
+  issueDate: today(),
+  pagado: false,
+};
+
 export default function CobranzaPage() {
   const { toast } = useToast();
-  const [rows, setRows] = useState<Receivable[]>([]);
-  const [totals, setTotals] = useState<Totals>(EMPTY_TOTALS);
-  const [members, setMembers] = useState<Member[]>([]);
-  const [clientes, setClientes] = useState<ClienteOpt[]>([]);
-  const [loading, setLoading] = useState(true);
+  const confirm = useConfirm();
+  const { data, setData, error, initialLoading, reload } = useApi<ReceivablesResponse>("/api/receivables");
+
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState<"TODAS" | Status>("TODAS");
   const [clientMode, setClientMode] = useState<"elegir" | "escribir">("elegir");
+  const [form, setForm] = useState({ ...EMPTY_FORM });
+  const [formErrors, setFormErrors] = useState<{ cliente?: string; tipo?: string }>({});
+  const [pending, setPending] = useState<Set<string>>(new Set());
+  const pendingRef = useRef<Set<string>>(new Set());
 
-  const [form, setForm] = useState({
-    clienteId: "",
-    clienteManual: "",
-    tipo: "" as "" | Tipo,
-    vendedorId: "",
-    invoiceFolio: "",
-    concept: "",
-    amount: "",
-    issueDate: today(),
-    pagado: false,
-  });
+  const rows = data?.receivables ?? [];
+  const totals = data?.totals ?? EMPTY_TOTALS;
+  const members = data?.members ?? [];
+  const clientes = data?.clientes ?? [];
+  const loadFailed = !!error && !data;
 
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch("/api/receivables");
-      const data = await res.json();
-      setRows(data.receivables ?? []);
-      setTotals(data.totals ?? EMPTY_TOTALS);
-      setMembers(data.members ?? []);
-      setClientes(data.clientes ?? []);
-    } catch {
-      /* noop */
-    }
-    setLoading(false);
-  }, []);
+  // Latest rows for async callbacks (e.g. the "Deshacer" toast action).
+  const rowsRef = useRef(rows);
+  rowsRef.current = rows;
 
-  useEffect(() => { load(); }, [load]);
+  const patchRow = (id: string, patch: (r: Receivable) => Receivable) => {
+    setData((prev) =>
+      prev ? { ...prev, receivables: (prev.receivables ?? []).map((x) => (x.id === id ? patch(x) : x)) } : prev,
+    );
+  };
 
   const add = async () => {
-    if (clientMode === "elegir" && !form.clienteId) { toast("Selecciona un cliente", "error"); return; }
-    if (clientMode === "escribir" && !form.clienteManual.trim()) { toast("Escribe el nombre del cliente", "error"); return; }
-    if (!form.tipo) { toast("Selecciona el tipo", "error"); return; }
+    const errs: typeof formErrors = {};
+    if (clientMode === "elegir" && !form.clienteId) errs.cliente = "Selecciona un cliente";
+    if (clientMode === "escribir" && !form.clienteManual.trim()) errs.cliente = "Escribe el nombre del cliente";
+    if (!form.tipo) errs.tipo = "Selecciona el tipo";
+    setFormErrors(errs);
+    if (Object.keys(errs).length > 0) return;
+
     setSaving(true);
     try {
-      const res = await fetch("/api/receivables", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          clienteId: clientMode === "elegir" ? form.clienteId : null,
-          clienteManual: clientMode === "escribir" ? form.clienteManual.trim() : null,
-          tipo: form.tipo,
-          vendedorId: form.vendedorId || null,
-          invoiceFolio: form.invoiceFolio,
-          concept: form.concept,
-          amount: Number(form.amount) || 0,
-          issueDate: form.issueDate,
-          pagado: form.pagado,
-        }),
+      await apiSend("/api/receivables", "POST", {
+        clienteId: clientMode === "elegir" ? form.clienteId : null,
+        clienteManual: clientMode === "escribir" ? form.clienteManual.trim() : null,
+        tipo: form.tipo,
+        vendedorId: form.vendedorId || null,
+        invoiceFolio: form.invoiceFolio,
+        concept: form.concept,
+        amount: Number(form.amount) || 0,
+        issueDate: form.issueDate,
+        pagado: form.pagado,
       });
-      if (!res.ok) throw new Error();
-      setForm({ clienteId: "", clienteManual: "", tipo: "", vendedorId: "", invoiceFolio: "", concept: "", amount: "", issueDate: today(), pagado: false });
+      setForm({ ...EMPTY_FORM, issueDate: today() });
       toast("Factura registrada", "success");
-      await load();
-    } catch {
-      toast("No se pudo guardar", "error");
+      await reload();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "No se pudo guardar", "error");
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   const remove = async (r: Receivable) => {
-    if (!confirm(`¿Eliminar la factura de ${r.clienteNombre ?? "este cliente"}?`)) return;
+    const ok = await confirm({
+      title: "¿Eliminar factura?",
+      description: `Se eliminará la factura de ${r.clienteNombre ?? "este cliente"} por ${formatCurrency(r.amount)}.`,
+      confirmLabel: "Eliminar",
+      destructive: true,
+    });
+    if (!ok) return;
     try {
-      await fetch(`/api/receivables/${r.id}`, { method: "DELETE" });
-      await load();
-    } catch {
-      toast("No se pudo eliminar", "error");
+      await apiSend(`/api/receivables/${r.id}`, "DELETE");
+      toast("Factura eliminada", "success");
+      await reload();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "No se pudo eliminar", "error");
     }
   };
 
-  const togglePagado = async (r: Receivable) => {
-    // optimistic
-    const next = !r.pagado;
-    setRows((prev) => prev.map((x) => (x.id === r.id ? { ...x, pagado: next } : x)));
+  /** Optimistic toggle: update immediately, revert + error toast on failure. */
+  const setPagado = async (id: string, next: boolean, undoable: boolean) => {
+    const snapshot = rowsRef.current.find((x) => x.id === id);
+    if (!snapshot || pendingRef.current.has(id)) return;
+
+    pendingRef.current.add(id);
+    patchRow(id, (x) => ({ ...x, pagado: next, status: guessStatus(x, next) }));
+    setPending(new Set(pendingRef.current));
     try {
-      const res = await fetch(`/api/receivables/${r.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pagado: next }),
-      });
-      if (!res.ok) throw new Error();
-      await load();
-    } catch {
-      toast("No se pudo actualizar", "error");
-      await load();
+      await apiSend(`/api/receivables/${id}`, "PATCH", { pagado: next });
+      if (next && undoable) {
+        toast(`Factura de ${snapshot.clienteNombre || "cliente"} marcada como pagada`, "success", {
+          action: { label: "Deshacer", onClick: () => { void setPagado(id, false, false); } },
+        });
+      }
+      await reload();
+    } catch (e) {
+      patchRow(id, () => snapshot);
+      toast(e instanceof Error ? e.message : "No se pudo actualizar", "error");
+    } finally {
+      pendingRef.current.delete(id);
+      setPending(new Set(pendingRef.current));
     }
   };
 
   const visible = rows.filter((r) => filter === "TODAS" || r.status === filter);
 
+  const empty =
+    rows.length === 0 ? (
+      <EmptyState
+        icon={Receipt}
+        title="Sin facturas todavía"
+        description="Registra la primera con el formulario de arriba."
+      />
+    ) : (
+      <EmptyState
+        icon={FilterX}
+        title={`Sin facturas con estatus "${filter === "TODAS" ? "" : STATUS_LABEL[filter]}"`}
+        description="Prueba con otro filtro."
+        action={<Button variant="outline" size="sm" onClick={() => setFilter("TODAS")}>Ver todas</Button>}
+      />
+    );
+
+  const tileLoading = initialLoading;
+
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="rounded-xl bg-primary/10 p-2">
-          <Receipt className="h-5 w-5 text-primary" />
-        </div>
-        <div>
-          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Cobranza</h1>
-          <p className="text-sm text-muted-foreground">Facturas por cliente. Marca &quot;Pagado&quot; y su monto completo cuenta como cobrado.</p>
-        </div>
-      </div>
+      <PageHeader
+        icon={Receipt}
+        title="Cobranza"
+        description={<>Facturas por cliente. Marca &quot;Pagado&quot; y su monto completo cuenta como cobrado.</>}
+      />
 
-      {/* Summary tiles: recurrente vs única + grand total */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-        <Tile
-          label="Recurrente (mensual)"
-          value={formatCurrency(totals.recurrente.cobrado)}
-          sub={`Por cobrar: ${formatCurrency(totals.recurrente.porCobrar)}`}
-          tone="emerald"
-        />
-        <Tile
-          label="Única (vendido)"
-          value={formatCurrency(totals.unica.cobrado)}
-          sub={`Por cobrar: ${formatCurrency(totals.unica.porCobrar)}`}
-          tone="emerald"
-        />
-        <Tile
-          label="Cobrado total"
-          value={formatCurrency(totals.cobrado)}
-          sub={`Por cobrar: ${formatCurrency(totals.porCobrar)}`}
-          tone="slate"
-        />
-      </div>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-        <Tile label="Por cobrar" value={formatCurrency(totals.porCobrar)} sub={`${totals.pendientes} pendientes`} tone="amber" />
-        <Tile label="Vencido (+30 días)" value={formatCurrency(totals.vencido)} sub={`${totals.vencidas} facturas`} tone="red" />
-        <Tile label="Total facturas" value={String(rows.length)} sub={`${totals.pagadas} pagadas / ${totals.pendientes} por cobrar`} tone="slate" />
-      </div>
-
-      {/* Add form */}
-      <div className="rounded-2xl border border-border bg-card p-4">
-        <p className="mb-3 text-sm font-semibold">Registrar factura</p>
-
-        {/* Client picker toggle */}
-        <div className="mb-2 flex gap-2">
-          <button
-            type="button"
-            onClick={() => setClientMode("elegir")}
-            className={"rounded-full px-3 py-1 text-xs font-medium transition-colors " + (clientMode === "elegir" ? "bg-primary text-white" : "bg-secondary text-muted-foreground hover:text-foreground")}
-          >
-            Elegir cliente
-          </button>
-          <button
-            type="button"
-            onClick={() => setClientMode("escribir")}
-            className={"rounded-full px-3 py-1 text-xs font-medium transition-colors " + (clientMode === "escribir" ? "bg-primary text-white" : "bg-secondary text-muted-foreground hover:text-foreground")}
-          >
-            Escribir nombre
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-6">
-          {clientMode === "elegir" ? (
-            <select
-              className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm lg:col-span-2"
-              value={form.clienteId}
-              onChange={(e) => setForm((f) => ({ ...f, clienteId: e.target.value }))}
-            >
-              <option value="">Cliente *</option>
-              {clientes.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-            </select>
-          ) : (
-            <input
-              className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm lg:col-span-2"
-              placeholder="Nombre del cliente *"
-              value={form.clienteManual}
-              onChange={(e) => setForm((f) => ({ ...f, clienteManual: e.target.value }))}
+      {loadFailed ? (
+        <Card>
+          <ErrorState message={error} onRetry={reload} />
+        </Card>
+      ) : (
+        <>
+          {/* Summary tiles: recurrente vs única + grand total */}
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+            <Tile
+              label="Recurrente (mensual)"
+              value={formatCurrency(totals.recurrente.cobrado)}
+              sub={`Por cobrar: ${formatCurrency(totals.recurrente.porCobrar)}`}
+              tone="success"
+              loading={tileLoading}
             />
-          )}
-          <select
-            className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-            value={form.tipo}
-            onChange={(e) => setForm((f) => ({ ...f, tipo: e.target.value as "" | Tipo }))}
-          >
-            <option value="">Tipo *</option>
-            <option value="RECURRENTE">Recurrente</option>
-            <option value="UNICA">Única</option>
-          </select>
-          <select
-            className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-            value={form.vendedorId}
-            onChange={(e) => setForm((f) => ({ ...f, vendedorId: e.target.value }))}
-          >
-            <option value="">Vendedor</option>
-            {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-          </select>
-          <input
-            type="number"
-            inputMode="numeric"
-            className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-            placeholder="Monto"
-            value={form.amount}
-            onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-          />
-          <input
-            type="date"
-            className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-            value={form.issueDate}
-            onChange={(e) => setForm((f) => ({ ...f, issueDate: e.target.value }))}
-          />
-          <input
-            className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm"
-            placeholder="Folio / Factura"
-            value={form.invoiceFolio}
-            onChange={(e) => setForm((f) => ({ ...f, invoiceFolio: e.target.value }))}
-          />
-          <input
-            className="min-h-[40px] rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm lg:col-span-2"
-            placeholder="Concepto"
-            value={form.concept}
-            onChange={(e) => setForm((f) => ({ ...f, concept: e.target.value }))}
-          />
-        </div>
-        <div className="mt-3 flex flex-wrap items-center gap-4">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              className="h-4 w-4 rounded border-border"
-              checked={form.pagado}
-              onChange={(e) => setForm((f) => ({ ...f, pagado: e.target.checked }))}
+            <Tile
+              label="Única (vendido)"
+              value={formatCurrency(totals.unica.cobrado)}
+              sub={`Por cobrar: ${formatCurrency(totals.unica.porCobrar)}`}
+              tone="success"
+              loading={tileLoading}
             />
-            Pagado
-          </label>
-          <button
-            onClick={add}
-            disabled={saving}
-            className="flex items-center gap-1.5 rounded-lg gradient-bg px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-          >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-            Agregar factura
-          </button>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-wrap gap-2">
-        {(["TODAS", "PENDIENTE", "VENCIDA", "PAGADA"] as const).map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={
-              "rounded-full px-3 py-1.5 text-xs font-medium transition-colors " +
-              (filter === f ? "bg-primary text-white" : "bg-secondary text-muted-foreground hover:text-foreground")
-            }
-          >
-            {f === "TODAS" ? "Todas" : STATUS_LABEL[f]}
-          </button>
-        ))}
-      </div>
-
-      {/* Mobile card list (below sm) */}
-      <div className="space-y-3 sm:hidden">
-        {loading ? (
-          <div className="rounded-2xl border border-border bg-card px-4 py-10 text-center text-muted-foreground">
-            <Loader2 className="mx-auto h-5 w-5 animate-spin" />
+            <Tile
+              label="Cobrado total"
+              value={formatCurrency(totals.cobrado)}
+              sub={`Por cobrar: ${formatCurrency(totals.porCobrar)}`}
+              tone="default"
+              loading={tileLoading}
+            />
           </div>
-        ) : visible.length === 0 ? (
-          <div className="rounded-2xl border border-border bg-card px-4 py-10 text-center text-muted-foreground">
-            Sin facturas todavía. Registra la primera arriba.
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+            <Tile label="Por cobrar" value={formatCurrency(totals.porCobrar)} sub={`${totals.pendientes} pendientes`} tone="warning" loading={tileLoading} />
+            <Tile label="Vencido (+30 días)" value={formatCurrency(totals.vencido)} sub={`${totals.vencidas} facturas`} tone="destructive" loading={tileLoading} />
+            <Tile label="Total facturas" value={String(rows.length)} sub={`${totals.pagadas} pagadas / ${totals.pendientes} por cobrar`} tone="default" loading={tileLoading} />
           </div>
-        ) : (
-          visible.map((r) => (
-            <FacturaCard key={r.id} r={r} onRemove={() => remove(r)} onTogglePagado={() => togglePagado(r)} />
-          ))
-        )}
-      </div>
 
-      {/* Table (sm and up) */}
-      <div className="hidden overflow-x-auto rounded-2xl border border-border bg-card sm:block">
-        <table className="w-full min-w-[820px] text-sm tabular-nums">
-          <thead>
-            <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
-              <th className="px-4 py-3 font-medium">Cliente</th>
-              <th className="px-4 py-3 font-medium">Tipo</th>
-              <th className="px-4 py-3 font-medium">Vendedor</th>
-              <th className="px-4 py-3 text-right font-medium">Monto</th>
-              <th className="px-4 py-3 font-medium">Emitida</th>
-              <th className="px-4 py-3 font-medium">Estatus</th>
-              <th className="px-4 py-3 text-center font-medium">Pagado</th>
-              <th className="px-4 py-3 text-right font-medium">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground"><Loader2 className="mx-auto h-5 w-5 animate-spin" /></td></tr>
+          {/* Add form */}
+          <Card className="p-4">
+            <h2 className="mb-3 text-sm font-semibold">Registrar factura</h2>
+
+            {/* Client picker toggle */}
+            <div className="mb-3 inline-flex rounded-lg bg-secondary p-1" role="group" aria-label="Cómo indicar el cliente">
+              {(["elegir", "escribir"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  aria-pressed={clientMode === m}
+                  onClick={() => { setClientMode(m); setFormErrors((x) => ({ ...x, cliente: undefined })); }}
+                  className={cn(
+                    "min-h-[36px] rounded-md px-3 text-xs font-medium transition-colors",
+                    clientMode === m ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {m === "elegir" ? "Elegir cliente" : "Escribir nombre"}
+                </button>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
+              {clientMode === "elegir" ? (
+                <Field label="Cliente" error={formErrors.cliente} className="lg:col-span-2">
+                  <Select
+                    value={form.clienteId}
+                    onChange={(e) => { setForm((f) => ({ ...f, clienteId: e.target.value })); setFormErrors((x) => ({ ...x, cliente: undefined })); }}
+                  >
+                    <option value="">Selecciona…</option>
+                    {clientes.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                  </Select>
+                </Field>
+              ) : (
+                <Field label="Nombre del cliente" error={formErrors.cliente} className="lg:col-span-2">
+                  <Input
+                    value={form.clienteManual}
+                    onChange={(e) => { setForm((f) => ({ ...f, clienteManual: e.target.value })); setFormErrors((x) => ({ ...x, cliente: undefined })); }}
+                  />
+                </Field>
+              )}
+              <Field label="Tipo" error={formErrors.tipo}>
+                <Select
+                  value={form.tipo}
+                  onChange={(e) => { setForm((f) => ({ ...f, tipo: e.target.value as "" | Tipo })); setFormErrors((x) => ({ ...x, tipo: undefined })); }}
+                >
+                  <option value="">Selecciona…</option>
+                  <option value="RECURRENTE">Recurrente</option>
+                  <option value="UNICA">Única</option>
+                </Select>
+              </Field>
+              <Field label="Vendedor" optional>
+                <Select value={form.vendedorId} onChange={(e) => setForm((f) => ({ ...f, vendedorId: e.target.value }))}>
+                  <option value="">Sin vendedor</option>
+                  {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </Select>
+              </Field>
+              <Field label="Monto">
+                <MoneyInput
+                  placeholder="0.00"
+                  value={form.amount}
+                  onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+                />
+              </Field>
+              <Field label="Emitida">
+                <Input type="date" value={form.issueDate} onChange={(e) => setForm((f) => ({ ...f, issueDate: e.target.value }))} />
+              </Field>
+              <Field label="Folio / Factura" optional>
+                <Input value={form.invoiceFolio} onChange={(e) => setForm((f) => ({ ...f, invoiceFolio: e.target.value }))} />
+              </Field>
+              <Field label="Concepto" optional className="sm:col-span-2 lg:col-span-2">
+                <Input value={form.concept} onChange={(e) => setForm((f) => ({ ...f, concept: e.target.value }))} />
+              </Field>
+            </div>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
+              <label className="flex min-h-[36px] cursor-pointer items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-border accent-primary"
+                  checked={form.pagado}
+                  onChange={(e) => setForm((f) => ({ ...f, pagado: e.target.checked }))}
+                />
+                Pagado
+              </label>
+              <Button onClick={add} loading={saving}>
+                {!saving && <Plus />} Agregar factura
+              </Button>
+            </div>
+          </Card>
+
+          {/* Filters */}
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar por estatus">
+            {(["TODAS", "PENDIENTE", "VENCIDA", "PAGADA"] as const).map((f) => (
+              <button
+                key={f}
+                type="button"
+                aria-pressed={filter === f}
+                onClick={() => setFilter(f)}
+                className={cn(
+                  "min-h-[36px] rounded-full px-3 text-xs font-medium transition-colors",
+                  filter === f ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {f === "TODAS" ? "Todas" : STATUS_LABEL[f]}
+              </button>
+            ))}
+          </div>
+
+          {/* Mobile card list (below md) */}
+          <div className="md:hidden">
+            {initialLoading ? (
+              <Card><RowsSkeleton rows={4} /></Card>
             ) : visible.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">Sin facturas todavía. Registra la primera arriba.</td></tr>
+              <Card>{empty}</Card>
             ) : (
-              visible.map((r) => (
-                <FacturaRow key={r.id} r={r} onRemove={() => remove(r)} onTogglePagado={() => togglePagado(r)} />
-              ))
+              <div className="space-y-3">
+                {visible.map((r) => (
+                  <FacturaCard
+                    key={r.id}
+                    r={r}
+                    busy={pending.has(r.id)}
+                    onRemove={() => remove(r)}
+                    onTogglePagado={() => setPagado(r.id, !r.pagado, true)}
+                  />
+                ))}
+              </div>
             )}
-          </tbody>
-        </table>
-      </div>
+          </div>
+
+          {/* Table (md and up) */}
+          <Card className="hidden overflow-x-auto md:block">
+            {initialLoading ? (
+              <RowsSkeleton rows={6} />
+            ) : visible.length === 0 ? (
+              empty
+            ) : (
+              <table className="w-full min-w-[820px] text-sm tabular-nums">
+                <thead>
+                  <tr className="border-b border-border text-left text-xs font-medium text-muted-foreground">
+                    <th className="px-4 py-3 font-medium">Cliente</th>
+                    <th className="px-4 py-3 font-medium">Tipo</th>
+                    <th className="px-4 py-3 font-medium">Vendedor</th>
+                    <th className="px-4 py-3 text-right font-medium">Monto</th>
+                    <th className="px-4 py-3 font-medium">Emitida</th>
+                    <th className="px-4 py-3 font-medium">Estatus</th>
+                    <th className="px-4 py-3 text-center font-medium">Pagado</th>
+                    <th className="px-4 py-3 text-right font-medium">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visible.map((r) => (
+                    <FacturaRow
+                      key={r.id}
+                      r={r}
+                      busy={pending.has(r.id)}
+                      onRemove={() => remove(r)}
+                      onTogglePagado={() => setPagado(r.id, !r.pagado, true)}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </Card>
+        </>
+      )}
     </div>
   );
 }
 
-function FacturaRow({ r, onRemove, onTogglePagado }: { r: Receivable; onRemove: () => void; onTogglePagado: () => void; }) {
+function StatusBadge({ status }: { status: Status }) {
   return (
-    <tr className="border-b border-border last:border-0 hover:bg-secondary/30">
+    <span className={"inline-block flex-shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold " + STATUS_STYLE[status]}>
+      {STATUS_LABEL[status]}
+    </span>
+  );
+}
+
+function PagadoCheckbox({
+  r,
+  busy,
+  onToggle,
+  showLabel,
+}: {
+  r: Receivable;
+  busy: boolean;
+  onToggle: () => void;
+  showLabel?: boolean;
+}) {
+  return (
+    <label
+      className={cn(
+        "inline-flex min-h-[36px] min-w-[36px] cursor-pointer items-center justify-center gap-2 rounded-lg text-sm",
+        showLabel && "pr-2",
+        busy && "cursor-wait",
+      )}
+    >
+      <input
+        type="checkbox"
+        className="h-4 w-4 rounded border-border accent-primary"
+        checked={r.pagado}
+        onChange={onToggle}
+        aria-busy={busy || undefined}
+        aria-label={showLabel ? undefined : `Marcar factura de ${r.clienteNombre || "cliente"} como pagada`}
+      />
+      {showLabel && "Pagado"}
+    </label>
+  );
+}
+
+function DeleteButton({ r, onRemove }: { r: Receivable; onRemove: () => void }) {
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={onRemove}
+      aria-label={`Eliminar factura de ${r.clienteNombre || "cliente"}`}
+      className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+    >
+      <Trash2 />
+    </Button>
+  );
+}
+
+function FacturaRow({ r, busy, onRemove, onTogglePagado }: { r: Receivable; busy: boolean; onRemove: () => void; onTogglePagado: () => void; }) {
+  return (
+    <tr className="border-b border-border last:border-0 hover:bg-secondary/60">
       <td className="px-4 py-3 font-medium">{r.clienteNombre || "—"}</td>
       <td className="px-4 py-3 text-muted-foreground">{r.tipo ? TIPO_LABEL[r.tipo] : "—"}</td>
       <td className="px-4 py-3 text-muted-foreground">{r.vendedorNombre || "—"}</td>
       <td className="px-4 py-3 text-right font-semibold">{formatCurrency(r.amount)}</td>
       <td className="px-4 py-3 text-muted-foreground">{fmtDate(r.issueDate)}</td>
-      <td className="px-4 py-3">
-        <span className={"inline-block rounded-full px-2.5 py-1 text-[11px] font-semibold " + STATUS_STYLE[r.status]}>
-          {STATUS_LABEL[r.status]}
-        </span>
+      <td className="px-4 py-3"><StatusBadge status={r.status} /></td>
+      <td className="px-4 py-1 text-center">
+        <PagadoCheckbox r={r} busy={busy} onToggle={onTogglePagado} />
       </td>
-      <td className="px-4 py-3 text-center">
-        <input
-          type="checkbox"
-          className="h-4 w-4 rounded border-border"
-          checked={r.pagado}
-          onChange={onTogglePagado}
-          title="Marcar como pagado"
-        />
-      </td>
-      <td className="px-4 py-3">
-        <div className="flex items-center justify-end gap-1">
-          <button onClick={onRemove} title="Eliminar" className="rounded-lg p-1.5 text-muted-foreground hover:bg-red-500/10 hover:text-red-500">
-            <Trash2 className="h-4 w-4" />
-          </button>
+      <td className="px-4 py-1">
+        <div className="flex items-center justify-end">
+          <DeleteButton r={r} onRemove={onRemove} />
         </div>
       </td>
     </tr>
   );
 }
 
-function FacturaCard({ r, onRemove, onTogglePagado }: { r: Receivable; onRemove: () => void; onTogglePagado: () => void; }) {
+function FacturaCard({ r, busy, onRemove, onTogglePagado }: { r: Receivable; busy: boolean; onRemove: () => void; onTogglePagado: () => void; }) {
   return (
-    <div className="rounded-2xl border border-border bg-card p-4 tabular-nums">
+    <Card className="p-4 tabular-nums">
       <div className="flex items-start justify-between gap-2">
         <span className="truncate font-semibold">{r.clienteNombre || "—"}</span>
-        <span className={"inline-block flex-shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold " + STATUS_STYLE[r.status]}>
-          {STATUS_LABEL[r.status]}
-        </span>
+        <StatusBadge status={r.status} />
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
         <div>
-          <p className="text-[11px] text-muted-foreground">Monto</p>
+          <p className="text-xs text-muted-foreground">Monto</p>
           <p className="font-semibold">{formatCurrency(r.amount)}</p>
         </div>
         <div>
-          <p className="text-[11px] text-muted-foreground">Tipo</p>
+          <p className="text-xs text-muted-foreground">Tipo</p>
           <p className="text-muted-foreground">{r.tipo ? TIPO_LABEL[r.tipo] : "—"}</p>
         </div>
         <div>
-          <p className="text-[11px] text-muted-foreground">Emitida</p>
+          <p className="text-xs text-muted-foreground">Emitida</p>
           <p className="text-muted-foreground">{fmtDate(r.issueDate)}</p>
         </div>
         <div>
-          <p className="text-[11px] text-muted-foreground">Vendedor</p>
+          <p className="text-xs text-muted-foreground">Vendedor</p>
           <p className="text-muted-foreground">{r.vendedorNombre || "—"}</p>
         </div>
       </div>
       <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            className="h-4 w-4 rounded border-border"
-            checked={r.pagado}
-            onChange={onTogglePagado}
-          />
-          Pagado
-        </label>
-        <button onClick={onRemove} title="Eliminar" className="rounded-lg p-2 text-muted-foreground hover:bg-red-500/10 hover:text-red-500">
-          <Trash2 className="h-4 w-4" />
-        </button>
+        <PagadoCheckbox r={r} busy={busy} onToggle={onTogglePagado} showLabel />
+        <DeleteButton r={r} onRemove={onRemove} />
       </div>
-    </div>
+    </Card>
   );
 }
 
-function Tile({ label, value, sub, tone }: { label: string; value: string; sub: string; tone: "amber" | "emerald" | "red" | "slate" }) {
+function Tile({
+  label,
+  value,
+  sub,
+  tone,
+  loading,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+  tone: "warning" | "success" | "destructive" | "default";
+  loading?: boolean;
+}) {
   const accent: Record<string, string> = {
-    amber: "text-amber-600 dark:text-amber-400",
-    emerald: "text-emerald-600 dark:text-emerald-400",
-    red: "text-red-600 dark:text-red-400",
-    slate: "text-foreground",
+    warning: "text-warning",
+    success: "text-success",
+    destructive: "text-destructive",
+    default: "text-foreground",
   };
   return (
-    <div className="rounded-2xl border border-border bg-card p-4">
+    <Card className="p-4">
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className={"mt-1 text-xl font-bold tracking-tight tabular-nums " + accent[tone]}>{value}</p>
-      <p className="mt-0.5 text-[11px] text-muted-foreground tabular-nums">{sub}</p>
-    </div>
+      {loading ? (
+        <>
+          <Skeleton className="mt-2 h-6 w-28" />
+          <Skeleton className="mt-2 h-3 w-20" />
+        </>
+      ) : (
+        <>
+          <p className={"mt-1 text-xl font-bold tracking-tight tabular-nums " + accent[tone]}>{value}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground tabular-nums">{sub}</p>
+        </>
+      )}
+    </Card>
   );
 }
