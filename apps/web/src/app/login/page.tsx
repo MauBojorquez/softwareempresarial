@@ -62,15 +62,15 @@ export default function LoginPage() {
       <div className="w-full max-w-sm space-y-6 px-4 animate-fade-in-up">
         <div className="text-center">
           <Link href="/" className="inline-flex items-center gap-2 group">
-            <Logo className="h-10 w-10 rounded-xl shadow-lg shadow-purple-500/25 animate-float-logo group-hover:scale-105 transition-transform" />
+            <Logo className="h-10 w-10 rounded-xl shadow-lg shadow-primary/20" />
             <span className="text-xl font-bold text-foreground">StratiuMetrics</span>
           </Link>
-          <h1 className="mt-8 text-2xl font-bold text-foreground anim-d1">Iniciar Sesión</h1>
-          <p className="mt-1 text-sm text-muted-foreground anim-d2">Ingresa a tu dashboard empresarial</p>
+          <h1 className="mt-8 text-2xl font-bold text-foreground anim-d1">Iniciar sesión</h1>
+          <p className="mt-1 text-sm text-muted-foreground anim-d2">Herramienta interna de Stratium</p>
         </div>
 
         {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-red-500/10 px-4 py-3 text-sm text-red-600 dark:text-red-400 animate-slide-up">
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive animate-fade-in-up" role="alert">
             {error}
           </div>
         )}
@@ -102,7 +102,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="flex w-full items-center justify-center gap-2 rounded-lg gradient-bg py-2.5 text-sm font-medium text-white transition-all hover:opacity-90 hover:shadow-lg hover:shadow-purple-500/25 hover:-translate-y-0.5 disabled:opacity-50 disabled:translate-y-0 pulse-glow"
+            className="flex w-full items-center justify-center gap-2 rounded-lg gradient-bg py-2.5 text-sm font-medium text-white transition-all hover:opacity-90 hover:shadow-lg hover:shadow-purple-500/25 hover:-translate-y-0.5 disabled:opacity-50 disabled:translate-y-0"
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             {loading ? "Entrando..." : "Iniciar Sesión"}

@@ -13,6 +13,7 @@ import { PWARegister } from "@/components/pwa-register";
 import { ThemeProvider } from "@/components/theme-provider";
 import { BrandProvider } from "@/components/brand-provider";
 import { ToastProvider } from "@/components/toast";
+import { ConfirmProvider } from "@/components/ui/confirm";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { routeFor } from "@/lib/nav";
 
@@ -46,14 +47,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <ThemeProvider>
       <BrandProvider>
       <ToastProvider>
+      <ConfirmProvider>
       <ShortcutsHelp />
       <CommandPalette />
       <ActivityTracker />
       <PWARegister />
       <a href="#main-content" className="skip-link">Ir al contenido principal</a>
       <div className="relative flex h-screen bg-background">
-        {/* Stripe-style flowing gradient backdrop */}
-        <div className="mesh-bg" aria-hidden />
         <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         <div className="relative z-10 flex flex-1 flex-col overflow-hidden">
           <Header onMenuClick={() => setSidebarOpen(true)} />
@@ -64,6 +64,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
         <BottomNav onMenuClick={() => setSidebarOpen(true)} />
       </div>
+      </ConfirmProvider>
       </ToastProvider>
       </BrandProvider>
     </ThemeProvider>
