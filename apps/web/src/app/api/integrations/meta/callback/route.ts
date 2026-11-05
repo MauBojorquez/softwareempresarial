@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/server/db";
 import { ensureMembership } from "@/server/services/membership";
+import { getOrganizationId } from "@/lib/get-org";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -21,6 +22,25 @@ export async function GET(req: NextRequest) {
 
   if (!state || state !== storedState) {
     return NextResponse.redirect(new URL("/dashboard/marketing?meta_error=invalid_state", req.url));
+  }
+
+  // Bootstrap a membership for brand-new users (no org yet) before resolving the
+  // active org; existing users keep their current memberships.
+  const ensured = await ensureMembership(session.user.id);
+  if (!ensured) {
+    // Session points to a user that no longer exists — force re-login.
+    return NextResponse.redirect(new URL("/login?error=session_expired", req.url));
+  }
+
+  // Replacing the org's Meta connection is restricted to ADMIN or Dirección in
+  // the ACTIVE org (same rule as /api/integrations/disconnect). Checked before
+  // the token exchange so unauthorized callers never touch Meta.
+  const orgId = await getOrganizationId(req);
+  const membership = orgId
+    ? await db.membership.findFirst({ where: { userId: session.user.id, organizationId: orgId } })
+    : null;
+  if (!membership || (membership.role !== "ADMIN" && membership.jobRole !== "DIRECCION")) {
+    return NextResponse.redirect(new URL("/dashboard/marketing?meta_error=sin_permiso", req.url));
   }
 
   try {
@@ -60,13 +80,6 @@ export async function GET(req: NextRequest) {
       `https://graph.facebook.com/v21.0/me/adaccounts?fields=id,name,account_id,currency&access_token=${accessToken}`
     );
     const adAccountsData = adAccountsResponse.ok ? await adAccountsResponse.json() : { data: [] };
-
-    const membership = await ensureMembership(session.user.id);
-
-    if (!membership) {
-      // Session points to a user that no longer exists — force re-login.
-      return NextResponse.redirect(new URL("/login?error=session_expired", req.url));
-    }
 
     await db.integration.upsert({
       where: {

@@ -13,6 +13,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState, ErrorState, Skeleton, RowsSkeleton } from "@/components/ui/states";
 import { useConfirm } from "@/components/ui/confirm";
 import { useApi, apiSend } from "@/hooks/use-api";
+import { todayMX } from "@/lib/day";
+import { useMe } from "@/hooks/use-me";
 
 type ToastFn = (m: string, t?: "success" | "error" | "info") => void;
 
@@ -135,13 +137,19 @@ function phoneInvalid(v: string) {
   return !valid;
 }
 
+// Business day in Mexico City (not UTC): after 18:00 MX the UTC date is already tomorrow.
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  return todayMX();
 }
 
 function fmtDate(iso?: string | null) {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
+  return new Date(iso).toLocaleDateString("es-MX", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "America/Mexico_City",
+  });
 }
 
 interface LeadsResponse {
@@ -528,6 +536,10 @@ function NewLeadModal({
   const [duenoId, setDuenoId] = useState("");
   const [saving, setSaving] = useState(false);
   const [tried, setTried] = useState(false);
+  // MARKETING only sees its own leads: assigning another owner would make the
+  // lead vanish from their board, so the owner is locked to themselves.
+  const me = useMe();
+  const ownerLocked = me?.jobRole === "MARKETING";
 
   const telError = phoneInvalid(telefono);
   const emailError = emailInvalid(email);
@@ -557,7 +569,7 @@ function NewLeadModal({
         email: email || null,
         valorEstimado: valorEstimado || null,
         valorMensualEstimado: valorMensualEstimado || null,
-        duenoId: duenoId || null,
+        duenoId: ownerLocked ? null : duenoId || null,
       });
       toast("Lead creado", "success");
       onSaved();
@@ -630,16 +642,18 @@ function NewLeadModal({
               <MoneyInput value={valorMensualEstimado} onChange={(e) => setValorMensualEstimado(e.target.value)} />
             </Field>
           </div>
-          <Field label="Dueño" optional>
-            <Select value={duenoId} onChange={(e) => setDuenoId(e.target.value)}>
-              <option value="">Yo (por defecto)</option>
-              {members.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
+          {!ownerLocked && (
+            <Field label="Dueño" optional>
+              <Select value={duenoId} onChange={(e) => setDuenoId(e.target.value)}>
+                <option value="">Yo (por defecto)</option>
+                {members.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          )}
         </form>
       </DialogContent>
     </Dialog>
@@ -794,6 +808,9 @@ function DetailPanel({
   const [email, setEmail] = useState(lead.email ?? "");
   const [origen, setOrigen] = useState<Origen>(lead.origen);
   const [duenoId, setDuenoId] = useState(lead.duenoId);
+  // MARKETING can't reassign: the lead would leave their board and further edits 403.
+  const me = useMe();
+  const ownerLocked = me?.jobRole === "MARKETING";
   const [valorEstimado, setValorEstimado] = useState(lead.valorEstimado != null ? String(lead.valorEstimado) : "");
   const [valorMensualEstimado, setValorMensual] = useState(
     lead.valorMensualEstimado != null ? String(lead.valorMensualEstimado) : "",
@@ -845,7 +862,7 @@ function DetailPanel({
         telefono: telefono || null,
         email: email || null,
         origen,
-        duenoId,
+        ...(ownerLocked ? {} : { duenoId }),
         valorEstimado: valorEstimado || null,
         valorMensualEstimado: valorMensualEstimado || null,
       });
@@ -942,15 +959,17 @@ function DetailPanel({
                   ))}
                 </Select>
               </Field>
-              <Field label="Dueño">
-                <Select value={duenoId} onChange={(e) => setDuenoId(e.target.value)}>
-                  {members.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
+              {!ownerLocked && (
+                <Field label="Dueño">
+                  <Select value={duenoId} onChange={(e) => setDuenoId(e.target.value)}>
+                    {members.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              )}
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="Valor estimado" optional>
                   <MoneyInput value={valorEstimado} onChange={(e) => setValorEstimado(e.target.value)} />

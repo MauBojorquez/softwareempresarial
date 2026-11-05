@@ -2,20 +2,27 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { requireAccess } from "@/lib/access";
 import { logActivity } from "@/lib/activity";
+import { currentMonthMX } from "@/lib/day";
+import { isValidMes } from "../_lib/validate";
 
 export const dynamic = "force-dynamic";
-
-const MES_RE = /^\d{4}-\d{2}$/;
 
 export async function POST(req: NextRequest) {
   const access = await requireAccess(req, "flujo");
   if (access instanceof NextResponse) return access;
   const { orgId, userId } = access;
 
-  const body = await req.json().catch(() => ({}));
-  const mes = typeof body.mes === "string" ? body.mes : "";
-  if (!MES_RE.test(mes)) {
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object") {
+    return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
+  }
+  const mes = body.mes;
+  if (!isValidMes(mes)) {
     return NextResponse.json({ error: "Mes inválido" }, { status: 400 });
+  }
+  // The current (or a future) month is still open for movements.
+  if (mes >= currentMonthMX()) {
+    return NextResponse.json({ error: "Solo se pueden cerrar meses que ya terminaron" }, { status: 400 });
   }
 
   const existing = await db.cashFlowSettings.findUnique({ where: { organizationId: orgId } });

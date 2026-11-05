@@ -5,7 +5,7 @@ import { db } from "@/server/db";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const memberships = await db.membership.findMany({
     where: { userId: session.user.id },
@@ -33,11 +33,15 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-  const body = await req.json();
-  const { name, industry } = body;
-  if (!name?.trim()) return NextResponse.json({ error: "El nombre es requerido" }, { status: 400 });
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "Solicitud inválida" }, { status: 400 });
+  }
+  const name = typeof body.name === "string" ? body.name : "";
+  const industry = typeof body.industry === "string" ? body.industry : null;
+  if (!name.trim()) return NextResponse.json({ error: "El nombre es requerido" }, { status: 400 });
 
   const org = await db.organization.create({
     data: {

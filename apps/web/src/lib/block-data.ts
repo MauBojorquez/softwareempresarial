@@ -1,6 +1,6 @@
 import type { JobRole, LeadEtapa } from "@prisma/client";
 import { db } from "@/server/db";
-import { currentMonthMX, monthRangeMX, monthProgressMX, todayMX } from "@/lib/day";
+import { currentMonthMX, fechaMX, monthRangeMX, monthProgressMX, todayMX } from "@/lib/day";
 import { receivableStatus, saldo as calcSaldo } from "@/lib/cobranza";
 import { SUBMITTER_ROLES } from "@/lib/daily-report";
 import { saludGrupoFromCounts } from "@/lib/salud";
@@ -324,10 +324,10 @@ export async function computeCobranza(orgId: string) {
 
 // ── Flujo de efectivo (Caja) ──
 export async function computeFlujo(orgId: string) {
-  const now = new Date();
-  const currentMonth = now.getUTCMonth();
-  const currentYear = now.getUTCFullYear();
-  const inMonth = (d: Date) => d.getUTCMonth() === currentMonth && d.getUTCFullYear() === currentYear;
+  // Bucket by the business (America/Mexico_City) month, not the UTC month, so
+  // the evening of the last day of the month still counts as that month.
+  const mes = currentMonthMX();
+  const inMonth = (d: Date) => fechaMX(d).slice(0, 7) === mes;
 
   const cashAccounts = await db.cashFlowAccount.findMany({
     where: { organizationId: orgId, isActive: true },
@@ -454,7 +454,8 @@ export async function computeMarketing(
   // Meta metrics are stored with period = the first of the current month (the
   // meta-ads sync writes `firstOfMonth` = new Date(year, month, 1)). Prefer the
   // current-month row (matched by year+month, in both UTC and local, since the
-  // sync uses local-time construction), then fall back to the latest row.
+  // sync uses local-time construction). No row for this month (e.g. on the 1st,
+  // before the first sync) → 0; never fall back to last month's numbers.
   const y = Number(mes.slice(0, 4));
   const mo = Number(mes.slice(5, 7)) - 1;
   const metaVal = (name: string): number => {
@@ -464,8 +465,7 @@ export async function computeMarketing(
         ((m.period.getUTCFullYear() === y && m.period.getUTCMonth() === mo) ||
           (m.period.getFullYear() === y && m.period.getMonth() === mo)),
     );
-    if (monthRow) return monthRow.value;
-    return metaMetrics.find((m) => m.name === name)?.value ?? 0;
+    return monthRow?.value ?? 0;
   };
 
   const gasto = metaVal("meta_spend");

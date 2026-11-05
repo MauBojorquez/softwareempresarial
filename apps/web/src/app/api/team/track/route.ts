@@ -10,15 +10,13 @@ import { getOrganizationId } from "@/lib/get-org";
 // table doesn't balloon from client-side navigation.
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ ok: false }, { status: 401 });
+  if (!session?.user?.id) return NextResponse.json({ ok: false, error: "No autorizado" }, { status: 401 });
 
-  let path = "";
-  try {
-    const body = await req.json();
-    path = typeof body?.path === "string" ? body.path.slice(0, 200) : "";
-  } catch {
-    return NextResponse.json({ ok: false }, { status: 400 });
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ ok: false, error: "Solicitud inválida" }, { status: 400 });
   }
+  const path = typeof body.path === "string" ? body.path.slice(0, 200) : "";
   if (!path.startsWith("/dashboard")) return NextResponse.json({ ok: true });
 
   const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000);
@@ -28,7 +26,7 @@ export async function POST(req: NextRequest) {
   if (recent) return NextResponse.json({ ok: true, deduped: true });
 
   const orgId = await getOrganizationId(req);
-  if (!orgId) return NextResponse.json({ ok: false }, { status: 404 });
+  if (!orgId) return NextResponse.json({ ok: false, error: "Organización no encontrada" }, { status: 404 });
 
   await logActivity({
     userId: session.user.id,

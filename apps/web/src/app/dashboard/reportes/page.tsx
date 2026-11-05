@@ -3,12 +3,12 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { ClipboardList, Save, ChevronDown, CheckCircle2, Clock, History, Users, UserX } from "lucide-react";
 import { useToast } from "@/components/toast";
-import { apiSend } from "@/hooks/use-api";
 import { Button } from "@/components/ui/button";
 import { Field, Input, MoneyInput, Select, Textarea } from "@/components/ui/field";
 import { PageHeader, Card } from "@/components/ui/page-header";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/states";
 import { cn } from "@/lib/utils";
+import { todayMX } from "@/lib/day";
 
 type JobRole = "DIRECCION" | "OPERACIONES" | "COMERCIAL" | "MARKETING" | "ADMINISTRACION";
 
@@ -137,6 +137,35 @@ async function getJson<T>(url: string): Promise<T> {
   return body as T;
 }
 
+/**
+ * Today's date ("YYYY-MM-DD", America/Mexico_City), kept current while the page
+ * stays open: re-checked when the tab regains focus or becomes visible, and
+ * every minute, so a form left open across midnight notices the new day.
+ */
+function useTodayMX(): string {
+  const [today, setToday] = useState(todayMX);
+  useEffect(() => {
+    const tick = () => setToday(todayMX());
+    const onVisible = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+    const id = setInterval(tick, 60_000);
+    window.addEventListener("focus", tick);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("focus", tick);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
+  return today;
+}
+
+/** The later of two "YYYY-MM-DD" dates (for the date picker's max). */
+function maxFecha(a: string, b: string): string {
+  return a > b ? a : b;
+}
+
 function SaludBadge({ value }: { value: string | null | undefined }) {
   return (
     <span
@@ -253,16 +282,23 @@ function SubmitterView({ jobRole }: { jobRole: Exclude<JobRole, "DIRECCION"> }) 
   const [fecha, setFecha] = useState<string>("");
   const [form, setForm] = useState<Record<string, string>>({});
   const [openHist, setOpenHist] = useState<Set<string>>(new Set());
+  const today = useTodayMX();
+  const dataRef = useRef<OwnData | null>(null);
+  const seq = useRef(0);
 
   const load = useCallback(async (f?: string) => {
+    const mine = ++seq.current;
     setLoading(true);
     try {
       const qs = f ? `?fecha=${f}` : "";
       const d = await getJson<OwnData>(`/api/reportes${qs}`);
+      if (mine !== seq.current) return;
       setData(d);
+      dataRef.current = d;
       hasData.current = true;
       setError(null);
-      if (!fecha) setFecha(d.fecha);
+      // The server echoes the day it answered for (today when none was asked).
+      setFecha(d.fecha);
       // Prefill from existing report.
       const p = d.report?.payload ?? {};
       const next: Record<string, string> = {};
@@ -271,15 +307,27 @@ function SubmitterView({ jobRole }: { jobRole: Exclude<JobRole, "DIRECCION"> }) 
       }
       setForm(next);
     } catch (e) {
+      if (mine !== seq.current) return;
       const msg = e instanceof Error ? e.message : "No se pudo cargar el reporte";
       setError(msg);
       // With data already on screen, a failed refresh is a toast, not a blank page.
       if (hasData.current) toast(msg, "error", { action: { label: "Reintentar", onClick: () => load(f) } });
     }
     setLoading(false);
-  }, [jobRole, fecha, toast]);
+  }, [jobRole, toast]);
 
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The MX day changed while the page was open (tab left open past midnight):
+  // if the user was on "today", move them to the new today. A past day they
+  // picked on purpose stays put (it was frozen already).
+  useEffect(() => {
+    const d = dataRef.current;
+    if (d && d.fecha === d.today && d.today !== today) {
+      toast("Cambió el día: se cargó el reporte de hoy", "info");
+      load();
+    }
+  }, [today, load, toast]);
 
   const onDateChange = (f: string) => {
     setFecha(f);
@@ -287,6 +335,14 @@ function SubmitterView({ jobRole }: { jobRole: Exclude<JobRole, "DIRECCION"> }) 
   };
 
   const save = async () => {
+    if (!data) return;
+    // Check before saving: answers typed for a day that already ended must not
+    // land on the new day.
+    if (data.today !== todayMX()) {
+      toast("El día cambió; recarga para llenar el reporte de hoy", "error");
+      await load();
+      return;
+    }
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {};
@@ -294,10 +350,27 @@ function SubmitterView({ jobRole }: { jobRole: Exclude<JobRole, "DIRECCION"> }) 
         if (def.type === "text") payload[def.key] = form[def.key] ?? "";
         else payload[def.key] = form[def.key] === "" ? "" : Number(form[def.key]);
       }
-      await apiSend("/api/reportes", "POST", { payload });
-      toast("Reporte guardado", "success");
-      await load(data?.today);
-      setFecha(data?.today ?? fecha);
+      let res: Response;
+      try {
+        res = await fetch("/api/reportes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fecha: data.fecha, payload }),
+        });
+      } catch {
+        throw new Error("Sin conexión con el servidor.");
+      }
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      if (res.status === 409) {
+        // The server's day moved on (its clock, not ours, is the authority).
+        toast(body.error || "El día cambió; recarga para llenar el reporte de hoy", "error");
+        await load();
+      } else if (!res.ok) {
+        throw new Error(body.error || "No se pudo guardar");
+      } else {
+        toast("Reporte guardado", "success");
+        await load(data.fecha);
+      }
     } catch (e) {
       toast(e instanceof Error ? e.message : "No se pudo guardar", "error");
     }
@@ -331,7 +404,7 @@ function SubmitterView({ jobRole }: { jobRole: Exclude<JobRole, "DIRECCION"> }) 
             <Input
               type="date"
               value={fecha}
-              max={data.today}
+              max={maxFecha(data.today, today)}
               onChange={(e) => onDateChange(e.target.value)}
             />
           </Field>
@@ -485,26 +558,40 @@ function DireccionView() {
   const [error, setError] = useState<string | null>(null);
   const [fecha, setFecha] = useState<string>("");
   const [person, setPerson] = useState<string>("all");
+  const today = useTodayMX();
+  const dataRef = useRef<AllData | null>(null);
+  const seq = useRef(0);
 
   const load = useCallback(async (f?: string) => {
+    const mine = ++seq.current;
     setLoading(true);
     try {
       const qs = f ? `?scope=all&fecha=${f}` : "?scope=all";
       const d = await getJson<AllData>(`/api/reportes${qs}`);
+      if (mine !== seq.current) return;
       setData(d);
+      dataRef.current = d;
       hasData.current = true;
       setError(null);
-      if (!fecha) setFecha(d.fecha);
+      // The server echoes the day it answered for (today when none was asked).
+      setFecha(d.fecha);
     } catch (e) {
+      if (mine !== seq.current) return;
       const msg = e instanceof Error ? e.message : "No se pudieron cargar los reportes";
       setError(msg);
       // With data already on screen, a failed refresh is a toast, not a blank page.
       if (hasData.current) toast(msg, "error", { action: { label: "Reintentar", onClick: () => load(f) } });
     }
     setLoading(false);
-  }, [fecha, toast]);
+  }, [toast]);
 
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A board left open on "today" past midnight follows to the new day.
+  useEffect(() => {
+    const d = dataRef.current;
+    if (d && d.fecha === d.today && d.today !== today) load();
+  }, [today, load]);
 
   const header = (actions?: React.ReactNode) => (
     <PageHeader
@@ -553,7 +640,7 @@ function DireccionView() {
             <Input
               type="date"
               value={fecha}
-              max={data.today}
+              max={maxFecha(data.today, today)}
               onChange={(e) => { setFecha(e.target.value); load(e.target.value); }}
             />
           </Field>

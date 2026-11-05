@@ -1,20 +1,23 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/server/db";
+import { getOrganizationId } from "@/lib/get-org";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  const membership = await db.membership.findFirst({
-    where: { userId: session.user.id },
-  });
+  // Resolve the membership for the ACTIVE org (respects activeOrgId).
+  const orgId = await getOrganizationId(req);
+  const membership = orgId
+    ? await db.membership.findFirst({ where: { userId: session.user.id, organizationId: orgId } })
+    : null;
 
   if (!membership) {
-    return NextResponse.json({ error: "No organization found" }, { status: 404 });
+    return NextResponse.json({ error: "Organización no encontrada" }, { status: 404 });
   }
 
   const integrations = await db.integration.findMany({

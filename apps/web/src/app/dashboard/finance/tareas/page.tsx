@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Trash2, ListChecks, Check, RotateCcw } from "lucide-react";
+import { Plus, Trash2, ListChecks, Check, RotateCcw, ChevronDown, History } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/toast";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { PageHeader, Card } from "@/components/ui/page-header";
 import { EmptyState, ErrorState, RowsSkeleton } from "@/components/ui/states";
 import { useConfirm } from "@/components/ui/confirm";
 import { useApi, apiSend } from "@/hooks/use-api";
+import { useCurrentMonth } from "@/hooks/use-current-month";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -34,6 +35,8 @@ interface Member { id: string; name: string | null; }
 
 interface TareasResponse {
   tareas?: Tarea[];
+  /** PENDIENTE tareas from months before the selected one, oldest first. */
+  anteriores?: Tarea[];
   velocidad?: Velocidad;
   members?: Member[];
 }
@@ -41,8 +44,27 @@ interface TareasResponse {
 const EMPTY_VELOCIDAD: Velocidad = { total: 0, completadas: 0, ratio: 0 };
 const EMPTY_FORM = { descripcion: "", clienteId: "", responsableId: "", fechaLimite: "" };
 
-function currentMonth() {
-  return new Date().toISOString().slice(0, 7);
+/** Formats a stored date as the calendar day in Mexico City (not the browser/UTC day). */
+function formatFecha(value: string) {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("es-MX", {
+    timeZone: "America/Mexico_City",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+/** "2026-10" → "oct 2026" (pure label, no timezone shift). */
+function formatMes(mes: string) {
+  const [y, m] = mes.split("-").map(Number);
+  if (!y || !m) return mes;
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("es-MX", {
+    timeZone: "UTC",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 function errMsg(e: unknown, fallback: string) {
@@ -52,11 +74,14 @@ function errMsg(e: unknown, fallback: string) {
 export default function TareasPage() {
   const { toast } = useToast();
   const confirm = useConfirm();
-  const [mes, setMes] = useState(currentMonth());
+  // Follows the MX calendar month: a tab left open moves to the new month by itself.
+  const [mes, setMes, mesActual] = useCurrentMonth();
+  const [showAnteriores, setShowAnteriores] = useState(false);
   const { data, setData, error, loading, initialLoading, reload } = useApi<TareasResponse>(`/api/tareas?mes=${mes}`);
   const clientesApi = useApi<{ clientes?: ClienteOpt[] }>("/api/clientes");
 
   const tareas = data?.tareas ?? [];
+  const anteriores = data?.anteriores ?? [];
   const velocidad = data?.velocidad ?? EMPTY_VELOCIDAD;
   const members = data?.members ?? [];
   const clientes: ClienteOpt[] = (clientesApi.data?.clientes ?? []).map((c) => ({ id: c.id, nombre: c.nombre }));
@@ -89,22 +114,30 @@ export default function TareasPage() {
     setSaving(false);
   };
 
-  /** Optimistically sets a task's status (and the month's velocity). */
+  /**
+   * Optimistically sets a task's status, in the month list or the carried-over
+   * list. The month's velocity only moves for tasks of the selected month.
+   */
   const applyEstatus = (id: string, estatus: Estatus) => {
     setData((prev) => {
       if (!prev) return prev;
       const list = prev.tareas ?? [];
-      const current = list.find((t) => t.id === id);
+      const prevList = prev.anteriores ?? [];
+      const current = list.find((t) => t.id === id) ?? prevList.find((t) => t.id === id);
       if (!current || current.estatus === estatus) return prev;
+      const patch = (t: Tarea) =>
+        t.id === id
+          ? { ...t, estatus, fechaCompletada: estatus === "COMPLETADA" ? new Date().toISOString() : null }
+          : t;
+      const inMonth = list.some((t) => t.id === id);
       const v = prev.velocidad ?? EMPTY_VELOCIDAD;
-      const completadas = Math.max(0, v.completadas + (estatus === "COMPLETADA" ? 1 : -1));
+      const completadas = inMonth
+        ? Math.max(0, v.completadas + (estatus === "COMPLETADA" ? 1 : -1))
+        : v.completadas;
       return {
         ...prev,
-        tareas: list.map((t) =>
-          t.id === id
-            ? { ...t, estatus, fechaCompletada: estatus === "COMPLETADA" ? new Date().toISOString() : null }
-            : t,
-        ),
+        tareas: list.map(patch),
+        anteriores: prevList.map(patch),
         velocidad: { ...v, completadas, ratio: v.total > 0 ? completadas / v.total : 0 },
       };
     });
@@ -161,7 +194,7 @@ export default function TareasPage() {
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
         <Card className="p-4">
           <Field label="Mes">
-            <Input type="month" value={mes} onChange={(e) => setMes(e.target.value || currentMonth())} />
+            <Input type="month" value={mes} onChange={(e) => setMes(e.target.value || mesActual)} />
           </Field>
         </Card>
         <Card className="p-4 lg:col-span-2">
@@ -250,6 +283,36 @@ export default function TareasPage() {
         </form>
       </Card>
 
+      {/* Carry-over: unfinished work from earlier months is never lost. */}
+      {!error && anteriores.length > 0 && (
+        <Card className="p-0">
+          <button
+            type="button"
+            className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left text-sm font-semibold hover:bg-secondary/60"
+            aria-expanded={showAnteriores}
+            aria-controls="tareas-anteriores"
+            onClick={() => setShowAnteriores((v) => !v)}
+          >
+            <span className="flex items-center gap-2">
+              <History className="h-4 w-4 text-warning" aria-hidden />
+              Pendientes de meses anteriores ({anteriores.length})
+            </span>
+            <ChevronDown
+              className={cn("h-4 w-4 transition-transform", showAnteriores && "rotate-180")}
+              aria-hidden
+            />
+          </button>
+          {showAnteriores && (
+            <div
+              id="tareas-anteriores"
+              className={cn("border-t border-border p-3 transition-opacity", loading && "opacity-60")}
+            >
+              <TareasList tareas={anteriores} onToggle={toggle} onRemove={remove} showMes />
+            </div>
+          )}
+        </Card>
+      )}
+
       {error ? (
         <Card>
           <ErrorState message={error} onRetry={reload} />
@@ -268,84 +331,110 @@ export default function TareasPage() {
         </Card>
       ) : (
         <div className={cn("transition-opacity", loading && "opacity-60")} aria-busy={loading}>
-          {/* Mobile card list (below sm) */}
-          <div className="space-y-3 sm:hidden">
-            {tareas.map((t) => (
-              <Card key={t.id} className="p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="min-w-0 font-medium">{t.descripcion}</p>
-                  <EstatusBadge estatus={t.estatus} className="flex-shrink-0" />
-                </div>
-                <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                  <span>Cliente: {t.clienteNombre || "—"}</span>
-                  <span>Resp.: {t.responsableNombre || "—"}</span>
-                </div>
-                {t.fechaLimite && (
-                  <div className="mt-1 text-xs text-muted-foreground">Fecha límite: {t.fechaLimite.slice(0, 10)}</div>
-                )}
-                <div className="mt-3 flex justify-end gap-1">
-                  <ToggleButton tarea={t} onToggle={toggle} size="icon" />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Eliminar tarea"
-                    className="hover:bg-destructive/10 hover:text-destructive"
-                    onClick={() => remove(t)}
-                  >
-                    <Trash2 />
-                  </Button>
-                </div>
-              </Card>
-            ))}
-          </div>
-
-          {/* Table (sm and up) */}
-          <Card className="hidden overflow-x-auto sm:block">
-            <table className="w-full min-w-[640px] text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-xs font-medium text-muted-foreground">
-                  <th className="px-4 py-3 font-medium">Descripción</th>
-                  <th className="px-4 py-3 font-medium">Cliente</th>
-                  <th className="px-4 py-3 font-medium">Responsable</th>
-                  <th className="px-4 py-3 font-medium">Fecha límite</th>
-                  <th className="px-4 py-3 font-medium">Estatus</th>
-                  <th className="px-4 py-3 text-right font-medium">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tareas.map((t) => (
-                  <tr key={t.id} className="border-b border-border last:border-0 hover:bg-secondary/60">
-                    <td className={cn("px-4 py-3 font-medium", t.estatus === "COMPLETADA" && "text-muted-foreground")}>
-                      {t.descripcion}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">{t.clienteNombre || "—"}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{t.responsableNombre || "—"}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{t.fechaLimite ? t.fechaLimite.slice(0, 10) : "—"}</td>
-                    <td className="px-4 py-3">
-                      <EstatusBadge estatus={t.estatus} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        <ToggleButton tarea={t} onToggle={toggle} size="icon-sm" />
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label="Eliminar tarea"
-                          className="hover:bg-destructive/10 hover:text-destructive"
-                          onClick={() => remove(t)}
-                        >
-                          <Trash2 />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Card>
+          <TareasList tareas={tareas} onToggle={toggle} onRemove={remove} />
         </div>
       )}
     </div>
+  );
+}
+
+/** Task rows (cards below sm, table above) with complete/undo and delete actions. */
+function TareasList({
+  tareas,
+  onToggle,
+  onRemove,
+  showMes = false,
+}: {
+  tareas: Tarea[];
+  onToggle: (t: Tarea) => void;
+  onRemove: (t: Tarea) => void;
+  /** Show each task's month next to its description (carried-over list). */
+  showMes?: boolean;
+}) {
+  return (
+    <>
+      {/* Mobile card list (below sm) */}
+      <div className="space-y-3 sm:hidden">
+        {tareas.map((t) => (
+          <Card key={t.id} className="p-4">
+            <div className="flex items-start justify-between gap-2">
+              <p className="min-w-0 font-medium">
+                {t.descripcion}
+                {showMes && <span className="ml-2 text-xs font-normal text-muted-foreground">{formatMes(t.mes)}</span>}
+              </p>
+              <EstatusBadge estatus={t.estatus} className="flex-shrink-0" />
+            </div>
+            <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+              <span>Cliente: {t.clienteNombre || "—"}</span>
+              <span>Resp.: {t.responsableNombre || "—"}</span>
+            </div>
+            {t.fechaLimite && (
+              <div className="mt-1 text-xs text-muted-foreground">Fecha límite: {formatFecha(t.fechaLimite)}</div>
+            )}
+            <div className="mt-3 flex justify-end gap-1">
+              <ToggleButton tarea={t} onToggle={onToggle} size="icon" />
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Eliminar tarea"
+                className="hover:bg-destructive/10 hover:text-destructive"
+                onClick={() => onRemove(t)}
+              >
+                <Trash2 />
+              </Button>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      {/* Table (sm and up) */}
+      <Card className="hidden overflow-x-auto sm:block">
+        <table className="w-full min-w-[640px] text-sm">
+          <thead>
+            <tr className="border-b border-border text-left text-xs font-medium text-muted-foreground">
+              <th className="px-4 py-3 font-medium">Descripción</th>
+              <th className="px-4 py-3 font-medium">Cliente</th>
+              <th className="px-4 py-3 font-medium">Responsable</th>
+              <th className="px-4 py-3 font-medium">Fecha límite</th>
+              <th className="px-4 py-3 font-medium">Estatus</th>
+              <th className="px-4 py-3 text-right font-medium">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tareas.map((t) => (
+              <tr key={t.id} className="border-b border-border last:border-0 hover:bg-secondary/60">
+                <td className={cn("px-4 py-3 font-medium", t.estatus === "COMPLETADA" && "text-muted-foreground")}>
+                  {t.descripcion}
+                  {showMes && (
+                    <span className="ml-2 text-xs font-normal text-muted-foreground">{formatMes(t.mes)}</span>
+                  )}
+                </td>
+                <td className="px-4 py-3 text-muted-foreground">{t.clienteNombre || "—"}</td>
+                <td className="px-4 py-3 text-muted-foreground">{t.responsableNombre || "—"}</td>
+                <td className="px-4 py-3 text-muted-foreground">{t.fechaLimite ? formatFecha(t.fechaLimite) : "—"}</td>
+                <td className="px-4 py-3">
+                  <EstatusBadge estatus={t.estatus} />
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center justify-end gap-1">
+                    <ToggleButton tarea={t} onToggle={onToggle} size="icon-sm" />
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="Eliminar tarea"
+                      className="hover:bg-destructive/10 hover:text-destructive"
+                      onClick={() => onRemove(t)}
+                    >
+                      <Trash2 />
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+    </>
   );
 }
 

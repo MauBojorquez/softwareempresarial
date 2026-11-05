@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { db } from "@/server/db";
-
-const VALID_CATEGORIES = ["FINANCE", "SALES", "OPERATIONS", "HR"];
+import { requireAccess } from "@/lib/access";
+import { parseFechaMX } from "@/lib/day";
+import { FINANCE_MANUAL_ERROR, isMetricCategory, metricResource } from "@/server/services/metrics/access";
 
 const UNIT_MAP: Record<string, string> = {
   MXN: "MXN", pesos: "MXN", unidades: "unidades", personas: "personas",
@@ -11,18 +10,26 @@ const UNIT_MAP: Record<string, string> = {
 };
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const membership = await db.membership.findFirst({ where: { userId: session.user.id } });
-  if (!membership) return NextResponse.json({ error: "No organization" }, { status: 404 });
-
-  const formData = await req.formData();
-  const file = formData.get("file") as File | null;
-  const category = (formData.get("category") as string) || "";
+  let formData: FormData;
+  try {
+    formData = await req.formData();
+  } catch {
+    return NextResponse.json({ error: "Cuerpo de la solicitud inválido" }, { status: 400 });
+  }
+  const fileEntry = formData.get("file");
+  const file = fileEntry && typeof fileEntry !== "string" ? fileEntry : null;
+  const category = formData.get("category");
 
   if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
-  if (!VALID_CATEGORIES.includes(category)) return NextResponse.json({ error: "Invalid category" }, { status: 400 });
+  if (!isMetricCategory(category) || category === "MARKETING") return NextResponse.json({ error: "Invalid category" }, { status: 400 });
+  // Finanzas se alimenta solo del SAT y del Flujo de Efectivo (and GET
+  // /api/metrics/manual?category=FINANCE purges non-SAT rows anyway).
+  if (category === "FINANCE") return NextResponse.json({ error: FINANCE_MANUAL_ERROR }, { status: 400 });
+
+  const access = await requireAccess(req, metricResource(category));
+  if (access instanceof NextResponse) return access;
+  const membership = { organizationId: access.orgId };
+  const session = { user: { id: access.userId } };
 
   const MAX_SIZE = 2 * 1024 * 1024; // 2 MB
   if (file.size > MAX_SIZE) return NextResponse.json({ error: "El archivo no puede superar 2 MB" }, { status: 400 });
@@ -69,8 +76,8 @@ export async function POST(req: NextRequest) {
       continue;
     }
 
-    const period = new Date(fecha);
-    if (isNaN(period.getTime())) {
+    const period = parseFechaMX(fecha);
+    if (!period) {
       errors.push(`Fila ${i + 2}: fecha no válida`);
       continue;
     }
@@ -78,8 +85,8 @@ export async function POST(req: NextRequest) {
     await db.metric.create({
       data: {
         organizationId: membership.organizationId,
-        category: category as any,
-        name: metrica,
+        category,
+        name: metrica.slice(0, 100),
         value: valor,
         unit: UNIT_MAP[unidad] || unidad || null,
         period,

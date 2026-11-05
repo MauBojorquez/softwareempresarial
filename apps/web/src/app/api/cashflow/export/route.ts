@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { requireAccess } from "@/lib/access";
-import { monthRangeMX, currentMonthMX } from "@/lib/day";
+import { monthRangeMX, currentMonthMX, fechaMX } from "@/lib/day";
+import { isValidMes } from "../_lib/validate";
 
 export const dynamic = "force-dynamic";
 
@@ -13,15 +14,6 @@ function csvCell(value: unknown): string {
 
 function fmtNum(n: number): string {
   return n.toFixed(2);
-}
-
-function fmtDate(d: Date): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Mexico_City",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(d);
 }
 
 function slug(s: string): string {
@@ -39,6 +31,7 @@ export async function GET(req: NextRequest) {
   const { orgId } = access;
 
   const mes = req.nextUrl.searchParams.get("mes") || currentMonthMX();
+  if (!isValidMes(mes)) return NextResponse.json({ error: "Mes inválido" }, { status: 400 });
   const accountId = req.nextUrl.searchParams.get("accountId");
   if (!accountId) {
     return NextResponse.json({ error: "accountId requerido" }, { status: 400 });
@@ -75,7 +68,7 @@ export async function GET(req: NextRequest) {
     const provRef = [t.provider, t.reference].filter(Boolean).join(" / ");
     lines.push(
       [
-        csvCell(fmtDate(t.date)),
+        csvCell(fechaMX(t.date)),
         csvCell(t.concept ?? ""),
         csvCell(provRef),
         csvCell(t.deposit != null ? fmtNum(t.deposit) : ""),

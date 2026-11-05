@@ -22,7 +22,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const existing = await ownRow(orgId, params.id);
   if (!existing) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
-  const body = await req.json().catch(() => ({}));
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "Solicitud inválida" }, { status: 400 });
+  }
   const data: Record<string, unknown> = {};
 
   if (body.nombre !== undefined) {

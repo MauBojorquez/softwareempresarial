@@ -42,7 +42,10 @@ export async function PUT(req: NextRequest) {
   if (access instanceof NextResponse) return access;
   const { orgId, jobRole, userId } = access;
 
-  const body = await req.json().catch(() => ({}));
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "Solicitud inválida" }, { status: 400 });
+  }
   const raw = Array.isArray(body?.bloques) ? body.bloques : [];
 
   const allowedIds = new Set(availableBlocks(jobRole).map((b) => b.id));

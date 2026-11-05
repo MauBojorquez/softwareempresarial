@@ -3,22 +3,25 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/server/db";
 import crypto from "crypto";
+import { getOrganizationId } from "@/lib/get-org";
 
 /**
  * API keys are org-level credentials; only Dirección (ADMIN membership) may
  * list, create or delete them. Returns the caller's ADMIN membership or a
  * NextResponse error to return as-is.
  */
-async function requireAdmin() {
+async function requireAdmin(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
-    return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+    return { error: NextResponse.json({ error: "No autorizado" }, { status: 401 }) };
   }
-  const membership = await db.membership.findFirst({
-    where: { userId: session.user.id },
-  });
+  // Membership for the ACTIVE org (respects activeOrgId).
+  const orgId = await getOrganizationId(req);
+  const membership = orgId
+    ? await db.membership.findFirst({ where: { userId: session.user.id, organizationId: orgId } })
+    : null;
   if (!membership) {
-    return { error: NextResponse.json({ error: "No organization" }, { status: 404 }) };
+    return { error: NextResponse.json({ error: "Organización no encontrada" }, { status: 404 }) };
   }
   if (membership.role !== "ADMIN") {
     return { error: NextResponse.json({ error: "Solo Dirección puede gestionar API Keys" }, { status: 403 }) };
@@ -26,8 +29,8 @@ async function requireAdmin() {
   return { userId: session.user.id, orgId: membership.organizationId };
 }
 
-export async function GET() {
-  const ctx = await requireAdmin();
+export async function GET(req: NextRequest) {
+  const ctx = await requireAdmin(req);
   if ("error" in ctx) return ctx.error;
 
   try {
@@ -49,10 +52,14 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const ctx = await requireAdmin();
+  const ctx = await requireAdmin(req);
   if ("error" in ctx) return ctx.error;
 
-  const { name } = await req.json();
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "Solicitud inválida" }, { status: 400 });
+  }
+  const name = typeof body.name === "string" ? body.name.trim() : "";
   const key = `mp_${crypto.randomBytes(24).toString("hex")}`;
 
   const apiKey = await db.apiKey.create({
@@ -68,10 +75,15 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const ctx = await requireAdmin();
+  const ctx = await requireAdmin(req);
   if ("error" in ctx) return ctx.error;
 
-  const { id } = await req.json();
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "Solicitud inválida" }, { status: 400 });
+  }
+  const id = typeof body.id === "string" ? body.id : "";
+  if (!id) return NextResponse.json({ error: "id requerido" }, { status: 400 });
   await db.apiKey.deleteMany({
     where: { id, userId: ctx.userId },
   });

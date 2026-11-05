@@ -147,6 +147,19 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}));
+
+  // Reports are only editable for today (MX). The client sends the day its form
+  // was loaded for; if the MX day changed while the form was open (opened 23:50,
+  // saved 00:05) refuse instead of silently saving the answers under the new day.
+  const fecha = todayMX();
+  const fechaCliente = typeof body?.fecha === "string" ? body.fecha : "";
+  if (fechaCliente !== fecha) {
+    return NextResponse.json(
+      { error: "El día cambió; recarga para llenar el reporte de hoy" },
+      { status: 409 },
+    );
+  }
+
   const rawPayload = (body?.payload ?? body ?? {}) as Record<string, unknown>;
 
   const validated = validatePayload(jobRole as JobRole, rawPayload);
@@ -166,8 +179,6 @@ export async function POST(req: NextRequest) {
       counts: computed.counts,
     };
   }
-
-  const fecha = todayMX(); // always today; client-sent fecha is ignored.
 
   const saved = await db.dailyReport.upsert({
     where: { userId_fecha: { userId, fecha } },

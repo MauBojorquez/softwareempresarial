@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { currentMonthMX } from "@/lib/day";
 import { db } from "@/server/db";
 import { rateLimit } from "@/lib/rate-limit";
 import { detectAnomalies } from "@/server/services/metrics/insights";
@@ -33,8 +34,7 @@ export async function GET(req: NextRequest) {
 
   // Current-month total per metric name. Multiple entries for the same metric
   // in the month are summed so totals match the dashboard.
-  const now = new Date();
-  const since = new Date(now.getFullYear(), now.getMonth(), 1);
+  const since = new Date(`${currentMonthMX()}-01T00:00:00.000Z`);
   const metrics = await db.metric.findMany({
     where: { organizationId: apiKey.organizationId, period: { gte: since }, name: { not: { startsWith: "META_" } } },
     orderBy: { period: "desc" },

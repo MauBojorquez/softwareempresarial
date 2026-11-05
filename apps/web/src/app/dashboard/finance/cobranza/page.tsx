@@ -10,6 +10,8 @@ import { PageHeader, Card } from "@/components/ui/page-header";
 import { EmptyState, ErrorState, RowsSkeleton, Skeleton } from "@/components/ui/states";
 import { useConfirm } from "@/components/ui/confirm";
 import { useApi, apiSend } from "@/hooks/use-api";
+import { useCurrentMonth } from "@/hooks/use-current-month";
+import { todayMX } from "@/lib/day";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -47,7 +49,10 @@ interface ClienteOpt { id: string; nombre: string; }
 interface Member { id: string; name: string | null; }
 
 interface ReceivablesResponse {
+  mes?: string;
   receivables?: Receivable[];
+  anteriores?: Receivable[];
+  anterioresTotal?: number;
   totals?: Totals;
   members?: Member[];
   clientes?: ClienteOpt[];
@@ -75,11 +80,23 @@ const TIPO_LABEL: Record<Tipo, string> = { RECURRENTE: "Recurrente", UNICA: "Ún
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-function today() { return new Date().toISOString().slice(0, 10); }
+const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+
+/** "2026-11" → "noviembre 2026". */
+function mesLabel(mes: string) {
+  const [y, m] = mes.split("-").map(Number);
+  return `${MESES[m - 1]} ${y}`;
+}
+
+/** Default "Emitida" date for the form: today if viewing this month, else the 1st of the viewed month. */
+function defaultIssueDate(mes: string) {
+  const t = todayMX();
+  return t.startsWith(mes) ? t : `${mes}-01`;
+}
 
 function fmtDate(iso?: string | null) {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
+  return new Date(iso).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric", timeZone: "America/Mexico_City" });
 }
 
 /** Optimistic status guess until the server reload arrives. */
@@ -97,14 +114,16 @@ const EMPTY_FORM = {
   invoiceFolio: "",
   concept: "",
   amount: "",
-  issueDate: today(),
+  issueDate: "",
   pagado: false,
 };
 
 export default function CobranzaPage() {
   const { toast } = useToast();
   const confirm = useConfirm();
-  const { data, setData, error, initialLoading, reload } = useApi<ReceivablesResponse>("/api/receivables");
+  const [mes, setMes, mesActual] = useCurrentMonth();
+  const { data, setData, error, initialLoading, reload } = useApi<ReceivablesResponse>(`/api/receivables?mes=${mes}`);
+  const [showAnteriores, setShowAnteriores] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState<"TODAS" | Status>("TODAS");
@@ -115,6 +134,8 @@ export default function CobranzaPage() {
   const pendingRef = useRef<Set<string>>(new Set());
 
   const rows = data?.receivables ?? [];
+  const anteriores = data?.anteriores ?? [];
+  const anterioresTotal = data?.anterioresTotal ?? 0;
   const totals = data?.totals ?? EMPTY_TOTALS;
   const members = data?.members ?? [];
   const clientes = data?.clientes ?? [];
@@ -123,10 +144,18 @@ export default function CobranzaPage() {
   // Latest rows for async callbacks (e.g. the "Deshacer" toast action).
   const rowsRef = useRef(rows);
   rowsRef.current = rows;
+  const anterioresRef = useRef(anteriores);
+  anterioresRef.current = anteriores;
 
   const patchRow = (id: string, patch: (r: Receivable) => Receivable) => {
     setData((prev) =>
-      prev ? { ...prev, receivables: (prev.receivables ?? []).map((x) => (x.id === id ? patch(x) : x)) } : prev,
+      prev
+        ? {
+            ...prev,
+            receivables: (prev.receivables ?? []).map((x) => (x.id === id ? patch(x) : x)),
+            anteriores: (prev.anteriores ?? []).map((x) => (x.id === id ? patch(x) : x)),
+          }
+        : prev,
     );
   };
 
@@ -148,10 +177,10 @@ export default function CobranzaPage() {
         invoiceFolio: form.invoiceFolio,
         concept: form.concept,
         amount: Number(form.amount) || 0,
-        issueDate: form.issueDate,
+        issueDate: form.issueDate || defaultIssueDate(mes),
         pagado: form.pagado,
       });
-      setForm({ ...EMPTY_FORM, issueDate: today() });
+      setForm({ ...EMPTY_FORM });
       toast("Factura registrada", "success");
       await reload();
     } catch (e) {
@@ -180,7 +209,7 @@ export default function CobranzaPage() {
 
   /** Optimistic toggle: update immediately, revert + error toast on failure. */
   const setPagado = async (id: string, next: boolean, undoable: boolean) => {
-    const snapshot = rowsRef.current.find((x) => x.id === id);
+    const snapshot = rowsRef.current.find((x) => x.id === id) ?? anterioresRef.current.find((x) => x.id === id);
     if (!snapshot || pendingRef.current.has(id)) return;
 
     pendingRef.current.add(id);
@@ -209,8 +238,12 @@ export default function CobranzaPage() {
     rows.length === 0 ? (
       <EmptyState
         icon={Receipt}
-        title="Sin facturas todavía"
-        description="Registra la primera con el formulario de arriba."
+        title={`Sin facturas en ${mesLabel(mes)}`}
+        description={
+          mes === mesActual
+            ? "Mes nuevo, cuenta nueva: las recurrentes del mes pasado se copian solas; registra aquí las demás."
+            : "Registra una con el formulario de arriba."
+        }
       />
     ) : (
       <EmptyState
@@ -228,7 +261,13 @@ export default function CobranzaPage() {
       <PageHeader
         icon={Receipt}
         title="Cobranza"
-        description={<>Facturas por cliente. Marca &quot;Pagado&quot; y su monto completo cuenta como cobrado.</>}
+        description={<>Facturas del mes por cliente. Cada mes arranca solo: las recurrentes se copian y lo pendiente se arrastra.</>}
+        actions={
+          <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <span>Mes</span>
+            <Input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="w-auto" />
+          </label>
+        }
       />
 
       {loadFailed ? (
@@ -332,7 +371,7 @@ export default function CobranzaPage() {
                 />
               </Field>
               <Field label="Emitida">
-                <Input type="date" value={form.issueDate} onChange={(e) => setForm((f) => ({ ...f, issueDate: e.target.value }))} />
+                <Input type="date" value={form.issueDate || defaultIssueDate(mes)} onChange={(e) => setForm((f) => ({ ...f, issueDate: e.target.value }))} />
               </Field>
               <Field label="Folio / Factura" optional>
                 <Input value={form.invoiceFolio} onChange={(e) => setForm((f) => ({ ...f, invoiceFolio: e.target.value }))} />
@@ -356,6 +395,43 @@ export default function CobranzaPage() {
               </Button>
             </div>
           </Card>
+
+          {/* Unpaid invoices from earlier months: carried over, never lost */}
+          {anteriores.length > 0 && (
+            <Card className="p-0">
+              <button
+                type="button"
+                aria-expanded={showAnteriores}
+                onClick={() => setShowAnteriores((v) => !v)}
+                className="flex w-full items-center justify-between gap-3 rounded-xl px-4 py-3 text-left transition-colors hover:bg-secondary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <span>
+                  <span className="block text-sm font-semibold text-foreground">
+                    Pendientes de meses anteriores ({anteriores.length})
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    Siguen por cobrar; no cuentan en los totales de {mesLabel(mes)}.
+                  </span>
+                </span>
+                <span className="whitespace-nowrap text-sm font-semibold tabular-nums text-destructive">
+                  {formatCurrency(anterioresTotal)}
+                </span>
+              </button>
+              {showAnteriores && (
+                <div className="space-y-3 border-t border-border p-3">
+                  {anteriores.map((r) => (
+                    <FacturaCard
+                      key={r.id}
+                      r={r}
+                      busy={pending.has(r.id)}
+                      onRemove={() => remove(r)}
+                      onTogglePagado={() => setPagado(r.id, !r.pagado, true)}
+                    />
+                  ))}
+                </div>
+              )}
+            </Card>
+          )}
 
           {/* Filters */}
           <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar por estatus">

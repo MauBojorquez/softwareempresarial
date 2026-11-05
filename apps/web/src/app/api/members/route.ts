@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/server/db";
 import type { JobRole } from "@prisma/client";
 import { logActivity } from "@/lib/activity";
+import { getOrganizationId } from "@/lib/get-org";
 
 export const dynamic = "force-dynamic";
 
@@ -15,14 +16,16 @@ const VALID_JOB_ROLES = ["DIRECCION", "OPERACIONES", "COMERCIAL", "MARKETING", "
  * the ADMIN membership role (Dirección) so it works even while everyone's
  * jobRole is still null during migration.
  */
-async function requireDireccion() {
+async function requireDireccion(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return { error: NextResponse.json({ error: "No autorizado" }, { status: 401 }) };
   }
-  const membership = await db.membership.findFirst({
-    where: { userId: session.user.id },
-  });
+  // Membership for the ACTIVE org (respects activeOrgId).
+  const orgId = await getOrganizationId(req);
+  const membership = orgId
+    ? await db.membership.findFirst({ where: { userId: session.user.id, organizationId: orgId } })
+    : null;
   if (!membership) {
     return { error: NextResponse.json({ error: "No autorizado" }, { status: 401 }) };
   }
@@ -33,8 +36,8 @@ async function requireDireccion() {
 }
 
 // GET /api/members — list org members with their current puesto (jobRole).
-export async function GET() {
-  const ctx = await requireDireccion();
+export async function GET(req: NextRequest) {
+  const ctx = await requireDireccion(req);
   if ("error" in ctx) return ctx.error;
 
   const [members, organization] = await Promise.all([
@@ -63,10 +66,13 @@ export async function GET() {
 
 // PATCH /api/members — set/change a member's puesto. Body: { membershipId, jobRole|null }
 export async function PATCH(req: NextRequest) {
-  const ctx = await requireDireccion();
+  const ctx = await requireDireccion(req);
   if ("error" in ctx) return ctx.error;
 
-  const body = await req.json().catch(() => ({}));
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "Solicitud inválida" }, { status: 400 });
+  }
   const membershipId = String(body.membershipId ?? "");
   if (!membershipId) {
     return NextResponse.json({ error: "membershipId requerido" }, { status: 400 });
@@ -99,7 +105,7 @@ export async function PATCH(req: NextRequest) {
 // DELETE /api/members — remove a member's access. Body or query: { membershipId }
 // Dirección/ADMIN only. Cannot delete own membership or the org owner's.
 export async function DELETE(req: NextRequest) {
-  const ctx = await requireDireccion();
+  const ctx = await requireDireccion(req);
   if ("error" in ctx) return ctx.error;
 
   let membershipId = req.nextUrl.searchParams.get("membershipId") ?? "";

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { db } from "@/server/db";
+import { requireAccess } from "@/lib/access";
+import { currentMonthMX, shiftDate, shiftMonth, todayMX } from "@/lib/day";
 
 async function fetchWithTimeout(url: string, ms = 10000): Promise<Response> {
   const controller = new AbortController();
@@ -14,18 +14,9 @@ async function fetchWithTimeout(url: string, ms = 10000): Promise<Response> {
 }
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const membership = await db.membership.findFirst({
-    where: { userId: session.user.id },
-  });
-
-  if (!membership) {
-    return NextResponse.json({ error: "No organization" }, { status: 404 });
-  }
+  const access = await requireAccess(req, "marketing");
+  if (access instanceof NextResponse) return access;
+  const membership = { organizationId: access.orgId };
 
   const integration = await db.integration.findFirst({
     where: { organizationId: membership.organizationId, type: "META_ADS", isActive: true },
@@ -48,15 +39,12 @@ export async function GET(req: NextRequest) {
     ? adAccounts.find((a) => a.id === selectedAccountId) || adAccounts[0]
     : adAccounts[0];
 
-  const now = new Date();
-  const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const firstOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const lastDayOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
-
-  const sinceCurrent = firstOfMonth.toISOString().split("T")[0];
-  const untilCurrent = now.toISOString().split("T")[0];
-  const sincePrev = firstOfLastMonth.toISOString().split("T")[0];
-  const untilPrev = lastDayOfLastMonth.toISOString().split("T")[0];
+  // Calendar days in the business (Mexico City) timezone, not UTC.
+  const mesActual = currentMonthMX();
+  const sinceCurrent = `${mesActual}-01`;
+  const untilCurrent = todayMX();
+  const sincePrev = `${shiftMonth(mesActual, -1)}-01`;
+  const untilPrev = shiftDate(sinceCurrent, -1);
 
   try {
     const fields = "spend,impressions,clicks,ctr,cpc,cpm,reach";

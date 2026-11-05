@@ -3,17 +3,9 @@ import { db } from "@/server/db";
 import { requireAccess } from "@/lib/access";
 import { syncCashflowMetrics } from "@/lib/cashflow-sync";
 import { monthRangeMX, currentMonthMX } from "@/lib/day";
+import { isValidMes } from "../_lib/validate";
 
 export const dynamic = "force-dynamic";
-
-const EMPTY = {
-  accounts: [],
-  categories: [],
-  totals: { totalDeposits: 0, totalWithdrawals: 0, totalBalance: 0, categoryTotals: {} },
-  grandTotalDeposits: 0,
-  grandTotalWithdrawals: 0,
-  grandBalance: 0,
-};
 
 export async function GET(req: NextRequest) {
   try {
@@ -27,6 +19,7 @@ export async function GET(req: NextRequest) {
     void syncCashflowMetrics(orgId).catch(() => {});
 
     const mes = req.nextUrl.searchParams.get("mes") || currentMonthMX();
+    if (!isValidMes(mes)) return NextResponse.json({ error: "Mes inválido" }, { status: 400 });
     const { start, end } = monthRangeMX(mes);
 
     const [accounts, categories, settings] = await Promise.all([
@@ -112,6 +105,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (err) {
     console.error("cashflow/report error:", err);
-    return NextResponse.json(EMPTY);
+    return NextResponse.json({ error: "No se pudo generar el reporte" }, { status: 500 });
   }
 }

@@ -1,32 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { requireAccess } from "@/lib/access";
+import { currentMonthMX, fechaMX, isValidDate, parseFechaMX } from "@/lib/day";
 
 export const dynamic = "force-dynamic";
 
 const MES_RE = /^\d{4}-\d{2}$/;
 
 // GET /api/tareas?mes=YYYY-MM — list tareas (optionally by month) plus the
-// month's "velocidad" (completadas/total). Gated by "tareas".
+// month's "velocidad" (completadas/total). With a month, `anteriores` also
+// carries every PENDIENTE tarea from earlier months (oldest first) so unfinished
+// work is never lost when a new month starts. Gated by "tareas".
 export async function GET(req: NextRequest) {
   const access = await requireAccess(req, "tareas");
   if (access instanceof NextResponse) return access;
   const { orgId } = access;
 
-  const mes = req.nextUrl.searchParams.get("mes");
+  const mesParam = req.nextUrl.searchParams.get("mes");
+  const mes = mesParam && MES_RE.test(mesParam) ? mesParam : null;
   const where: { organizationId: string; mes?: string } = { organizationId: orgId };
-  if (mes && MES_RE.test(mes)) where.mes = mes;
+  if (mes) where.mes = mes;
 
-  const rows = await db.tarea.findMany({
-    where,
-    orderBy: [{ createdAt: "desc" }],
-    include: {
-      cliente: { select: { id: true, nombre: true } },
-      responsable: { select: { id: true, name: true, email: true } },
-    },
-  });
+  const include = {
+    cliente: { select: { id: true, nombre: true } },
+    responsable: { select: { id: true, name: true, email: true } },
+  } as const;
 
-  const tareas = rows.map((t) => ({
+  const [rows, prevRows] = await Promise.all([
+    db.tarea.findMany({ where, orderBy: [{ createdAt: "desc" }], include }),
+    mes
+      ? db.tarea.findMany({
+          where: { organizationId: orgId, estatus: "PENDIENTE", mes: { lt: mes } },
+          orderBy: [{ mes: "asc" }, { fechaLimite: "asc" }, { createdAt: "asc" }],
+          include,
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const shape = (t: (typeof rows)[number]) => ({
     id: t.id,
     descripcion: t.descripcion,
     mes: t.mes,
@@ -38,7 +49,10 @@ export async function GET(req: NextRequest) {
     responsableId: t.responsableId,
     responsableNombre: t.responsable?.name ?? t.responsable?.email ?? null,
     createdAt: t.createdAt,
-  }));
+  });
+
+  const tareas = rows.map(shape);
+  const anteriores = prevRows.map(shape);
 
   const total = tareas.length;
   const completadas = tareas.filter((t) => t.estatus === "COMPLETADA").length;
@@ -57,6 +71,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     tareas,
+    anteriores,
     velocidad,
     members: members.map((m) => ({ id: m.userId, name: m.user.name ?? m.user.email })),
   });
@@ -68,7 +83,10 @@ export async function POST(req: NextRequest) {
   if (access instanceof NextResponse) return access;
   const { orgId } = access;
 
-  const body = await req.json().catch(() => ({}));
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object") {
+    return NextResponse.json({ error: "Cuerpo de la solicitud inválido" }, { status: 400 });
+  }
 
   const descripcion = (body.descripcion ?? "").toString().trim();
   if (!descripcion) return NextResponse.json({ error: "La descripción es obligatoria" }, { status: 400 });
@@ -79,15 +97,19 @@ export async function POST(req: NextRequest) {
   const cliente = await db.cliente.findFirst({ where: { id: clienteId, organizationId: orgId } });
   if (!cliente) return NextResponse.json({ error: "Cliente no encontrado" }, { status: 400 });
 
+  // A bare "YYYY-MM-DD" is that day in Mexico (stored at local noon).
   let fechaLimite: Date | null = null;
   if (body.fechaLimite !== undefined && body.fechaLimite !== null && body.fechaLimite !== "") {
-    const d = new Date(body.fechaLimite);
-    if (Number.isNaN(d.getTime())) return NextResponse.json({ error: "Fecha límite inválida" }, { status: 400 });
-    fechaLimite = d;
+    fechaLimite = parseFechaMX(body.fechaLimite);
+    if (!fechaLimite) return NextResponse.json({ error: "Fecha límite inválida" }, { status: 400 });
   }
 
+  // Default month: the fechaLimite's month (as typed), else the current MX month.
   let mes = (body.mes ?? "").toString().trim();
-  if (!mes) mes = (fechaLimite ?? new Date()).toISOString().slice(0, 7);
+  if (!mes) {
+    const raw = String(body.fechaLimite ?? "").trim();
+    mes = isValidDate(raw) ? raw.slice(0, 7) : fechaLimite ? fechaMX(fechaLimite).slice(0, 7) : currentMonthMX();
+  }
   if (!MES_RE.test(mes)) return NextResponse.json({ error: "El mes debe tener el formato YYYY-MM" }, { status: 400 });
 
   let responsableId: string | null = null;

@@ -109,6 +109,39 @@ export function dayRangeMX(fecha: string): { start: Date; end: Date } {
   return { start, end };
 }
 
+/** "YYYY-MM" shifted by `delta` months (pure date math, no timezone). */
+export function shiftMonth(mes: string, delta: number): string {
+  const [y, m] = mes.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1 + delta, 1)).toISOString().slice(0, 7);
+}
+
+/** "YYYY-MM-DD" of an instant, in America/Mexico_City. */
+export function fechaMX(date: Date): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: MX_TZ }).format(date);
+}
+
+/** "YYYY-MM" month of an instant, in America/Mexico_City. */
+export function mesMX(date: Date): string {
+  return fechaMX(date).slice(0, 7);
+}
+
+/**
+ * Parses a date sent by a form. A bare "YYYY-MM-DD" means that calendar day in
+ * Mexico, stored at local noon so it never slides into the previous day (or
+ * month) when read back in Mexico City time. Full timestamps pass through.
+ * Returns null when the value is not a valid date.
+ */
+export function parseFechaMX(value: unknown): Date | null {
+  if (value === undefined || value === null || value === "") return null;
+  const s = String(value).trim();
+  if (isValidDate(s)) {
+    const d = new Date(dayRangeMX(s).start.getTime() + 12 * 60 * 60 * 1000);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 /** "YYYY-MM-DD" shifted by `delta` calendar days (pure date math, no timezone). */
 export function shiftDate(fecha: string, delta: number): string {
   const [y, m, d] = fecha.split("-").map(Number);

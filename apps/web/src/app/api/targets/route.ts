@@ -6,7 +6,8 @@ import { currentMonthMX } from "@/lib/day";
 
 export const dynamic = "force-dynamic";
 
-const MES_RE = /^\d{4}-\d{2}$/;
+// YYYY-MM with a real month (01–12).
+const MES_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 // Puestos who can own sales (and therefore carry a vendor target).
 const VENDEDOR_ROLES: JobRole[] = ["COMERCIAL", "DIRECCION"];
@@ -52,12 +53,15 @@ export async function PUT(req: NextRequest) {
   if (access instanceof NextResponse) return access;
   const { orgId } = access;
 
-  const body = await req.json().catch(() => ({}));
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "Solicitud inválida" }, { status: 400 });
+  }
 
   let mes = (body.mes ?? "").toString().trim();
   if (!mes) mes = currentMonthMX();
   if (!MES_RE.test(mes)) {
-    return NextResponse.json({ error: "El mes debe tener el formato YYYY-MM" }, { status: 400 });
+    return NextResponse.json({ error: "El mes debe tener el formato YYYY-MM (mes 01–12)" }, { status: 400 });
   }
 
   if (body.monthlyMeta !== undefined && body.monthlyMeta !== null) {

@@ -2,19 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { requireAccess } from "@/lib/access";
 import { syncCashflowMetrics } from "@/lib/cashflow-sync";
+import { mesMX, parseFechaMX } from "@/lib/day";
 
 export const dynamic = "force-dynamic";
-
-/** "YYYY-MM" (MX month) that a given date falls into. */
-function mesOfDate(date: Date): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Mexico_City",
-    year: "numeric",
-    month: "2-digit",
-  })
-    .format(date)
-    .slice(0, 7);
-}
 
 // POST /api/cashflow/transfers — move money between two accounts.
 // Creates two linked rows (withdrawal in origin, deposit in destination),
@@ -26,10 +16,18 @@ export async function POST(req: NextRequest) {
   if (access instanceof NextResponse) return access;
   const { orgId } = access;
 
-  const body = await req.json().catch(() => ({}));
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
+  }
   const fromAccountId = String(body.fromAccountId ?? "");
   const toAccountId = String(body.toAccountId ?? "");
-  const amount = Number(body.amount);
+  // Number("") / Number(null) are 0 and Number(true) is 1 — only accept real
+  // numbers or numeric strings.
+  const amount =
+    typeof body.amount === "number" || (typeof body.amount === "string" && body.amount.trim())
+      ? Number(body.amount)
+      : NaN;
   const concept = body.concept ? String(body.concept).trim() : null;
 
   if (!fromAccountId || !toAccountId) {
@@ -50,14 +48,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Cuenta no encontrada" }, { status: 404 });
   }
 
-  const date = body.date ? new Date(body.date) : new Date();
-  if (Number.isNaN(date.getTime())) {
+  // No date → now; a date that was sent must parse as an MX calendar day.
+  const date = body.date === undefined ? new Date() : parseFechaMX(body.date);
+  if (!date) {
     return NextResponse.json({ error: "Fecha inválida" }, { status: 400 });
   }
 
   // Reject transfers landing in a closed month.
   const settings = await db.cashFlowSettings.findUnique({ where: { organizationId: orgId } });
-  if (settings?.closedThroughMes && mesOfDate(date) <= settings.closedThroughMes) {
+  if (settings?.closedThroughMes && mesMX(date) <= settings.closedThroughMes) {
     return NextResponse.json({ error: "Ese mes está cerrado" }, { status: 403 });
   }
 

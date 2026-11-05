@@ -40,7 +40,10 @@ export async function POST(req: NextRequest) {
   if (access instanceof NextResponse) return access;
   const { orgId, userId } = access;
 
-  const body = await req.json().catch(() => ({}));
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object") {
+    return NextResponse.json({ error: "Cuerpo de la solicitud inválido" }, { status: 400 });
+  }
   const rows: RawRow[] = Array.isArray(body?.rows) ? body.rows : [];
   if (rows.length === 0) {
     return NextResponse.json({ error: "No hay filas para importar" }, { status: 400 });
@@ -74,6 +77,10 @@ export async function POST(req: NextRequest) {
 
   rows.forEach((r, i) => {
     const rowNum = i + 1;
+    if (!r || typeof r !== "object" || Array.isArray(r)) {
+      skipped.push({ row: rowNum, reason: "Fila inválida" });
+      return;
+    }
     const nombre = String(r.nombre ?? "").trim();
     if (!nombre) {
       skipped.push({ row: rowNum, reason: "Sin nombre" });

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { requireAccess } from "@/lib/access";
+import { parseAmount } from "../_lib/validate";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ accounts });
   } catch (err) {
     console.error("cashflow/accounts GET error:", err);
-    return NextResponse.json({ accounts: [] });
+    return NextResponse.json({ error: "No se pudieron cargar las cuentas" }, { status: 500 });
   }
 }
 
@@ -25,9 +26,16 @@ export async function POST(req: NextRequest) {
     const access = await requireAccess(req, "flujo");
     if (access instanceof NextResponse) return access;
     const { orgId } = access;
-    const body = await req.json();
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
+    }
     if (!body?.name || !String(body.name).trim()) {
       return NextResponse.json({ error: "Name required" }, { status: 400 });
+    }
+    const opening = parseAmount(body.openingBalance);
+    if (!opening.ok) {
+      return NextResponse.json({ error: "Saldo inicial inválido" }, { status: 400 });
     }
     const count = await db.cashFlowAccount.count({ where: { organizationId: orgId } });
     const account = await db.cashFlowAccount.create({
@@ -36,7 +44,7 @@ export async function POST(req: NextRequest) {
         name: String(body.name).trim(),
         bankName: body.bankName ?? null,
         accountNumber: body.accountNumber ?? null,
-        openingBalance: Number(body.openingBalance) || 0,
+        openingBalance: opening.value ?? 0,
         order: count,
       },
     });

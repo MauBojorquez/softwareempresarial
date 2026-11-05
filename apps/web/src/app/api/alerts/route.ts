@@ -22,10 +22,10 @@ async function getMembership(userId: string, orgId: string) {
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const orgId = await getOrganizationId(req);
-  if (!orgId) return NextResponse.json({ error: "No organization" }, { status: 400 });
+  if (!orgId) return NextResponse.json({ error: "Organización no encontrada" }, { status: 400 });
 
   const rules = await db.alertRule.findMany({
     where: { organizationId: orgId },
@@ -48,32 +48,34 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const orgId = await getOrganizationId(req);
-  if (!orgId) return NextResponse.json({ error: "No organization" }, { status: 400 });
+  if (!orgId) return NextResponse.json({ error: "Organización no encontrada" }, { status: 400 });
 
   const membership = await getMembership(session.user.id, orgId);
   if (!membership || membership.role === "VIEWER") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json({ error: "Sin permiso" }, { status: 403 });
   }
 
   const body = await req.json().catch(() => null);
-  if (!body) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "Solicitud inválida" }, { status: 400 });
+  }
 
   const { metricName, category, condition, threshold } = body as Record<string, unknown>;
 
   if (!metricName || typeof metricName !== "string" || metricName.trim().length === 0) {
-    return NextResponse.json({ error: "metricName is required" }, { status: 400 });
+    return NextResponse.json({ error: "El nombre de la métrica es requerido" }, { status: 400 });
   }
   if (!isValidCategory(category)) {
-    return NextResponse.json({ error: "Invalid category" }, { status: 400 });
+    return NextResponse.json({ error: "Categoría inválida" }, { status: 400 });
   }
   if (!isValidCondition(condition)) {
-    return NextResponse.json({ error: "Invalid condition" }, { status: 400 });
+    return NextResponse.json({ error: "Condición inválida" }, { status: 400 });
   }
-  if (typeof threshold !== "number" || isNaN(threshold) || threshold <= 0) {
-    return NextResponse.json({ error: "threshold must be a positive number" }, { status: 400 });
+  if (typeof threshold !== "number" || !Number.isFinite(threshold) || threshold <= 0) {
+    return NextResponse.json({ error: "El umbral debe ser un número positivo" }, { status: 400 });
   }
 
   const rule = await db.alertRule.create({
@@ -92,23 +94,23 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const orgId = await getOrganizationId(req);
-  if (!orgId) return NextResponse.json({ error: "No organization" }, { status: 400 });
+  if (!orgId) return NextResponse.json({ error: "Organización no encontrada" }, { status: 400 });
 
   const membership = await getMembership(session.user.id, orgId);
   if (!membership || membership.role === "VIEWER") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json({ error: "Sin permiso" }, { status: 403 });
   }
 
   const id = req.nextUrl.searchParams.get("id");
-  if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
+  if (!id) return NextResponse.json({ error: "id requerido" }, { status: 400 });
 
   const rule = await db.alertRule.findFirst({ where: { id, organizationId: orgId } });
-  if (!rule) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!rule) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
-  await db.alertRule.delete({ where: { id } });
+  await db.alertRule.delete({ where: { id: rule.id } });
 
   return NextResponse.json({ ok: true });
 }

@@ -5,9 +5,13 @@ import { db } from "@/server/db";
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-  const { orgId } = await req.json();
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "Solicitud inválida" }, { status: 400 });
+  }
+  const orgId = typeof body.orgId === "string" ? body.orgId : "";
   if (!orgId) return NextResponse.json({ error: "orgId requerido" }, { status: 400 });
 
   const membership = await db.membership.findFirst({

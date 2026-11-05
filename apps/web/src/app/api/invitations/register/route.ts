@@ -13,13 +13,15 @@ export async function POST(req: NextRequest) {
   const rl = rateLimit(`invite-register:${ip}`, 10, 60_000);
   if (!rl.success) return NextResponse.json({ error: "Demasiadas solicitudes" }, { status: 429 });
 
-  const { token, name, password } = (await req.json()) as {
-    token: string;
-    name: string;
-    password: string;
-  };
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "Solicitud inválida" }, { status: 400 });
+  }
+  const token = typeof body.token === "string" ? body.token : "";
+  const name = typeof body.name === "string" ? body.name : "";
+  const password = typeof body.password === "string" ? body.password : "";
 
-  if (!token || !name?.trim() || !password) {
+  if (!token || !name.trim() || !password) {
     return NextResponse.json({ error: "Todos los campos son requeridos" }, { status: 400 });
   }
   if (password.length < 8) {
@@ -36,7 +38,9 @@ export async function POST(req: NextRequest) {
   if (invitation.expiresAt < new Date()) return NextResponse.json({ error: "Esta invitación expiró" }, { status: 410 });
 
   // Check if account already exists — should not happen on this path but handle gracefully
-  const existing = await db.user.findUnique({ where: { email: invitation.email } });
+  const existing = await db.user.findFirst({
+    where: { email: { equals: invitation.email.trim(), mode: "insensitive" } },
+  });
   if (existing) {
     return NextResponse.json({ error: "Ya existe una cuenta con este correo. Inicia sesión en su lugar." }, { status: 409 });
   }

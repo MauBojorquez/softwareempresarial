@@ -132,8 +132,9 @@ export default function InviteSetupPage() {
         <form className="space-y-4" onSubmit={handleSubmit}>
           {/* Email — read-only, pre-filled from invitation */}
           <div>
-            <label className="text-sm font-medium">Correo electrónico</label>
+            <label htmlFor="setup-email" className="text-sm font-medium">Correo electrónico</label>
             <input
+              id="setup-email"
               type="email"
               value={invite.email}
               readOnly
@@ -167,7 +168,12 @@ export default function InviteSetupPage() {
                 placeholder="Mínimo 8 caracteres"
                 className="w-full rounded-lg border border-border bg-card px-3 py-2.5 pr-10 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25 transition-all"
               />
-              <button type="button" onClick={() => setShow(!show)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+              <button
+                type="button"
+                onClick={() => setShow(!show)}
+                aria-label={show ? "Ocultar contraseña" : "Mostrar contraseña"}
+                aria-pressed={show}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                 {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>

@@ -1,20 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Loader2, CheckCircle, XCircle } from "lucide-react";
 
 export default function InvitePage() {
   const { token } = useParams<{ token: string }>();
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const router = useRouter();
   const [state, setState] = useState<"loading" | "success" | "error" | "auth">("loading");
   const [message, setMessage] = useState("");
   const [orgName, setOrgName] = useState("");
 
+  // Accept is not idempotent (a second POST answers 409). The session object
+  // changes identity on every refetch (focus, polling), so key the effect on
+  // `status` and remember which resolved status already ran the accept; once
+  // it succeeded, never run it again.
+  const acceptedFor = useRef<string | null>(null);
+  const done = useRef(false);
+
   useEffect(() => {
     if (status === "loading") return;
+    if (done.current || acceptedFor.current === status) return;
+    acceptedFor.current = status;
     fetch("/api/invitations/accept", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -26,6 +35,7 @@ export default function InvitePage() {
           setOrgName(d.orgName);
           setState("auth");
         } else if (d.success) {
+          done.current = true;
           setOrgName(d.orgName);
           setState("success");
           setTimeout(() => router.push("/dashboard/overview"), 2500);
@@ -35,7 +45,7 @@ export default function InvitePage() {
         }
       })
       .catch(() => { setMessage("Error de conexión"); setState("error"); });
-  }, [token, status, session]);
+  }, [token, status, router]);
 
   if (state === "loading") return (
     <div className="min-h-screen flex items-center justify-center bg-background">
@@ -74,7 +84,7 @@ export default function InvitePage() {
               Inicia sesión o crea una contraseña para unirte a este equipo.
             </p>
             <div className="mt-6 flex flex-col gap-3">
-              <a href={`/login?callbackUrl=/invite/${token}`} className="rounded-xl gradient-bg px-6 py-2.5 text-sm font-medium text-white">
+              <a href={`/login?callbackUrl=${encodeURIComponent(`/invite/${token}`)}`} className="rounded-xl gradient-bg px-6 py-2.5 text-sm font-medium text-white">
                 Iniciar sesión
               </a>
               <a href={`/invite/${token}/setup`} className="rounded-xl border border-border bg-secondary/50 px-6 py-2.5 text-sm font-medium hover:bg-secondary">

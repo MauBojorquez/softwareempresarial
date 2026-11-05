@@ -23,15 +23,18 @@ export function NotificationBell() {
   const [subscribed, setSubscribed] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
 
-  const loadNotifications = useCallback(async () => {
+  const loadNotifications = useCallback(async (): Promise<AppNotification[] | null> => {
     try {
       const res = await fetch("/api/notifications");
       if (res.ok) {
         const data = await res.json();
-        setNotifications(data.notifications || []);
+        const list: AppNotification[] = data.notifications || [];
+        setNotifications(list);
         setUnreadCount(data.unreadCount || 0);
+        return list;
       }
     } catch {}
+    return null;
   }, []);
 
   useEffect(() => {
@@ -65,16 +68,31 @@ export function NotificationBell() {
     setPushBusy(false);
   };
 
-  const markAllRead = async () => {
-    try {
-      await fetch("/api/notifications", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "read_all" }),
-      });
-      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-      setUnreadCount(0);
-    } catch {}
+  // Opening the panel marks as read only what it actually shows: refresh the
+  // list first, then mark those unread ids one by one ("read_all" would also
+  // mark notifications that arrived after the last poll and were never seen,
+  // or ones beyond the 30 the API returns).
+  const markShownRead = async () => {
+    const list = await loadNotifications();
+    if (!list) return;
+    const ids = list.filter((n) => !n.read).map((n) => n.id);
+    if (ids.length === 0) return;
+    const results = await Promise.allSettled(
+      ids.map((id) =>
+        fetch("/api/notifications", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "read", id }),
+        }).then((r) => {
+          if (!r.ok) throw new Error();
+          return id;
+        }),
+      ),
+    );
+    const marked = new Set(results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : [])));
+    if (marked.size === 0) return;
+    setNotifications((prev) => prev.map((n) => (marked.has(n.id) ? { ...n, read: true } : n)));
+    setUnreadCount((c) => Math.max(0, c - marked.size));
   };
 
   const clearAll = async () => {
@@ -99,7 +117,7 @@ export function NotificationBell() {
   return (
     <div className="relative">
       <button
-        onClick={() => { setOpen(!open); if (!open) markAllRead(); }}
+        onClick={() => { setOpen(!open); if (!open) markShownRead(); }}
         aria-label="Notificaciones"
         data-tour="notifications"
         className="relative rounded-lg border border-border bg-card p-2 text-muted-foreground transition-colors hover:text-foreground hover:bg-secondary"

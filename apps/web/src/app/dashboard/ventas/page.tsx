@@ -11,6 +11,7 @@ import { PageHeader, Card } from "@/components/ui/page-header";
 import { EmptyState, ErrorState, RowsSkeleton, Skeleton } from "@/components/ui/states";
 import { useConfirm } from "@/components/ui/confirm";
 import { useApi, apiSend } from "@/hooks/use-api";
+import { todayMX } from "@/lib/day";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -73,13 +74,19 @@ const ORIGEN_LABEL: Record<Origen, string> = {
   RED_DIRECTA: "Red directa",
 };
 
+// Business day in Mexico City (not UTC): after 18:00 MX the UTC date is already tomorrow.
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  return todayMX();
 }
 
 function fmtDate(iso?: string | null) {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
+  return new Date(iso).toLocaleDateString("es-MX", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "America/Mexico_City",
+  });
 }
 
 export default function VentasPage() {

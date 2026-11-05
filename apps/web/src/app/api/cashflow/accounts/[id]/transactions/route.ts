@@ -2,20 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { requireAccess } from "@/lib/access";
 import { syncCashflowMetrics } from "@/lib/cashflow-sync";
-import { monthRangeMX, currentMonthMX } from "@/lib/day";
+import { monthRangeMX, currentMonthMX, mesMX, parseFechaMX } from "@/lib/day";
+import { isValidMes, parseTxNumericFields } from "../../../_lib/validate";
 
 export const dynamic = "force-dynamic";
-
-/** "YYYY-MM" (MX month) that a given date falls into. */
-function mesOfDate(date: Date): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Mexico_City",
-    year: "numeric",
-    month: "2-digit",
-  })
-    .format(date)
-    .slice(0, 7);
-}
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -26,6 +16,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     if (!account) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     const mes = req.nextUrl.searchParams.get("mes") || currentMonthMX();
+    if (!isValidMes(mes)) return NextResponse.json({ error: "Mes inválido" }, { status: 400 });
     const { start, end } = monthRangeMX(mes);
 
     const [before, monthTx, settings] = await Promise.all([
@@ -63,7 +54,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     });
   } catch (err) {
     console.error("cashflow transactions GET error:", err);
-    return NextResponse.json({ transactions: [] });
+    return NextResponse.json({ error: "No se pudieron cargar los movimientos" }, { status: 500 });
   }
 }
 
@@ -74,13 +65,21 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const { orgId } = access;
     const account = await db.cashFlowAccount.findFirst({ where: { id: params.id, organizationId: orgId } });
     if (!account) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    const body = await req.json();
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
+    }
 
-    const date = body.date ? new Date(body.date) : new Date();
+    // No date → now; a date that was sent must parse (never save null/1970).
+    const date = body.date === undefined ? new Date() : parseFechaMX(body.date);
+    if (!date) return NextResponse.json({ error: "Fecha inválida" }, { status: 400 });
+
+    const nums = parseTxNumericFields(body);
+    if (!nums.ok) return NextResponse.json({ error: nums.error }, { status: 400 });
 
     // Reject writes into a closed month.
     const settings = await db.cashFlowSettings.findUnique({ where: { organizationId: orgId } });
-    if (settings?.closedThroughMes && mesOfDate(date) <= settings.closedThroughMes) {
+    if (settings?.closedThroughMes && mesMX(date) <= settings.closedThroughMes) {
       return NextResponse.json({ error: "Ese mes está cerrado" }, { status: 403 });
     }
 
@@ -91,16 +90,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         date,
         bankReference: body.bankReference,
         movementType: body.movementType,
-        deposit: body.deposit === "" || body.deposit === null ? null : body.deposit !== undefined ? Number(body.deposit) : null,
-        withdrawal: body.withdrawal === "" || body.withdrawal === null ? null : body.withdrawal !== undefined ? Number(body.withdrawal) : null,
         concept: body.concept,
         provider: body.provider,
         reference: body.reference,
         invoiceUuid: body.invoiceUuid,
-        taxRate: body.taxRate === "" || body.taxRate === null ? null : body.taxRate !== undefined ? Number(body.taxRate) : null,
         salesType: body.salesType,
-        incomeCategories: body.incomeCategories,
-        expenseCategories: body.expenseCategories,
+        ...nums.data,
         notes: body.notes,
         order: count,
       },

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { requireAccess } from "@/lib/access";
+import { parseFechaMX } from "@/lib/day";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const existing = await ownRow(orgId, params.id);
   if (!existing) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
-  const body = await req.json().catch(() => ({}));
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object") {
+    return NextResponse.json({ error: "Cuerpo de la solicitud inválido" }, { status: 400 });
+  }
   const data: Record<string, unknown> = {};
 
   if (body.descripcion !== undefined) {
@@ -37,8 +41,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (body.fechaLimite === null || body.fechaLimite === "") {
       data.fechaLimite = null;
     } else {
-      const d = new Date(body.fechaLimite);
-      if (Number.isNaN(d.getTime())) return NextResponse.json({ error: "Fecha límite inválida" }, { status: 400 });
+      // A bare "YYYY-MM-DD" is that day in Mexico (stored at local noon).
+      const d = parseFechaMX(body.fechaLimite);
+      if (!d) return NextResponse.json({ error: "Fecha límite inválida" }, { status: 400 });
       data.fechaLimite = d;
     }
   }

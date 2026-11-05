@@ -24,15 +24,14 @@ export async function POST(req: NextRequest) {
 
   const incomingSecret = req.headers.get("x-make-secret");
   if (incomingSecret !== secret) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  let body: Record<string, unknown>;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  const parsed: unknown = await req.json().catch(() => null);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return NextResponse.json({ error: "Solicitud inválida" }, { status: 400 });
   }
+  const body = parsed as Record<string, unknown>;
 
   const { event, orgId } = body;
   if (!event || !orgId || typeof orgId !== "string") {
@@ -43,7 +42,7 @@ export async function POST(req: NextRequest) {
     where: { id: orgId },
     select: { id: true, name: true, ownerId: true, owner: { select: { email: true, name: true } } },
   });
-  if (!org) return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+  if (!org) return NextResponse.json({ error: "Organización no encontrada" }, { status: 404 });
 
   switch (event) {
     case "whatsapp.delivered": {

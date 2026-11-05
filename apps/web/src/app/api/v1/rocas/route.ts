@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { parseFechaMX } from "@/lib/day";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { authenticateApiKey } from "@/lib/api-key-auth";
@@ -104,8 +105,8 @@ export async function POST(req: NextRequest) {
   if (!metricaExito) return NextResponse.json({ error: "El campo 'metricaExito' es obligatorio." }, { status: 400 });
 
   const fechaLimiteRaw = body.fechaLimite ? String(body.fechaLimite).trim() : "";
-  const fechaLimite = fechaLimiteRaw ? new Date(fechaLimiteRaw) : null;
-  if (!fechaLimite || Number.isNaN(fechaLimite.getTime())) {
+  const fechaLimite = parseFechaMX(fechaLimiteRaw);
+  if (!fechaLimite) {
     return NextResponse.json({ error: "El campo 'fechaLimite' es obligatorio (usa YYYY-MM-DD)." }, { status: 400 });
   }
 

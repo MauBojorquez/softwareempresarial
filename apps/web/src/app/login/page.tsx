@@ -18,12 +18,41 @@ function GoogleIcon() {
   );
 }
 
+const DEFAULT_CALLBACK = "/dashboard/overview";
+
+/**
+ * Only same-origin relative paths are honored as post-login destinations
+ * (e.g. "/invite/{token}"), never "//host" or absolute URLs, to avoid open
+ * redirects. NextAuth may hand us an absolute URL of this same origin; that is
+ * reduced to its path.
+ */
+function safeCallback(raw: string | null): string {
+  if (!raw) return DEFAULT_CALLBACK;
+  let path = raw;
+  if (!path.startsWith("/")) {
+    try {
+      const u = new URL(path);
+      if (u.origin !== window.location.origin) return DEFAULT_CALLBACK;
+      path = u.pathname + u.search + u.hash;
+    } catch {
+      return DEFAULT_CALLBACK;
+    }
+  }
+  if (!path.startsWith("/") || path.startsWith("//") || path.startsWith("/\\")) return DEFAULT_CALLBACK;
+  return path;
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [callbackUrl, setCallbackUrl] = useState(DEFAULT_CALLBACK);
   const router = useRouter();
+
+  useEffect(() => {
+    setCallbackUrl(safeCallback(new URLSearchParams(window.location.search).get("callbackUrl")));
+  }, []);
 
   // Errors NextAuth reports via ?error= (e.g. Google sign-in of someone who is
   // not on the team and has no invitation).
@@ -48,7 +77,7 @@ export default function LoginPage() {
     if (result?.error) {
       setError("Email o contraseña incorrectos");
     } else {
-      router.push("/dashboard/overview");
+      router.push(callbackUrl);
     }
   }
 
@@ -119,7 +148,7 @@ export default function LoginPage() {
         </div>
 
         <button
-          onClick={() => signIn("google", { callbackUrl: "/dashboard/overview" })}
+          onClick={() => signIn("google", { callbackUrl })}
           className="flex w-full items-center justify-center gap-2.5 rounded-lg border border-border bg-card py-2.5 text-sm font-medium text-foreground transition-all hover:bg-secondary hover:border-primary/30 hover:shadow-md hover:-translate-y-0.5 anim-d4"
         >
           <GoogleIcon />

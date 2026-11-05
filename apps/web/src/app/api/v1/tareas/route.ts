@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { authenticateApiKey } from "@/lib/api-key-auth";
+import { currentMonthMX, dayRangeMX, fechaMX, isValidDate, parseFechaMX } from "@/lib/day";
 
 export const dynamic = "force-dynamic";
 
@@ -56,15 +57,18 @@ export async function GET(req: NextRequest) {
   if (clienteId) where.clienteId = clienteId;
   if (estatus === "PENDIENTE" || estatus === "COMPLETADA") where.estatus = estatus;
 
-  // Date range applies to fechaLimite.
+  // Date range applies to fechaLimite. Bare "YYYY-MM-DD" bounds are whole days
+  // in America/Mexico_City; full timestamps are used as given.
   const range: Prisma.DateTimeFilter = {};
-  if (desde && !Number.isNaN(new Date(desde).getTime())) range.gte = new Date(desde);
-  if (hasta && !Number.isNaN(new Date(hasta).getTime())) {
-    const end = new Date(hasta);
-    end.setHours(23, 59, 59, 999);
-    range.lte = end;
+  if (desde) {
+    if (isValidDate(desde)) range.gte = dayRangeMX(desde).start;
+    else if (!Number.isNaN(new Date(desde).getTime())) range.gte = new Date(desde);
   }
-  if (range.gte || range.lte) where.fechaLimite = range;
+  if (hasta) {
+    if (isValidDate(hasta)) range.lt = dayRangeMX(hasta).end;
+    else if (!Number.isNaN(new Date(hasta).getTime())) range.lte = new Date(hasta);
+  }
+  if (range.gte || range.lt || range.lte) where.fechaLimite = range;
 
   const rows = await db.tarea.findMany({
     where,
@@ -86,7 +90,10 @@ export async function POST(req: NextRequest) {
   if (auth instanceof NextResponse) return auth;
   const { organizationId } = auth;
 
-  const body = await req.json().catch(() => ({}));
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object") {
+    return NextResponse.json({ error: "Cuerpo de la solicitud inválido" }, { status: 400 });
+  }
 
   const titulo = String(body.titulo ?? body.descripcion ?? "").trim();
   if (!titulo) return NextResponse.json({ error: "El campo 'titulo' es obligatorio." }, { status: 400 });
@@ -97,15 +104,20 @@ export async function POST(req: NextRequest) {
   if (!cliente) return NextResponse.json({ error: "Cliente no encontrado." }, { status: 404 });
 
   // fechaLimite optional; the month is derived from it (or today).
+  // A bare "YYYY-MM-DD" is that day in Mexico (stored at local noon).
   let fechaLimite: Date | null = null;
   if (body.fechaLimite) {
-    const d = new Date(body.fechaLimite);
-    if (Number.isNaN(d.getTime())) {
+    fechaLimite = parseFechaMX(body.fechaLimite);
+    if (!fechaLimite) {
       return NextResponse.json({ error: "fechaLimite inválida (usa YYYY-MM-DD)." }, { status: 400 });
     }
-    fechaLimite = d;
   }
-  const mes = (fechaLimite ?? new Date()).toISOString().slice(0, 7);
+  const rawFecha = String(body.fechaLimite ?? "").trim();
+  const mes = isValidDate(rawFecha)
+    ? rawFecha.slice(0, 7)
+    : fechaLimite
+      ? fechaMX(fechaLimite).slice(0, 7)
+      : currentMonthMX();
 
   // Responsable: accept an id or an email; must be a member of the org. Any
   // area can be assigned (e.g. Marketing can carry an Operaciones task).

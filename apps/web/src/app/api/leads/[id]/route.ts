@@ -22,7 +22,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: "Solo puedes editar tus propios leads" }, { status: 403 });
   }
 
-  const body = await req.json().catch(() => ({}));
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object") {
+    return NextResponse.json({ error: "Cuerpo de la solicitud inválido" }, { status: 400 });
+  }
   const data: Record<string, unknown> = {};
 
   if (body.nombre !== undefined) {

@@ -46,7 +46,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: "Solo puedes anotar tus propios leads" }, { status: 403 });
   }
 
-  const body = await req.json().catch(() => ({}));
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object") {
+    return NextResponse.json({ error: "Cuerpo de la solicitud inválido" }, { status: 400 });
+  }
   const contenido = (body.contenido ?? "").toString().trim();
   if (!contenido) return NextResponse.json({ error: "La nota no puede estar vacía" }, { status: 400 });
 

@@ -3,22 +3,29 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/server/db";
 import { syncMetaAdsMetrics } from "@/server/services/integrations/meta-ads";
+import { getOrganizationId } from "@/lib/get-org";
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  const membership = await db.membership.findFirst({
-    where: { userId: session.user.id },
-  });
+  // Resolve the membership for the ACTIVE org (respects activeOrgId).
+  const activeOrgId = await getOrganizationId(req);
+  const membership = activeOrgId
+    ? await db.membership.findFirst({ where: { userId: session.user.id, organizationId: activeOrgId } })
+    : null;
 
   if (!membership) {
-    return NextResponse.json({ error: "No organization found" }, { status: 404 });
+    return NextResponse.json({ error: "Organización no encontrada" }, { status: 404 });
   }
 
-  const { type } = (await req.json()) as { type?: "META_ADS" | "ALL" };
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "Solicitud inválida" }, { status: 400 });
+  }
+  const { type } = body as { type?: "META_ADS" | "ALL" };
   const orgId = membership.organizationId;
   const results: Record<string, { success: boolean; error?: string; metricsCount?: number }> = {};
 

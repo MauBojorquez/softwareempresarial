@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { authenticateApiKey } from "@/lib/api-key-auth";
+import { ClienteEstatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -12,11 +13,17 @@ export async function GET(req: NextRequest) {
   const { organizationId } = auth;
 
   const estatus = req.nextUrl.searchParams.get("estatus");
+  if (estatus && !(Object.values(ClienteEstatus) as string[]).includes(estatus)) {
+    return NextResponse.json(
+      { error: `Estatus inválido. Usa uno de: ${Object.values(ClienteEstatus).join(", ")}` },
+      { status: 400 },
+    );
+  }
 
   const rows = await db.cliente.findMany({
     where: {
       organizationId,
-      ...(estatus ? { estatus: estatus as never } : {}),
+      ...(estatus ? { estatus: estatus as ClienteEstatus } : {}),
     },
     orderBy: { nombre: "asc" },
   });

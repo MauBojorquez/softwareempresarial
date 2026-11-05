@@ -28,7 +28,10 @@ export async function POST(req: NextRequest) {
   if (access instanceof NextResponse) return access;
   const { orgId } = access;
 
-  const body = await req.json().catch(() => ({}));
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "Solicitud inválida" }, { status: 400 });
+  }
 
   const nombre = (body.nombre ?? "").toString().trim();
   if (!nombre) return NextResponse.json({ error: "El nombre es obligatorio" }, { status: 400 });

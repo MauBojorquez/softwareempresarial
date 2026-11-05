@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import type { MetricCategory } from "@prisma/client";
 import { db } from "@/server/db";
-import { getOrganizationId } from "@/lib/get-org";
+import { can, requireAccess } from "@/lib/access";
+import { todayMX } from "@/lib/day";
+import { METRIC_CATEGORIES, isMetricCategory, metricResource } from "@/server/services/metrics/access";
 
 export const runtime = "nodejs";
 
@@ -16,31 +17,34 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 // GET /api/metrics/export?format=csv|xlsx&category=FINANCE (category optional)
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const orgId = await getOrganizationId(req);
-  if (!orgId) return NextResponse.json({ error: "No organization" }, { status: 404 });
-
   const { searchParams } = req.nextUrl;
   const format = searchParams.get("format") === "xlsx" ? "xlsx" : "csv";
   const categoryFilter = searchParams.get("category");
+  const whereCategory = isMetricCategory(categoryFilter) ? categoryFilter : undefined;
 
-  const validCategories = ["FINANCE", "SALES", "OPERATIONS", "HR", "MARKETING"];
-  const whereCategory = categoryFilter && validCategories.includes(categoryFilter)
-    ? (categoryFilter as any)
-    : undefined;
+  // A single-category export needs that category's resource; a full export
+  // (no category) is the Finanzas/Dirección view.
+  const access = await requireAccess(
+    req,
+    whereCategory ? metricResource(whereCategory) : "dashboard_direccion",
+  );
+  if (access instanceof NextResponse) return access;
+  const orgId = access.orgId;
+  // Defensive: only ever export categories the caller may read.
+  const allowedCategories: MetricCategory[] = (whereCategory ? [whereCategory] : METRIC_CATEGORIES).filter(
+    (c) => can(access.jobRole, metricResource(c)),
+  );
 
   const metrics = await db.metric.findMany({
     where: {
       organizationId: orgId,
       name: { not: { startsWith: "META_" } },
-      ...(whereCategory ? { category: whereCategory } : {}),
+      category: { in: allowedCategories },
     },
     orderBy: [{ category: "asc" }, { name: "asc" }, { period: "desc" }],
   });
 
-  const date = new Date().toISOString().split("T")[0];
+  const date = todayMX();
 
   if (format === "xlsx") {
     const XLSX = await import("xlsx");

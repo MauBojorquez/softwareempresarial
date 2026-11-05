@@ -4,8 +4,12 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/server/db";
 
 export async function POST(req: NextRequest) {
-  const { token } = (await req.json()) as { token: string };
-  if (!token) return NextResponse.json({ error: "Token required" }, { status: 400 });
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "Solicitud inválida" }, { status: 400 });
+  }
+  const token = typeof body.token === "string" ? body.token : "";
+  if (!token) return NextResponse.json({ error: "Token requerido" }, { status: 400 });
 
   const invitation = await db.invitation.findUnique({
     where: { token },
@@ -26,8 +30,9 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // Verify the logged-in user's email matches the invitation
-  if (session.user.email !== invitation.email) {
+  // Verify the logged-in user's email matches the invitation (case-insensitive).
+  const sessionEmail = (session.user.email ?? "").trim().toLowerCase();
+  if (!sessionEmail || sessionEmail !== invitation.email.trim().toLowerCase()) {
     return NextResponse.json({
       error: `Esta invitación es para ${invitation.email}. Inicia sesión con ese correo.`,
     }, { status: 403 });

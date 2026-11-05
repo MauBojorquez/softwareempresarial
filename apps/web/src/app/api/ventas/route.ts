@@ -3,6 +3,7 @@ import type { LeadOrigen, ReceivableTipo, Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { requireAccess } from "@/lib/access";
 import { logActivity } from "@/lib/activity";
+import { monthRangeMX, parseFechaMX } from "@/lib/day";
 
 export const dynamic = "force-dynamic";
 
@@ -44,14 +45,14 @@ export async function GET(req: NextRequest) {
     vendedorNombre: v.vendedor?.name ?? v.vendedor?.email ?? null,
   }));
 
-  // Totals: current month and all-time.
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  // Totals: current month (America/Mexico_City) and all-time.
+  const { start: monthStart, end: monthEnd } = monthRangeMX();
   const totals = ventas.reduce(
     (acc, v) => {
       acc.totalCount += 1;
       acc.totalMonto += v.monto;
-      if (new Date(v.fechaCierre) >= monthStart) {
+      const cierre = new Date(v.fechaCierre);
+      if (cierre >= monthStart && cierre < monthEnd) {
         acc.mesCount += 1;
         acc.mesMonto += v.monto;
       }
@@ -73,7 +74,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Solo Dirección puede capturar ventas manuales" }, { status: 403 });
   }
 
-  const body = await req.json().catch(() => ({}));
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object") {
+    return NextResponse.json({ error: "Cuerpo de la solicitud inválido" }, { status: 400 });
+  }
 
   const monto = Number(body.monto);
   if (!Number.isFinite(monto) || monto <= 0) {
@@ -85,8 +89,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "El tipo es obligatorio (RECURRENTE o UNICA)" }, { status: 400 });
   }
 
-  if (!body.fechaCierre || Number.isNaN(new Date(body.fechaCierre).getTime())) {
+  // "YYYY-MM-DD" means that day in Mexico (stored at local noon), so a sale of
+  // the 1st never lands in the previous month.
+  const fechaCierre = parseFechaMX(body.fechaCierre);
+  if (!fechaCierre) {
     return NextResponse.json({ error: "La fecha de cierre es obligatoria" }, { status: 400 });
+  }
+  let fechaCobroEsperada: Date | null = null;
+  if (body.fechaCobroEsperada) {
+    fechaCobroEsperada = parseFechaMX(body.fechaCobroEsperada);
+    if (!fechaCobroEsperada) {
+      return NextResponse.json({ error: "La fecha de cobro esperada es inválida" }, { status: 400 });
+    }
   }
 
   let clienteId: string | null = null;
@@ -120,8 +134,8 @@ export async function POST(req: NextRequest) {
       clienteId,
       vendedorId,
       origen,
-      fechaCierre: new Date(body.fechaCierre),
-      fechaCobroEsperada: body.fechaCobroEsperada ? new Date(body.fechaCobroEsperada) : null,
+      fechaCierre,
+      fechaCobroEsperada,
     },
   });
 

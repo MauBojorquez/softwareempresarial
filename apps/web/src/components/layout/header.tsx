@@ -32,6 +32,9 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const [searching, setSearching] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<NodeJS.Timeout>();
+  // Each search gets a sequence number; only the latest one may update state,
+  // so a slow earlier response can't overwrite newer results.
+  const searchSeq = useRef(0);
 
   const me = useMe();
   useEffect(() => {
@@ -49,15 +52,19 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const handleSearch = (value: string) => {
     setQuery(value);
     clearTimeout(debounceRef.current);
-    if (value.trim().length < 2) { setResults([]); setShowResults(false); return; }
+    const seq = ++searchSeq.current;
+    if (value.trim().length < 2) { setResults([]); setShowResults(false); setSearching(false); return; }
     debounceRef.current = setTimeout(async () => {
       setSearching(true);
+      let next: SearchResult[] = [];
       try {
         const res = await fetch(`/api/search?q=${encodeURIComponent(value.trim())}`);
         const data = await res.json();
-        setResults(data.results || []);
-        setShowResults(true);
-      } catch { setResults([]); }
+        next = data.results || [];
+      } catch { next = []; }
+      if (seq !== searchSeq.current) return; // a newer search superseded this one
+      setResults(next);
+      setShowResults(true);
       setSearching(false);
     }, 300);
   };

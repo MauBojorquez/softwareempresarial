@@ -3,11 +3,12 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/server/db";
 import bcrypt from "bcryptjs";
+import { getOrganizationId } from "@/lib/get-org";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
   try {
@@ -16,14 +17,18 @@ export async function GET() {
       select: { id: true, name: true, email: true, theme: true, avatar: true, activeOrgId: true, createdAt: true, phone: true, notifyEmail: true, notifyWhatsapp: true },
     });
 
-    const membership = await db.membership.findFirst({
-      where: { userId: session.user.id },
-      include: {
-        organization: {
-          select: { id: true, name: true, industry: true, logo: true, brandColor: true },
-        },
-      },
-    });
+    // Membership for the ACTIVE org (respects activeOrgId).
+    const orgId = await getOrganizationId(req);
+    const membership = orgId
+      ? await db.membership.findFirst({
+          where: { userId: session.user.id, organizationId: orgId },
+          include: {
+            organization: {
+              select: { id: true, name: true, industry: true, logo: true, brandColor: true },
+            },
+          },
+        })
+      : null;
 
     return NextResponse.json({
       user,
@@ -45,15 +50,18 @@ export async function PATCH(req: NextRequest) {
   const origin = req.headers.get("origin");
   const host = req.headers.get("host");
   if (origin && host && !origin.includes(host.split(":")[0])) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json({ error: "Sin permiso" }, { status: 403 });
   }
 
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  const body = await req.json();
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "Solicitud inválida" }, { status: 400 });
+  }
   const { name, theme, orgName, industry, currentPassword, newPassword, avatar, phone, notifyEmail, notifyWhatsapp } = body;
 
   const updates: Record<string, unknown> = {};
@@ -78,7 +86,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (newPassword) {
-    if (!currentPassword) {
+    if (typeof newPassword !== "string" || typeof currentPassword !== "string" || !currentPassword) {
       return NextResponse.json({ error: "Se requiere la contraseña actual" }, { status: 400 });
     }
     const user = await db.user.findUnique({ where: { id: session.user.id } });
@@ -100,7 +108,10 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (orgName || industry !== undefined) {
-    const membership = await db.membership.findFirst({ where: { userId: session.user.id } });
+    const orgId = await getOrganizationId(req);
+    const membership = orgId
+      ? await db.membership.findFirst({ where: { userId: session.user.id, organizationId: orgId } })
+      : null;
     // Only ADMINs may rename the organization or change its industry.
     if (membership && membership.role === "ADMIN") {
       const orgUpdates: Record<string, unknown> = {};
@@ -119,15 +130,18 @@ export async function DELETE(req: NextRequest) {
   const origin = req.headers.get("origin");
   const host = req.headers.get("host");
   if (origin && host && !origin.includes(host.split(":")[0])) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json({ error: "Sin permiso" }, { status: 403 });
   }
 
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  const body = await req.json();
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "Solicitud inválida" }, { status: 400 });
+  }
   if (body.confirmation !== "ELIMINAR") {
     return NextResponse.json({ error: "Confirmación incorrecta" }, { status: 400 });
   }

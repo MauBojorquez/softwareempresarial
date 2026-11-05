@@ -6,7 +6,7 @@ import { db } from "@/server/db";
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
   try {
@@ -29,24 +29,31 @@ export async function GET() {
 export async function PATCH(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  try {
-    const { action, id } = await req.json();
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "Solicitud inválida" }, { status: 400 });
+  }
+  const { action, id } = body as { action?: unknown; id?: unknown };
 
+  try {
     if (action === "read_all") {
       await db.notification.updateMany({
         where: { userId: session.user.id, read: false },
         data: { read: true },
       });
-    } else if (action === "read" && id) {
+    } else if (action === "read" && typeof id === "string" && id) {
       await db.notification.updateMany({
         where: { id, userId: session.user.id },
         data: { read: true },
       });
     }
-  } catch {}
+  } catch (err) {
+    console.error("notifications PATCH failed:", err);
+    return NextResponse.json({ error: "No se pudieron actualizar las notificaciones" }, { status: 500 });
+  }
 
   return NextResponse.json({ ok: true });
 }
@@ -54,14 +61,17 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
   try {
     await db.notification.deleteMany({
       where: { userId: session.user.id },
     });
-  } catch {}
+  } catch (err) {
+    console.error("notifications DELETE failed:", err);
+    return NextResponse.json({ error: "No se pudieron eliminar las notificaciones" }, { status: 500 });
+  }
 
   return NextResponse.json({ ok: true });
 }

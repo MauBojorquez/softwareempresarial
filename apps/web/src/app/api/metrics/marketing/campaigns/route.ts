@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { db } from "@/server/db";
+import { requireAccess } from "@/lib/access";
+import { currentMonthMX, shiftDate, shiftMonth, todayMX } from "@/lib/day";
 
 async function fetchWithTimeout(url: string, ms = 10000): Promise<Response> {
   const controller = new AbortController();
@@ -144,18 +144,9 @@ function resultLabel(type: string | null): string {
 }
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const membership = await db.membership.findFirst({
-    where: { userId: session.user.id },
-  });
-
-  if (!membership) {
-    return NextResponse.json({ error: "No organization" }, { status: 404 });
-  }
+  const access = await requireAccess(req, "marketing");
+  if (access instanceof NextResponse) return access;
+  const membership = { organizationId: access.orgId };
 
   const integration = await db.integration.findFirst({
     where: { organizationId: membership.organizationId, type: "META_ADS", isActive: true },
@@ -165,7 +156,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ connected: false });
   }
 
-  const months = Math.min(Math.max(parseInt(req.nextUrl.searchParams.get("months") || "6"), 1), 12);
+  const monthsRaw = parseInt(req.nextUrl.searchParams.get("months") || "6", 10);
+  const months = Number.isFinite(monthsRaw) ? Math.min(Math.max(monthsRaw, 1), 12) : 6;
   const selectedAccountId = req.nextUrl.searchParams.get("accountId");
   const accessToken = integration.accessToken;
   const metadata = integration.metadata as any;
@@ -211,10 +203,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ connected: true, campaigns: [], monthly: [], adAccounts, error: "Cuenta no encontrada" });
     }
 
-    const now = new Date();
-    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const sinceCurrent = thisMonthStart.toISOString().split("T")[0];
-    const untilCurrent = now.toISOString().split("T")[0];
+    // Meta date ranges are calendar days of the business (Mexico City) day, not
+    // UTC — otherwise from 18:00 MX on the last day we'd ask for next month.
+    const hoy = todayMX();
+    const mesActual = currentMonthMX();
+    const sinceCurrent = `${mesActual}-01`;
+    const untilCurrent = hoy;
 
     // Fetch campaigns from all accounts in parallel
     const campaignResults = await Promise.allSettled(
@@ -288,12 +282,17 @@ export async function GET(req: NextRequest) {
 
     // Build month ranges
     const monthRanges = Array.from({ length: months }, (_, i) => {
-      const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const end = i === 0 ? now : new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
+      const mes = shiftMonth(mesActual, -i);
+      const [y, m] = mes.split("-").map(Number);
       return {
-        since: start.toISOString().split("T")[0]!,
-        until: end.toISOString().split("T")[0]!,
-        monthName: start.toLocaleDateString("es-MX", { month: "short", year: "numeric" }),
+        since: `${mes}-01`,
+        // Last day of the month, or today for the current month.
+        until: i === 0 ? hoy : shiftDate(`${shiftMonth(mes, 1)}-01`, -1),
+        monthName: new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("es-MX", {
+          month: "short",
+          year: "numeric",
+          timeZone: "UTC",
+        }),
       };
     });
 

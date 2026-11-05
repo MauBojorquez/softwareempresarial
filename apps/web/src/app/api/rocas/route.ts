@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { requireAccess } from "@/lib/access";
+import { parseFechaMX } from "@/lib/day";
 import { logActivity } from "@/lib/activity";
 import { currentMonthMX } from "@/lib/day";
 import { rocaColor } from "@/lib/roca-color";
+import { ensureMonthStarted } from "@/server/services/month/start";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +53,8 @@ export async function GET(req: NextRequest) {
   const mesParam = req.nextUrl.searchParams.get("mes");
   const mes = mesParam && MES_RE.test(mesParam) ? mesParam : currentMonthMX();
 
+  await ensureMonthStarted(orgId).catch((e) => console.error("month start failed:", e));
+
   const rows = await db.roca.findMany({
     where: { organizationId: orgId, mes },
     orderBy: [{ createdAt: "asc" }],
@@ -63,15 +67,12 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ mes, rocas: rows.map(shape) });
 }
 
-// POST /api/rocas — create a roca (DIRECCION only).
+// POST /api/rocas — create a roca. Everyone fills their own rocas (the dueño
+// is always the caller); Dirección can also create rocas for anyone.
 export async function POST(req: NextRequest) {
   const access = await requireAccess(req, "rocas");
   if (access instanceof NextResponse) return access;
   const { orgId, jobRole, userId } = access;
-
-  if (jobRole !== "DIRECCION") {
-    return NextResponse.json({ error: "Solo Dirección puede crear rocas" }, { status: 403 });
-  }
 
   const body = await req.json().catch(() => ({}));
 
@@ -81,11 +82,11 @@ export async function POST(req: NextRequest) {
   const metricaExito = (body.metricaExito ?? "").toString().trim();
   if (!metricaExito) return NextResponse.json({ error: "La métrica de éxito es obligatoria" }, { status: 400 });
 
-  if (!body.fechaLimite || Number.isNaN(new Date(body.fechaLimite).getTime())) {
+  if (!parseFechaMX(body.fechaLimite)) {
     return NextResponse.json({ error: "La fecha límite es obligatoria" }, { status: 400 });
   }
 
-  const duenoId = (body.duenoId ?? "").toString().trim();
+  const duenoId = jobRole === "DIRECCION" ? (body.duenoId ?? "").toString().trim() || userId : userId;
   if (!duenoId) return NextResponse.json({ error: "El dueño es obligatorio" }, { status: 400 });
   const member = await db.membership.findFirst({ where: { userId: duenoId, organizationId: orgId } });
   if (!member) return NextResponse.json({ error: "Dueño no válido" }, { status: 400 });
@@ -120,8 +121,8 @@ export async function POST(req: NextRequest) {
       organizationId: orgId,
       titulo,
       metricaExito,
-      fechaLimite: new Date(body.fechaLimite),
-      estatus: rocaColor(new Date(), new Date(body.fechaLimite), porcentajeAvance),
+      fechaLimite: parseFechaMX(body.fechaLimite)!,
+      estatus: rocaColor(new Date(), parseFechaMX(body.fechaLimite)!, porcentajeAvance),
       porcentajeAvance,
       usaChecklist,
       mes,

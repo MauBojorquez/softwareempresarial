@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useId, useRef } from "react";
 import {
   Gauge, Pencil, Check, X, CheckCircle2, Clock, Mountain,
   Users, TrendingUp, Filter, Lock,
@@ -12,6 +12,7 @@ import { MoneyInput } from "@/components/ui/field";
 import { PageHeader, Card } from "@/components/ui/page-header";
 import { EmptyState, ErrorState, Skeleton, CardsSkeleton, RowsSkeleton } from "@/components/ui/states";
 import { cn, formatCurrency } from "@/lib/utils";
+import { currentMonthMX, todayMX } from "@/lib/day";
 
 type JobRole = "DIRECCION" | "OPERACIONES" | "COMERCIAL" | "MARKETING" | "ADMINISTRACION";
 type Salud = "VERDE" | "AMARILLO" | "ROJO";
@@ -41,6 +42,12 @@ interface EmbudoRow { etapa: string; count: number; pctOfTotal: number; valor: n
 interface VendedorRow { userId: string; name: string; meta: number; vendido: number; cobrado: number; avancePct: number; }
 interface ReporteRow { userId: string; name: string; jobRole: JobRole | null; submitted: boolean; payload: Record<string, unknown> | null; }
 interface RocaRow { id: string; titulo: string; metricaExito: string; fechaLimite: string; estatus: Salud; porcentajeAvance: number; duenoNombre: string | null; }
+
+interface TargetsData {
+  mes: string;
+  monthlyMeta: number;
+  vendors: { userId: string; name: string; meta: number }[];
+}
 
 interface Data {
   mes: string; hoy: string;
@@ -82,7 +89,9 @@ const ESTATUS_LABEL: Record<Estatus, string> = {
 function fmtDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("es-MX", { day: "2-digit", month: "short" });
+  // Deadlines are calendar days in Mexico (stored at MX noon); formatting in the
+  // browser's zone could show them a day early.
+  return d.toLocaleDateString("es-MX", { day: "2-digit", month: "short", timeZone: "America/Mexico_City" });
 }
 function pct(n: number): string {
   return `${n.toFixed(0)}%`;
@@ -98,35 +107,68 @@ function SaludBadge({ value, className }: { value: Salud; className?: string }) 
 
 type ToastFn = ReturnType<typeof useToast>["toast"];
 
-/** Inline money editor for a meta: Enter saves, Escape cancels. */
+/**
+ * Inline money editor for a meta: Enter saves, Escape cancels. An empty or
+ * invalid amount stays in the editor with an error instead of saving $0.
+ */
 function MetaEditor({ initial, label, saving, onSave, onCancel }: {
-  initial: string; label: string; saving: boolean; onSave: (v: string) => void; onCancel: () => void;
+  initial: string; label: string; saving: boolean; onSave: (v: number) => void; onCancel: () => void;
 }) {
   const [val, setVal] = useState(initial);
+  const [fieldError, setFieldError] = useState<string | null>(null);
+  const errorId = useId();
+
+  const submit = () => {
+    const raw = val.trim();
+    const n = Number(raw);
+    if (raw === "") {
+      setFieldError("Escribe un monto");
+      return;
+    }
+    if (!Number.isFinite(n) || n < 0) {
+      setFieldError("Monto no válido");
+      return;
+    }
+    setFieldError(null);
+    onSave(n);
+  };
+
   return (
-    <div className="flex items-center gap-1">
-      <div className="w-32">
-        <MoneyInput
-          type="number"
-          min={0}
-          step="any"
-          autoFocus
-          aria-label={label}
-          value={val}
-          onChange={(e) => setVal(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") onSave(val);
-            if (e.key === "Escape") onCancel();
-          }}
-          className="h-9 text-sm"
-        />
+    <div className="flex flex-col items-end gap-1">
+      <div className="flex items-center gap-1">
+        <div className="w-32">
+          <MoneyInput
+            type="number"
+            min={0}
+            step="any"
+            autoFocus
+            aria-label={label}
+            aria-invalid={fieldError ? true : undefined}
+            aria-describedby={fieldError ? errorId : undefined}
+            value={val}
+            onChange={(e) => {
+              setVal(e.target.value);
+              if (fieldError) setFieldError(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submit();
+              if (e.key === "Escape") onCancel();
+            }}
+            className="h-9 text-sm"
+          />
+        </div>
+        <Button variant="ghost" size="icon-sm" className="h-9 w-9 text-success hover:text-success" onClick={submit} loading={saving} aria-label="Guardar">
+          {!saving && <Check />}
+        </Button>
+        <Button variant="ghost" size="icon-sm" className="h-9 w-9" onClick={onCancel} disabled={saving} aria-label="Cancelar">
+          <X />
+        </Button>
       </div>
-      <Button variant="ghost" size="icon-sm" className="h-9 w-9 text-success hover:text-success" onClick={() => onSave(val)} loading={saving} aria-label="Guardar">
-        {!saving && <Check />}
-      </Button>
-      <Button variant="ghost" size="icon-sm" className="h-9 w-9" onClick={onCancel} disabled={saving} aria-label="Cancelar">
-        <X />
-      </Button>
+      {fieldError && (
+        <p id={errorId} role="alert" className="text-xs font-medium text-destructive">
+          {fieldError}
+        </p>
+      )}
     </div>
   );
 }
@@ -208,6 +250,41 @@ export default function DireccionDashboardPage() {
     if (error && hadData.current) toast(error, "error", { action: { label: "Reintentar", onClick: reload } });
   }, [error, reload, toast]);
 
+  // A board left open past midnight is stale (new day, maybe a new month):
+  // refetch when the tab comes back and the MX day differs from the loaded one.
+  const dataRef = useRef<Data | null>(null);
+  dataRef.current = data;
+  useEffect(() => {
+    const check = () => {
+      const d = dataRef.current;
+      if (d && d.hoy !== todayMX()) reload();
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") check();
+    };
+    window.addEventListener("focus", check);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("focus", check);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [reload]);
+
+  /**
+   * Month a meta edit applies to. The board always shows the current MX month
+   * as of its load; if the month has turned since, saving would write last
+   * month's target, so refresh the board instead and return null.
+   */
+  const metaMes = (): string | null => {
+    const cur = currentMonthMX();
+    if (dataRef.current && dataRef.current.mes !== cur) {
+      toast("Cambió el mes; se actualizó el tablero. Vuelve a capturar la meta.", "info");
+      reload();
+      return null;
+    }
+    return cur;
+  };
+
   const header = (description?: string) => (
     <PageHeader icon={Gauge} title="Dirección" description={description} />
   );
@@ -251,13 +328,13 @@ export default function DireccionDashboardPage() {
     <div className="space-y-6">
       {header(`Panorama del mes ${data.mes}`)}
 
-      <NumeroCriticoHero nc={data.numeroCritico} mes={data.mes} onSaved={reload} toast={toast} />
+      <NumeroCriticoHero nc={data.numeroCritico} metaMes={metaMes} onSaved={reload} toast={toast} />
 
       <CarteraBlock cartera={data.cartera} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <EmbudoBlock rows={data.embudo} />
-        <VendedoresBlock rows={data.ventasPorVendedor} mes={data.mes} onSaved={reload} toast={toast} />
+        <VendedoresBlock rows={data.ventasPorVendedor} mes={data.mes} metaMes={metaMes} onSaved={reload} toast={toast} />
       </div>
 
       <ReportesBlock rows={data.reportesHoy} hoy={data.hoy} />
@@ -268,16 +345,21 @@ export default function DireccionDashboardPage() {
 }
 
 // ── 1. Número Crítico ──
-function NumeroCriticoHero({ nc, mes, onSaved, toast }: {
-  nc: NumeroCritico; mes: string; onSaved: () => void; toast: ToastFn;
+function NumeroCriticoHero({ nc, metaMes, onSaved, toast }: {
+  nc: NumeroCritico; metaMes: () => string | null; onSaved: () => void; toast: ToastFn;
 }) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const save = async (val: string) => {
+  const save = async (meta: number) => {
+    const mes = metaMes();
+    if (!mes) {
+      setEditing(false);
+      return;
+    }
     setSaving(true);
     try {
-      await apiSend("/api/targets", "PUT", { mes, monthlyMeta: Number(val) });
+      await apiSend("/api/targets", "PUT", { mes, monthlyMeta: meta });
       toast("Meta actualizada", "success");
       setEditing(false);
       onSaved();
@@ -476,19 +558,42 @@ function EmbudoBlock({ rows }: { rows: EmbudoRow[] }) {
 }
 
 // ── 4. Ventas por vendedor ──
-function VendedoresBlock({ rows, mes, onSaved, toast }: {
-  rows: VendedorRow[]; mes: string; onSaved: () => void; toast: ToastFn;
+function VendedoresBlock({ rows: ventas, mes, metaMes, onSaved, toast }: {
+  rows: VendedorRow[]; mes: string; metaMes: () => string | null; onSaved: () => void; toast: ToastFn;
 }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // Every vendedor (COMERCIAL/DIRECCION) can carry a target, sale or not: the
+  // board's rows only list who already has a target or a sale, which on day 1
+  // of the month is nobody.
+  const targets = useApi<TargetsData>(`/api/targets?mes=${mes}`);
 
-  const save = async (userId: string, val: string) => {
+  const rows: VendedorRow[] = (() => {
+    const ventaByUser = new Map(ventas.map((r) => [r.userId, r]));
+    const out: VendedorRow[] = (targets.data?.vendors ?? []).map((v) => {
+      const venta = ventaByUser.get(v.userId);
+      if (venta) return venta;
+      return { userId: v.userId, name: v.name, meta: v.meta, vendido: 0, cobrado: 0, avancePct: 0 };
+    });
+    const listed = new Set(out.map((r) => r.userId));
+    // Sales owned by someone outside the vendedor puestos still show up.
+    for (const r of ventas) if (!listed.has(r.userId)) out.push(r);
+    return out;
+  })();
+
+  const save = async (userId: string, meta: number) => {
+    const mesMeta = metaMes();
+    if (!mesMeta) {
+      setEditing(null);
+      return;
+    }
     setSaving(true);
     try {
-      await apiSend("/api/targets", "PUT", { mes, vendors: [{ userId, meta: Number(val) }] });
+      await apiSend("/api/targets", "PUT", { mes: mesMeta, vendors: [{ userId, meta }] });
       toast("Meta actualizada", "success");
       setEditing(null);
       onSaved();
+      targets.reload();
     } catch (e) {
       toast(e instanceof Error ? e.message : "No se pudo guardar", "error");
     }
@@ -515,7 +620,13 @@ function VendedoresBlock({ rows, mes, onSaved, toast }: {
     <Card className="p-5">
       <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-foreground"><TrendingUp className="h-5 w-5 text-primary" /> Ventas por vendedor</h2>
       {rows.length === 0 ? (
-        <EmptyState icon={TrendingUp} title="Sin vendedores" description="No hay vendedores con ventas este mes." className="py-8" />
+        targets.initialLoading ? (
+          <RowsSkeleton rows={3} />
+        ) : targets.error ? (
+          <ErrorState message={targets.error} onRetry={targets.reload} />
+        ) : (
+          <EmptyState icon={TrendingUp} title="Sin vendedores" description="No hay miembros con puesto Comercial o Dirección." className="py-8" />
+        )
       ) : (
       <>
       <div className="hidden overflow-x-auto sm:block">

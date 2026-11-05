@@ -2,39 +2,35 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { requireAccess } from "@/lib/access";
 import { syncCashflowMetrics } from "@/lib/cashflow-sync";
+import { mesMX, parseFechaMX } from "@/lib/day";
+import { parseTxNumericFields } from "../../_lib/validate";
 
 export const dynamic = "force-dynamic";
-
-/** "YYYY-MM" (MX month) that a given date falls into. */
-function mesOfDate(date: Date): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Mexico_City",
-    year: "numeric",
-    month: "2-digit",
-  })
-    .format(date)
-    .slice(0, 7);
-}
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const access = await requireAccess(req, "flujo");
   if (access instanceof NextResponse) return access;
   const { orgId } = access;
-  const body = await req.json();
-  const data: Record<string, unknown> = {};
-  if (body.date !== undefined) data.date = new Date(body.date);
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
+  }
+  const nums = parseTxNumericFields(body);
+  if (!nums.ok) return NextResponse.json({ error: nums.error }, { status: 400 });
+  const data: Record<string, unknown> = { ...nums.data };
+  let newDate: Date | null = null;
+  if (body.date !== undefined) {
+    newDate = parseFechaMX(body.date);
+    if (!newDate) return NextResponse.json({ error: "Fecha inválida" }, { status: 400 });
+    data.date = newDate;
+  }
   if (body.bankReference !== undefined) data.bankReference = body.bankReference;
   if (body.movementType !== undefined) data.movementType = body.movementType;
-  if (body.deposit !== undefined) data.deposit = body.deposit === "" || body.deposit === null ? null : Number(body.deposit);
-  if (body.withdrawal !== undefined) data.withdrawal = body.withdrawal === "" || body.withdrawal === null ? null : Number(body.withdrawal);
   if (body.concept !== undefined) data.concept = body.concept;
   if (body.provider !== undefined) data.provider = body.provider;
   if (body.reference !== undefined) data.reference = body.reference;
   if (body.invoiceUuid !== undefined) data.invoiceUuid = body.invoiceUuid;
-  if (body.taxRate !== undefined) data.taxRate = body.taxRate === "" || body.taxRate === null ? null : Number(body.taxRate);
   if (body.salesType !== undefined) data.salesType = body.salesType;
-  if (body.incomeCategories !== undefined) data.incomeCategories = body.incomeCategories;
-  if (body.expenseCategories !== undefined) data.expenseCategories = body.expenseCategories;
   if (body.notes !== undefined) data.notes = body.notes;
 
   // Ensure the transaction belongs to an account in this org before updating
@@ -66,10 +62,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   // — when the date is being changed — its new month).
   const settings = await db.cashFlowSettings.findUnique({ where: { organizationId: orgId } });
   if (settings?.closedThroughMes) {
-    if (mesOfDate(tx.date) <= settings.closedThroughMes) {
+    if (mesMX(tx.date) <= settings.closedThroughMes) {
       return NextResponse.json({ error: "Ese mes está cerrado" }, { status: 403 });
     }
-    if (body.date !== undefined && mesOfDate(new Date(body.date)) <= settings.closedThroughMes) {
+    if (newDate && mesMX(newDate) <= settings.closedThroughMes) {
       return NextResponse.json({ error: "Ese mes está cerrado" }, { status: 403 });
     }
   }
@@ -92,7 +88,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   }
 
   const settings = await db.cashFlowSettings.findUnique({ where: { organizationId: orgId } });
-  if (settings?.closedThroughMes && mesOfDate(tx.date) <= settings.closedThroughMes) {
+  if (settings?.closedThroughMes && mesMX(tx.date) <= settings.closedThroughMes) {
     return NextResponse.json({ error: "Ese mes está cerrado" }, { status: 403 });
   }
 

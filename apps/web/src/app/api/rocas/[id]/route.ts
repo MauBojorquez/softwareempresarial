@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { requireAccess } from "@/lib/access";
+import { parseFechaMX } from "@/lib/day";
 import { recomputeRocaProgress } from "@/lib/roca-checklist";
 import { syncRocaColor } from "@/lib/roca-status";
 
@@ -12,8 +13,8 @@ async function ownRow(orgId: string, id: string) {
   return db.roca.findFirst({ where: { id, organizationId: orgId } });
 }
 
-// PATCH /api/rocas/[id] — DIRECCION edits all fields; the dueño edits ONLY
-// porcentajeAvance (for manual rocas); everyone else 403. estatus (color) is
+// PATCH /api/rocas/[id] — the dueño edits their own roca (everything except
+// reassigning it); DIRECCION edits any roca, dueño included; everyone else 403. estatus (color) is
 // derived on read and never accepted from the client. Gated by "rocas".
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const access = await requireAccess(req, "rocas");
@@ -35,7 +36,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   // Fields any owner (or Dirección) may change.
   // For a checklist roca, porcentajeAvance is derived from items — ignore any
   // manual value sent in the body (the dueño changes it by toggling items).
-  if (body.porcentajeAvance !== undefined && !existing.usaChecklist) {
+  if (body.porcentajeAvance !== undefined && (!existing.usaChecklist || body.usaChecklist === false)) {
     const p = Number(body.porcentajeAvance);
     if (!Number.isInteger(p) || p < 0 || p > 100) {
       return NextResponse.json({ error: "El porcentaje de avance debe ser un entero entre 0 y 100" }, { status: 400 });
@@ -45,8 +46,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   // estatus (color) is derived from fechaLimite + porcentajeAvance on read;
   // any client-sent estatus is ignored.
 
-  // Dirección-only fields.
-  if (isDireccion) {
+  // Fields the dueño and Dirección may change (reassigning is Dirección-only).
+  if (isDireccion || isDueno) {
     if (body.titulo !== undefined) {
       const titulo = String(body.titulo).trim();
       if (!titulo) return NextResponse.json({ error: "El título es obligatorio" }, { status: 400 });
@@ -58,17 +59,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       data.metricaExito = metricaExito;
     }
     if (body.fechaLimite !== undefined) {
-      if (!body.fechaLimite || Number.isNaN(new Date(body.fechaLimite).getTime())) {
+      if (!parseFechaMX(body.fechaLimite)) {
         return NextResponse.json({ error: "Fecha límite inválida" }, { status: 400 });
       }
-      data.fechaLimite = new Date(body.fechaLimite);
+      data.fechaLimite = parseFechaMX(body.fechaLimite);
     }
     if (body.mes !== undefined) {
       const mes = String(body.mes).trim();
       if (!MES_RE.test(mes)) return NextResponse.json({ error: "El mes debe tener el formato YYYY-MM" }, { status: 400 });
       data.mes = mes;
     }
-    if (body.duenoId !== undefined) {
+    if (body.duenoId !== undefined && isDireccion) {
       const duenoId = String(body.duenoId).trim();
       const member = await db.membership.findFirst({ where: { userId: duenoId, organizationId: orgId } });
       if (!member) return NextResponse.json({ error: "Dueño no válido" }, { status: 400 });
@@ -80,7 +81,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   // When enabling checklist mode, the % is derived — never keep a manual value.
-  const enablingChecklist = isDireccion && data.usaChecklist === true;
+  const enablingChecklist = data.usaChecklist === true;
   if (enablingChecklist) delete data.porcentajeAvance;
 
   if (Object.keys(data).length === 0) {
@@ -131,18 +132,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   });
 }
 
-// DELETE /api/rocas/[id] — DIRECCION only. Gated by "rocas".
+// DELETE /api/rocas/[id] — the dueño or DIRECCION. Gated by "rocas".
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   const access = await requireAccess(req, "rocas");
   if (access instanceof NextResponse) return access;
-  const { orgId, jobRole } = access;
-
-  if (jobRole !== "DIRECCION") {
-    return NextResponse.json({ error: "Solo Dirección puede eliminar rocas" }, { status: 403 });
-  }
+  const { orgId, jobRole, userId } = access;
 
   const existing = await ownRow(orgId, params.id);
   if (!existing) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+  if (jobRole !== "DIRECCION" && existing.duenoId !== userId) {
+    return NextResponse.json({ error: "Solo puedes eliminar tus propias rocas" }, { status: 403 });
+  }
 
   await db.roca.delete({ where: { id: params.id } });
   return NextResponse.json({ ok: true });

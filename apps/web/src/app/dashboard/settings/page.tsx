@@ -116,6 +116,8 @@ export default function SettingsPage() {
   const confirm = useConfirm();
 
   const [isAdmin, setIsAdmin] = useState(false);
+  // Membership role (ADMIN/EDITOR/VIEWER); viewers can't create/delete alerts.
+  const [memberRole, setMemberRole] = useState<string | null>(null);
   const [profile, setProfile] = useState({ name: "", email: "" });
   const [org, setOrg] = useState({ name: "", industry: "" });
   const [avatar, setAvatar] = useState<string | null>(null);
@@ -141,7 +143,6 @@ export default function SettingsPage() {
 
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleting, setDeleting] = useState(false);
-  const [clearingData, setClearingData] = useState(false);
   const [exportingCSV, setExportingCSV] = useState(false);
 
   const [savingMemberId, setSavingMemberId] = useState<string | null>(null);
@@ -205,9 +206,11 @@ export default function SettingsPage() {
         if (data.organization.logo) setOrgLogo(data.organization.logo);
         if (data.organization.brandColor) setBrandColor(data.organization.brandColor);
       }
-      // Org/admin sections are Dirección-only. DIRECCION == ADMIN membership
-      // here; accept either signal from /api/user.
-      setIsAdmin(data.role === "ADMIN" || data.jobRole === "DIRECCION");
+      // Org/admin sections (members, invitations, API keys, branding, org
+      // name) are enforced server-side on the ADMIN membership role only, so
+      // gate on exactly that; jobRole DIRECCION alone would just get 403s.
+      setIsAdmin(data.role === "ADMIN");
+      setMemberRole(data.role ?? null);
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : "Sin conexión con el servidor.");
     }
@@ -241,11 +244,18 @@ export default function SettingsPage() {
       const res = await fetch("/api/user", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: profile.name, orgName: org.name, industry: org.industry, theme, avatar }),
+        // Org fields are only applied server-side for admins; don't send them
+        // (and imply they were saved) otherwise.
+        body: JSON.stringify({
+          name: profile.name,
+          theme,
+          avatar,
+          ...(isAdmin ? { orgName: org.name, industry: org.industry } : {}),
+        }),
       });
       const data = await res.json();
       if (res.ok) {
-        toast("Perfil actualizado", "success");
+        toast(isAdmin ? "Perfil y empresa actualizados" : "Perfil actualizado", "success");
         await updateSession({ name: profile.name });
         // Sidebar / header read the cached /api/user: refresh name, avatar, org.
         refreshMe();
@@ -408,29 +418,6 @@ export default function SettingsPage() {
     setExportingCSV(false);
   };
 
-  const handleClearData = async () => {
-    const ok = await confirm({
-      title: "Eliminar todos los datos",
-      description: "¿Eliminar todos los datos de métricas? Esta acción no se puede deshacer y perderás toda tu información.",
-      confirmLabel: "Eliminar todo",
-      destructive: true,
-    });
-    if (!ok) return;
-    setClearingData(true);
-    try {
-      const res = await fetch("/api/metrics", { method: "DELETE" });
-      if (res.ok) {
-        toast("Datos eliminados correctamente. Recarga el dashboard para ver los cambios.", "success");
-        setTimeout(() => window.location.reload(), 2000);
-      } else {
-        toast(await errorOf(res, "Error al eliminar los datos"), "error");
-      }
-    } catch {
-      toast("Error de conexión", "error");
-    }
-    setClearingData(false);
-  };
-
   const handleCreateAlert = async () => {
     if (!newAlert.metricName.trim()) { toast("Ingresa el nombre de la métrica", "error"); return; }
     const threshold = parseFloat(newAlert.threshold);
@@ -473,9 +460,10 @@ export default function SettingsPage() {
   };
 
   const handleInvite = async () => {
-    if (!inviteEmail) return;
+    const email = inviteEmail.trim().toLowerCase();
+    if (!email) return;
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(inviteEmail)) {
+    if (!emailRegex.test(email)) {
       toast("Ingresa un correo electrónico válido", "error");
       return;
     }
@@ -484,11 +472,11 @@ export default function SettingsPage() {
       const res = await fetch("/api/invitations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: inviteEmail, role: inviteRole, allowedSections: inviteSections, jobRole: inviteJobRole || null }),
+        body: JSON.stringify({ email, role: inviteRole, allowedSections: inviteSections, jobRole: inviteJobRole || null }),
       });
       const data = await res.json();
       if (res.ok) {
-        toast("Invitación enviada a " + inviteEmail, "success");
+        toast("Invitación enviada a " + email, "success");
         setInviteEmail("");
         setInviteJobRole("");
         await invitesApi.reload();
@@ -632,6 +620,7 @@ export default function SettingsPage() {
     { id: "peligro", label: "Zona de peligro", show: true },
   ];
 
+  const canEditAlerts = memberRole !== "VIEWER";
   const pwNewValid = passwords.new.length >= 8;
   const pwConfirmValid = passwords.confirm.length > 0 && passwords.confirm === passwords.new;
 
@@ -941,7 +930,12 @@ export default function SettingsPage() {
           </div>
         ) : alertRules.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border">
-            <EmptyState icon={BellRing} title="Sin alertas" description="Crea tu primera regla con el formulario de abajo." className="py-8" />
+            <EmptyState
+              icon={BellRing}
+              title="Sin alertas"
+              description={canEditAlerts ? "Crea tu primera regla con el formulario de abajo." : "Aún no hay reglas de alerta."}
+              className="py-8"
+            />
           </div>
         ) : (
           <div className="divide-y divide-border rounded-lg border border-border">
@@ -958,20 +952,23 @@ export default function SettingsPage() {
                     </p>
                   )}
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={() => handleDeleteAlert(rule.id)}
-                  className="hover:text-destructive"
-                  aria-label={`Eliminar alerta ${rule.metricName}`}
-                >
-                  <Trash2 />
-                </Button>
+                {canEditAlerts && (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => handleDeleteAlert(rule.id)}
+                    className="hover:text-destructive"
+                    aria-label={`Eliminar alerta ${rule.metricName}`}
+                  >
+                    <Trash2 />
+                  </Button>
+                )}
               </div>
             ))}
           </div>
         )}
 
+        {canEditAlerts && (
         <div className="space-y-3 border-t border-border pt-4">
           <p className="text-sm font-medium text-foreground">Nueva alerta</p>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -1020,6 +1017,7 @@ export default function SettingsPage() {
             Crear alerta
           </Button>
         </div>
+        )}
       </SettingsSection>
 
       {/* ── Miembros y Puestos (solo Dirección) ── */}
@@ -1154,7 +1152,7 @@ export default function SettingsPage() {
               ))}
             </div>
           </fieldset>
-          <Button onClick={handleInvite} loading={inviting} disabled={!inviteEmail}>
+          <Button onClick={handleInvite} loading={inviting} disabled={!inviteEmail.trim()}>
             {!inviting && <Mail />}
             Invitar
           </Button>
@@ -1282,15 +1280,6 @@ export default function SettingsPage() {
           <Button variant="outline" onClick={handleExportCSV} loading={exportingCSV}>
             {!exportingCSV && <Download />}
             {exportingCSV ? "Exportando..." : "Exportar datos como CSV"}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleClearData}
-            loading={clearingData}
-            className="border-destructive/50 text-destructive hover:bg-destructive/10"
-          >
-            {!clearingData && <Trash2 />}
-            {clearingData ? "Eliminando..." : "Limpiar datos de métricas"}
           </Button>
         </div>
       </SettingsSection>

@@ -6,17 +6,28 @@ import { sendEmail, inviteEmail } from "@/server/services/email";
 import type { MembershipRole, JobRole } from "@prisma/client";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { logActivity } from "@/lib/activity";
+import { getOrganizationId } from "@/lib/get-org";
 
-// GET /api/invitations — list pending invitations for the org
-export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+const VALID_ROLES: MembershipRole[] = ["ADMIN", "EDITOR", "VIEWER"];
+const VALID_JOB_ROLES: JobRole[] = ["DIRECCION", "OPERACIONES", "COMERCIAL", "MARKETING", "ADMINISTRACION"];
 
-  const membership = await db.membership.findFirst({
-    where: { userId: session.user.id },
+/** Caller's membership in the ACTIVE org (respects activeOrgId), or null. */
+async function activeMembership(req: NextRequest, userId: string) {
+  const orgId = await getOrganizationId(req);
+  if (!orgId) return null;
+  return db.membership.findFirst({
+    where: { userId, organizationId: orgId },
     include: { organization: true },
   });
-  if (!membership) return NextResponse.json({ error: "No org" }, { status: 404 });
+}
+
+// GET /api/invitations — list pending invitations for the org
+export async function GET(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+
+  const membership = await activeMembership(req, session.user.id);
+  if (!membership) return NextResponse.json({ error: "Organización no encontrada" }, { status: 404 });
   if (membership.role !== "ADMIN") return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
 
   const invitations = await db.invitation.findMany({
@@ -37,24 +48,41 @@ export async function POST(req: NextRequest) {
   }
 
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-  const { email, role = "VIEWER", allowedSections = [], jobRole } = (await req.json()) as { email: string; role?: MembershipRole; allowedSections?: string[]; jobRole?: JobRole | null };
-  if (!email) return NextResponse.json({ error: "Email required" }, { status: 400 });
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "Solicitud inválida" }, { status: 400 });
+  }
 
-  const VALID_JOB_ROLES: JobRole[] = ["DIRECCION", "OPERACIONES", "COMERCIAL", "MARKETING", "ADMINISTRACION"];
-  const normalizedJobRole: JobRole | null = jobRole && VALID_JOB_ROLES.includes(jobRole) ? jobRole : null;
+  // Emails are stored trimmed + lowercased so accept/register match reliably.
+  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  if (!email) return NextResponse.json({ error: "El email es requerido" }, { status: 400 });
 
-  const membership = await db.membership.findFirst({
-    where: { userId: session.user.id },
-    include: { organization: true },
-  });
+  const role = body.role === undefined || body.role === null || body.role === "" ? "VIEWER" : body.role;
+  if (!VALID_ROLES.includes(role)) {
+    return NextResponse.json({ error: "Rol inválido" }, { status: 400 });
+  }
+
+  let normalizedJobRole: JobRole | null = null;
+  if (body.jobRole !== undefined && body.jobRole !== null && body.jobRole !== "") {
+    if (!VALID_JOB_ROLES.includes(body.jobRole)) {
+      return NextResponse.json({ error: "Puesto inválido" }, { status: 400 });
+    }
+    normalizedJobRole = body.jobRole as JobRole;
+  }
+
+  const allowedSections: string[] = Array.isArray(body.allowedSections)
+    ? body.allowedSections.filter((x: unknown): x is string => typeof x === "string")
+    : [];
+
+  const membership = await activeMembership(req, session.user.id);
   if (!membership || membership.role !== "ADMIN") {
     return NextResponse.json({ error: "No tienes permisos para invitar" }, { status: 403 });
   }
 
   // Check if already a member
-  const alreadyMember = await db.user.findUnique({ where: { email } });
+  const alreadyMember = await db.user.findFirst({ where: { email: { equals: email, mode: "insensitive" } } });
   if (alreadyMember) {
     const alreadyIn = await db.membership.findFirst({
       where: { userId: alreadyMember.id, organizationId: membership.organizationId },
@@ -101,12 +129,12 @@ export async function POST(req: NextRequest) {
 // DELETE /api/invitations?id=xxx — revoke
 export async function DELETE(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const id = req.nextUrl.searchParams.get("id");
-  if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+  if (!id) return NextResponse.json({ error: "id requerido" }, { status: 400 });
 
-  const membership = await db.membership.findFirst({ where: { userId: session.user.id } });
+  const membership = await activeMembership(req, session.user.id);
   if (!membership || membership.role !== "ADMIN") return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
 
   await db.invitation.deleteMany({ where: { id, organizationId: membership.organizationId } });

@@ -1,4 +1,5 @@
 import { db } from "@/server/db";
+import { currentMonthMX, shiftMonth, todayMX } from "@/lib/day";
 
 export async function syncMetaAdsMetrics(organizationId: string) {
   const integration = await db.integration.findUnique({
@@ -27,9 +28,13 @@ export async function syncMetaAdsMetrics(organizationId: string) {
   const account =
     (selectedId && adAccounts.find((a: any) => a.id === selectedId)) || adAccounts[0];
 
-  const now = new Date();
-  const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  // Months follow the business calendar (Mexico City), not the server's UTC
+  // clock. Periods keep the existing storage convention: UTC midnight of the 1st.
+  const mes = currentMonthMX();
+  const mesPrev = shiftMonth(mes, -1);
+  const monthStart = (m: string) => new Date(`${m}-01T00:00:00.000Z`);
+  const firstOfMonth = monthStart(mes);
+  const lastMonth = monthStart(mesPrev);
 
   const allMetrics: any[] = [];
 
@@ -40,12 +45,12 @@ export async function syncMetaAdsMetrics(organizationId: string) {
     const currentInsights = await fetchAccountInsights(
       accountId,
       integration.accessToken,
-      formatDate(firstOfMonth),
-      formatDate(now)
+      `${mes}-01`,
+      todayMX()
     );
 
     // Previous month insights
-    const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+    const prevMonthEnd = new Date(firstOfMonth.getTime() - 24 * 60 * 60 * 1000);
     const previousInsights = await fetchAccountInsights(
       accountId,
       integration.accessToken,

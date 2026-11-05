@@ -6,17 +6,20 @@ import { getOrganizationId } from "@/lib/get-org";
 
 export async function PATCH(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const orgId = await getOrganizationId(req);
-  if (!orgId) return NextResponse.json({ error: "No organization" }, { status: 400 });
+  if (!orgId) return NextResponse.json({ error: "Organización no encontrada" }, { status: 400 });
 
   const membership = await db.membership.findFirst({
     where: { userId: session.user.id, organizationId: orgId, role: { in: ["ADMIN"] } },
   });
-  if (!membership) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!membership) return NextResponse.json({ error: "Sin permiso" }, { status: 403 });
 
-  const body = await req.json();
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "Solicitud inválida" }, { status: 400 });
+  }
   const updates: Record<string, string | null> = {};
 
   if (typeof body.brandColor === "string") {

@@ -4,6 +4,7 @@ import { db } from "@/server/db";
 import { requireAccess } from "@/lib/access";
 import { notify } from "@/server/services/push/notify";
 import { formatCurrency } from "@/lib/utils";
+import { parseFechaMX } from "@/lib/day";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +45,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const pagado = body.pagado === true;
     data.pagado = pagado;
     if (pagado) {
-      data.fechaPago = body.fechaPago ? new Date(body.fechaPago) : new Date();
+      data.fechaPago = parseFechaMX(body.fechaPago) ?? new Date();
     } else {
       data.fechaPago = null;
     }
@@ -70,7 +71,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const amount = Number(body.amount);
     data.amount = Number.isFinite(amount) ? amount : 0;
   }
-  if (body.issueDate !== undefined) data.issueDate = new Date(body.issueDate);
+  if (body.issueDate !== undefined) {
+    const issueDate = parseFechaMX(body.issueDate);
+    if (!issueDate) return NextResponse.json({ error: "Fecha de emisión inválida" }, { status: 400 });
+    data.issueDate = issueDate;
+  }
   if (body.notes !== undefined) data.notes = body.notes ? String(body.notes).trim() : null;
 
   const updated = await db.receivable.update({ where: { id: params.id }, data });

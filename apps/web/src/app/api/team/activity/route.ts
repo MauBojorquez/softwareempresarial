@@ -6,32 +6,43 @@ import { getOrganizationId } from "@/lib/get-org";
 
 // GET /api/team/activity — team usage analytics for the active org.
 // Returns members (with last-seen + 30-day activity counts) and a recent
-// activity feed. Any member may view; sensitive write-actions are gated
-// elsewhere.
+// activity feed. The full feed (which can include money amounts in `detail`)
+// is restricted to Dirección (jobRole DIRECCION or ADMIN membership); any other
+// member only gets their own entries.
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const orgId = await getOrganizationId(req);
-  if (!orgId) return NextResponse.json({ error: "No organization" }, { status: 404 });
+  if (!orgId) return NextResponse.json({ error: "Organización no encontrada" }, { status: 404 });
+
+  const caller = await db.membership.findFirst({
+    where: { userId: session.user.id, organizationId: orgId },
+    select: { role: true, jobRole: true },
+  });
+  if (!caller) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+
+  const seesAll = caller.role === "ADMIN" || caller.jobRole === "DIRECCION";
+  // Non-Dirección callers are scoped to their own rows everywhere.
+  const userScope = seesAll ? {} : { userId: session.user.id };
 
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
   const [memberships, logs, eventCount, activeUserRows] = await Promise.all([
     db.membership.findMany({
-      where: { organizationId: orgId },
+      where: { organizationId: orgId, ...userScope },
       include: { user: { select: { id: true, name: true, email: true, avatar: true, createdAt: true } } },
     }),
     db.activityLog.findMany({
-      where: { organizationId: orgId },
+      where: { organizationId: orgId, ...userScope },
       orderBy: { createdAt: "desc" },
       take: 60,
       include: { user: { select: { id: true, name: true, email: true, avatar: true } } },
     }),
-    db.activityLog.count({ where: { organizationId: orgId, createdAt: { gte: since } } }),
+    db.activityLog.count({ where: { organizationId: orgId, ...userScope, createdAt: { gte: since } } }),
     db.activityLog.groupBy({
       by: ["userId"],
-      where: { organizationId: orgId, createdAt: { gte: since } },
+      where: { organizationId: orgId, ...userScope, createdAt: { gte: since } },
       _count: { _all: true },
       _max: { createdAt: true },
     }),

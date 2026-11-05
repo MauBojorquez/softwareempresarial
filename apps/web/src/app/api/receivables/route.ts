@@ -3,26 +3,52 @@ import type { ReceivableTipo } from "@prisma/client";
 import { db } from "@/server/db";
 import { requireAccess } from "@/lib/access";
 import { receivableStatus, saldo as calcSaldo } from "@/lib/cobranza";
+import { currentMonthMX, monthRangeMX, parseFechaMX } from "@/lib/day";
+import { ensureMonthStarted } from "@/server/services/month/start";
 
 export const dynamic = "force-dynamic";
 
 const TIPOS = ["RECURRENTE", "UNICA"] as const;
+const MES_RE = /^\d{4}-\d{2}$/;
 
+const include = {
+  cliente: { select: { id: true, nombre: true } },
+  vendedor: { select: { id: true, name: true, email: true } },
+} as const;
+
+// GET /api/receivables?mes=YYYY-MM (default: current month, Mexico City).
+// Returns that month's invoices + totals, and every still-unpaid invoice from
+// earlier months under `anteriores` so nothing pending gets lost.
 export async function GET(req: NextRequest) {
   const access = await requireAccess(req, "cobranza");
   if (access instanceof NextResponse) return access;
   const { orgId } = access;
 
-  const rows = await db.receivable.findMany({
-    where: { organizationId: orgId },
-    orderBy: [{ issueDate: "desc" }, { createdAt: "desc" }],
-    include: {
-      cliente: { select: { id: true, nombre: true } },
-      vendedor: { select: { id: true, name: true, email: true } },
-    },
-  });
+  const mesParam = req.nextUrl.searchParams.get("mes");
+  const mes = mesParam && MES_RE.test(mesParam) ? mesParam : currentMonthMX();
+  const { start, end } = monthRangeMX(mes);
 
-  const receivables = rows.map((r) => {
+  try {
+    await ensureMonthStarted(orgId);
+  } catch (e) {
+    // Never block Cobranza on the month start; it retries on the next read.
+    console.error("month start failed:", e);
+  }
+
+  const [rows, prevRows] = await Promise.all([
+    db.receivable.findMany({
+      where: { organizationId: orgId, issueDate: { gte: start, lt: end } },
+      orderBy: [{ issueDate: "desc" }, { createdAt: "desc" }],
+      include,
+    }),
+    db.receivable.findMany({
+      where: { organizationId: orgId, pagado: false, issueDate: { lt: start } },
+      orderBy: [{ issueDate: "asc" }, { createdAt: "asc" }],
+      include,
+    }),
+  ]);
+
+  const shape = (r: (typeof rows)[number]) => {
     const status = receivableStatus(r.pagado, r.issueDate);
     const saldo = calcSaldo(r.amount, r.pagado);
     return {
@@ -43,7 +69,9 @@ export async function GET(req: NextRequest) {
       saldo,
       status,
     };
-  });
+  };
+  const receivables = rows.map(shape);
+  const anteriores = prevRows.map(shape);
 
   const totals = receivables.reduce(
     (acc, r) => {
@@ -93,8 +121,11 @@ export async function GET(req: NextRequest) {
   ]);
 
   return NextResponse.json({
+    mes,
     receivables,
     totals,
+    anteriores,
+    anterioresTotal: anteriores.reduce((s, r) => s + r.amount, 0),
     members: members.map((m) => ({ id: m.userId, name: m.user.name ?? m.user.email })),
     clientes,
   });
@@ -136,7 +167,9 @@ export async function POST(req: NextRequest) {
 
   const amount = Number(body.amount);
   const pagado = body.pagado === true;
-  const fechaPago = pagado ? (body.fechaPago ? new Date(body.fechaPago) : new Date()) : null;
+  const fechaPago = pagado ? parseFechaMX(body.fechaPago) ?? new Date() : null;
+  const issueDate = body.issueDate ? parseFechaMX(body.issueDate) : new Date();
+  if (!issueDate) return NextResponse.json({ error: "Fecha de emisión inválida" }, { status: 400 });
 
   const created = await db.receivable.create({
     data: {
@@ -148,7 +181,7 @@ export async function POST(req: NextRequest) {
       invoiceFolio: body.invoiceFolio ? String(body.invoiceFolio).trim() : null,
       concept: body.concept ? String(body.concept).trim() : null,
       amount: Number.isFinite(amount) ? amount : 0,
-      issueDate: body.issueDate ? new Date(body.issueDate) : new Date(),
+      issueDate,
       notes: body.notes ? String(body.notes).trim() : null,
       pagado,
       fechaPago,

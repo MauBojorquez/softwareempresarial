@@ -1,24 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { db } from "@/server/db";
 import { logActivity } from "@/lib/activity";
 import { syncCashflowMetrics } from "@/lib/cashflow-sync";
+import { can, requireAccess, resolveMember } from "@/lib/access";
+import { currentMonthMX, parseFechaMX, shiftMonth, todayMX } from "@/lib/day";
+import { FINANCE_MANUAL_ERROR, isMetricCategory, metricResource } from "@/server/services/metrics/access";
+
+const FORBIDDEN = "No tienes acceso a esta sección";
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const membership = await db.membership.findFirst({ where: { userId: session.user.id } });
-  if (!membership) return NextResponse.json({ error: "No organization" }, { status: 404 });
-
   const { searchParams } = req.nextUrl;
   const category = searchParams.get("category");
-  const months = Math.min(Math.max(parseInt(searchParams.get("months") || "1", 10), 1), 24);
+  const monthsRaw = parseInt(searchParams.get("months") || "1", 10);
+  const months = Number.isFinite(monthsRaw) ? Math.min(Math.max(monthsRaw, 1), 24) : 1;
 
-  const validCategories = ["FINANCE", "SALES", "OPERATIONS", "HR", "MARKETING"];
-  if (!category || !validCategories.includes(category)) {
+  if (!isMetricCategory(category)) {
     return NextResponse.json({ error: "Valid category is required" }, { status: 400 });
   }
+
+  const access = await requireAccess(req, metricResource(category));
+  if (access instanceof NextResponse) return access;
+  const membership = { organizationId: access.orgId };
 
   // The Finanzas page reads FINANCE rows here. Reconcile cashflow first so the
   // cards (Ingresos / Gastos / computed Flujo de Caja) always match the Flujo
@@ -43,13 +45,16 @@ export async function GET(req: NextRequest) {
 
   // Anchor to the first day of the month `months` months ago so the
   // filter is month-aligned (e.g. "3 months" = this month + last 2 months).
-  const now = new Date();
-  const since = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (months - 1), 1));
+  // The current month is the business (MX) month; metric rows are bucketed by
+  // their UTC month string (manual rows are stored at UTC-midnight day 1), so
+  // the window starts at UTC midnight of that month's day 1.
+  const sinceMonth = shiftMonth(currentMonthMX(), -(months - 1));
+  const since = new Date(`${sinceMonth}-01T00:00:00.000Z`);
 
   const metrics = await db.metric.findMany({
     where: {
       organizationId: membership.organizationId,
-      category: category as any,
+      category,
       period: { gte: since },
     },
     orderBy: { period: "desc" },
@@ -65,27 +70,31 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const membership = await db.membership.findFirst({ where: { userId: session.user.id } });
-  if (!membership) return NextResponse.json({ error: "No organization" }, { status: 404 });
-
-  const body = await req.json();
+  let body: any;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Cuerpo de la solicitud inválido" }, { status: 400 });
+  }
+  if (!body || typeof body !== "object") {
+    return NextResponse.json({ error: "Cuerpo de la solicitud inválido" }, { status: 400 });
+  }
   const { category, name, value, unit, period } = body;
 
-  const validCategories = ["FINANCE", "SALES", "OPERATIONS", "HR", "MARKETING"];
-  if (!category || !validCategories.includes(category) || !name || value === undefined) {
+  if (!isMetricCategory(category) || !name || value === undefined) {
     return NextResponse.json({ error: "Valid category, name, and value are required" }, { status: 400 });
   }
 
   // Finanzas se alimenta solo del SAT y del módulo de Flujo de Efectivo.
   // No se permiten registros manuales en esta categoría.
   if (category === "FINANCE") {
-    return NextResponse.json(
-      { error: "Finanzas se alimenta automáticamente del SAT y del Flujo de Efectivo. No se permiten registros manuales." },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: FINANCE_MANUAL_ERROR }, { status: 400 });
   }
+
+  const access = await requireAccess(req, metricResource(category));
+  if (access instanceof NextResponse) return access;
+  const membership = { organizationId: access.orgId };
+  const session = { user: { id: access.userId } };
 
   if (typeof name !== "string" || name.length > 100) {
     return NextResponse.json({ error: "Invalid name" }, { status: 400 });
@@ -96,13 +105,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid value" }, { status: 400 });
   }
 
+  // A bare "YYYY-MM-DD" is a Mexico calendar day (stored at local noon); the
+  // default is today in Mexico, so late-evening entries don't land next month.
+  const parsedPeriod = period ? parseFechaMX(period) : parseFechaMX(todayMX());
+  if (!parsedPeriod) {
+    return NextResponse.json({ error: "Fecha inválida" }, { status: 400 });
+  }
+
   const metric = await db.metric.create({
     data: {
       category,
       name,
       value: numValue,
-      unit: unit || null,
-      period: period ? new Date(period) : new Date(),
+      unit: typeof unit === "string" && unit ? unit.slice(0, 20) : null,
+      period: parsedPeriod,
       source: null,
       organizationId: membership.organizationId,
     },
@@ -119,17 +135,23 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const membership = await db.membership.findFirst({ where: { userId: session.user.id } });
-  if (!membership) return NextResponse.json({ error: "No organization" }, { status: 404 });
+  const member = await resolveMember(req);
+  if (member instanceof NextResponse) return member;
 
-  const body = await req.json();
-  const { id, value, period } = body;
-  if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
+  let body: any;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Cuerpo de la solicitud inválido" }, { status: 400 });
+  }
+  const { id, value, period } = body ?? {};
+  if (!id || typeof id !== "string") return NextResponse.json({ error: "id is required" }, { status: 400 });
 
-  const metric = await db.metric.findFirst({ where: { id, organizationId: membership.organizationId } });
+  const metric = await db.metric.findFirst({ where: { id, organizationId: member.orgId } });
   if (!metric) return NextResponse.json({ error: "Metric not found" }, { status: 404 });
+  if (!can(member.jobRole, metricResource(metric.category))) {
+    return NextResponse.json({ error: FORBIDDEN }, { status: 403 });
+  }
 
   // Validate inputs before persisting
   let parsedValue: number | undefined;
@@ -142,8 +164,8 @@ export async function PATCH(req: NextRequest) {
 
   let parsedPeriod: Date | undefined;
   if (period !== undefined) {
-    parsedPeriod = new Date(period);
-    if (isNaN(parsedPeriod.getTime())) {
+    parsedPeriod = parseFechaMX(period) ?? undefined;
+    if (!parsedPeriod) {
       return NextResponse.json({ error: "Fecha inválida" }, { status: 400 });
     }
   }
@@ -166,10 +188,9 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const membership = await db.membership.findFirst({ where: { userId: session.user.id } });
-  if (!membership) return NextResponse.json({ error: "No organization" }, { status: 404 });
+  const member = await resolveMember(req);
+  if (member instanceof NextResponse) return member;
+  const membership = { organizationId: member.orgId };
 
   const id = req.nextUrl.searchParams.get("id");
   if (!id) {
@@ -182,6 +203,9 @@ export async function DELETE(req: NextRequest) {
 
   if (!metric) {
     return NextResponse.json({ error: "Metric not found" }, { status: 404 });
+  }
+  if (!can(member.jobRole, metricResource(metric.category))) {
+    return NextResponse.json({ error: FORBIDDEN }, { status: 403 });
   }
 
   await db.metric.delete({ where: { id } });

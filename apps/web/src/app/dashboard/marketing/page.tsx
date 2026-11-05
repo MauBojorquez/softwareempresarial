@@ -17,8 +17,8 @@ export default function MarketingPage() {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"overview" | "campaigns" | "history">("overview");
   const [selectedAccount, setSelectedAccount] = useState<string>(() => {
-    if (typeof window !== "undefined") return localStorage.getItem("mkt_account") ?? "";
-    return "";
+    if (typeof window === "undefined") return "";
+    try { return localStorage.getItem("mkt_account") ?? ""; } catch { return ""; }
   });
 
   const load = (accountId?: string) => {
@@ -30,6 +30,16 @@ export default function MarketingPage() {
     fetch(`/api/metrics/marketing/campaigns?months=6${acctParam}`)
       .then((r) => { if (!r.ok) throw new Error("Error al cargar campañas"); return r.json(); })
       .then((c) => {
+        // A remembered account that no longer exists in Meta would leave the
+        // page stuck on "Cuenta no encontrada": forget it and reload with the
+        // default account.
+        const accounts: { id: string }[] = Array.isArray(c?.adAccounts) ? c.adAccounts : [];
+        if (acct && accounts.length > 0 && !accounts.some((a) => a.id === acct)) {
+          try { localStorage.removeItem("mkt_account"); } catch { /* sin almacenamiento */ }
+          setSelectedAccount("");
+          load("");
+          return;
+        }
         setCampaigns(c);
         setLoading(false);
       })
@@ -422,9 +432,9 @@ export default function MarketingPage() {
               <EmptyState icon={History} title="Sin datos históricos" description="Aún no hay gasto registrado en los últimos 6 meses." className="py-8" />
             ) : (
               <div className="space-y-2 sm:space-y-3">
-                {monthlyData.map((m: any) => (
-                  <div key={m.month} className="flex items-center gap-2 sm:gap-4">
-                    <span className="w-16 text-xs text-muted-foreground shrink-0 sm:w-24 sm:text-sm">{m.month}</span>
+                {monthlyData.map((m: any, i: number) => (
+                  <div key={i} className="flex items-center gap-2 sm:gap-4">
+                    <span className="w-16 text-xs text-muted-foreground shrink-0 sm:w-24 sm:text-sm">{m.month || "—"}</span>
                     <div className="h-6 flex-1 overflow-hidden rounded-lg bg-secondary sm:h-8">
                       {m.hasData === false && n(m.spend) === 0 ? (
                         <div className="h-full flex items-center px-2">
@@ -461,9 +471,9 @@ export default function MarketingPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {monthlyData.map((m: any) => (
-                    <tr key={m.month} className="border-b border-border last:border-0">
-                      <td className="p-3 font-medium">{m.month}</td>
+                  {monthlyData.map((m: any, i: number) => (
+                    <tr key={i} className="border-b border-border last:border-0">
+                      <td className="p-3 font-medium">{m.month || "—"}</td>
                       <td className="p-3 text-right font-medium">{fmtMoney(m.spend)}</td>
                       <td className="p-3 text-right">{fmt(m.impressions)}</td>
                       <td className="p-3 text-right">{fmt(m.clicks)}</td>
@@ -475,9 +485,9 @@ export default function MarketingPage() {
               </table>
             </div>
             <div className="sm:hidden divide-y divide-border">
-              {monthlyData.map((m: any) => (
-                <div key={m.month} className="p-3">
-                  <p className="text-sm font-medium mb-1">{m.month}</p>
+              {monthlyData.map((m: any, i: number) => (
+                <div key={i} className="p-3">
+                  <p className="text-sm font-medium mb-1">{m.month || "—"}</p>
                   <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground">
                     <div><span className="block font-medium text-foreground">{fmtMoney(m.spend)}</span>Gasto</div>
                     <div><span className="block font-medium text-foreground">{fmt(m.clicks)}</span>Clics</div>

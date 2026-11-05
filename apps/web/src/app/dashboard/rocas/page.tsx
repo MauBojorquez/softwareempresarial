@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useCurrentMonth } from "@/hooks/use-current-month";
+import { fechaMX } from "@/lib/day";
 import { Mountain, Plus, Pencil, Trash2 } from "lucide-react";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
@@ -53,14 +55,10 @@ const BAR_COLOR: Record<Salud, string> = {
   ROJO: "bg-destructive",
 };
 
-function currentMonth(): string {
-  return new Date().toISOString().slice(0, 7);
-}
-
 function fmtDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
+  return d.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric", timeZone: "America/Mexico_City" });
 }
 
 function errMsg(e: unknown, fallback: string) {
@@ -70,17 +68,20 @@ function errMsg(e: unknown, fallback: string) {
 export default function RocasPage() {
   const { toast } = useToast();
   const confirm = useConfirm();
-  const [mes, setMes] = useState<string>(currentMonth());
+  const [mes, setMes] = useCurrentMonth();
+  const [soloMias, setSoloMias] = useState(false);
   const userApi = useApi<{ jobRole?: JobRole | null; user?: { id?: string } | null }>("/api/user");
-  const membersApi = useApi<{ members?: Member[] }>("/api/tareas");
   const { data, setData, error, initialLoading, reload } = useApi<{ rocas?: Roca[] }>(`/api/rocas?mes=${mes}`);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Roca | null>(null);
 
   const jobRole = userApi.data?.jobRole ?? null;
+  // Only Dirección assigns rocas to other people, so only it needs the team list.
+  const membersApi = useApi<{ members?: Member[] }>(jobRole === "DIRECCION" ? "/api/tareas" : null);
   const userId = userApi.data?.user?.id ?? null;
   const members = Array.isArray(membersApi.data?.members) ? membersApi.data!.members! : [];
-  const rocas = Array.isArray(data?.rocas) ? data!.rocas! : [];
+  const todas = Array.isArray(data?.rocas) ? data!.rocas! : [];
+  const rocas = soloMias ? todas.filter((r) => r.duenoId === userId) : todas;
 
   const setRocas = useCallback(
     (fn: (prev: Roca[]) => Roca[]) =>
@@ -138,11 +139,16 @@ export default function RocasPage() {
     setShowForm(true);
   };
 
-  const newButton = isDireccion ? (
-    <Button onClick={openNew}>
+  const newButton = (
+    <Button onClick={openNew} disabled={!userId}>
       <Plus /> Nueva roca
     </Button>
-  ) : null;
+  );
+
+  const editRoca = (r: Roca) => {
+    setEditing(r);
+    setShowForm(true);
+  };
 
   const loadError = error ?? userApi.error;
   const retry = () => {
@@ -155,15 +161,32 @@ export default function RocasPage() {
       <PageHeader
         icon={Mountain}
         title="Rocas del mes"
-        description="Objetivos clave y su avance"
+        description="Cada quien llena y actualiza sus rocas; Dirección ve y ajusta todas."
         actions={
           <>
+            <div role="radiogroup" aria-label="Qué rocas ver" className="flex rounded-lg border border-border p-0.5">
+              {([false, true] as const).map((mias) => (
+                <button
+                  key={String(mias)}
+                  type="button"
+                  role="radio"
+                  aria-checked={soloMias === mias}
+                  onClick={() => setSoloMias(mias)}
+                  className={cn(
+                    "h-8 rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    soloMias === mias ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {mias ? "Mías" : "Todas"}
+                </button>
+              ))}
+            </div>
             <label className="flex items-center gap-2 text-sm font-medium text-foreground">
               <span>Mes</span>
               <Input
                 type="month"
                 value={mes}
-                onChange={(e) => setMes(e.target.value || currentMonth())}
+                onChange={(e) => setMes(e.target.value)}
                 className="w-auto"
               />
             </label>
@@ -184,12 +207,8 @@ export default function RocasPage() {
         <Card>
           <EmptyState
             icon={Mountain}
-            title="No hay rocas para este mes"
-            description={
-              isDireccion
-                ? "Define los objetivos clave del mes y asigna un dueño a cada uno."
-                : "Dirección aún no ha definido las rocas de este mes."
-            }
+            title={soloMias ? "Aún no tienes rocas este mes" : "No hay rocas para este mes"}
+            description="Agrega tus objetivos clave del mes con su métrica de éxito y fecha límite."
             action={newButton}
           />
         </Card>
@@ -214,17 +233,9 @@ export default function RocasPage() {
                   </div>
                   <ProgressRow roca={r} canEdit={canEditOwn} onCommit={updateOwn} />
                   {r.usaChecklist && <ChecklistView roca={r} canEdit={canEditOwn} onToggle={toggleItem} />}
-                  {isDireccion && (
+                  {canEditOwn && (
                     <div className="mt-3 flex justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Editar roca ${r.titulo}`}
-                        onClick={() => {
-                          setEditing(r);
-                          setShowForm(true);
-                        }}
-                      >
+                      <Button variant="ghost" size="icon" aria-label={`Editar roca ${r.titulo}`} onClick={() => editRoca(r)}>
                         <Pencil />
                       </Button>
                       <Button
@@ -253,7 +264,9 @@ export default function RocasPage() {
                   <th className="px-4 py-3 font-medium">Fecha límite</th>
                   <th className="px-4 py-3 font-medium">Estatus</th>
                   <th className="px-4 py-3 font-medium">% Avance</th>
-                  {isDireccion && <th className="px-4 py-3 text-right font-medium">Acciones</th>}
+                  <th className="px-4 py-3 text-right font-medium">
+                    <span className="sr-only">Acciones</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -274,18 +287,10 @@ export default function RocasPage() {
                         <ProgressRow roca={r} canEdit={canEditOwn} onCommit={updateOwn} compact />
                         {r.usaChecklist && <ChecklistView roca={r} canEdit={canEditOwn} onToggle={toggleItem} />}
                       </td>
-                      {isDireccion && (
-                        <td className="whitespace-nowrap px-4 py-3">
+                      <td className="whitespace-nowrap px-4 py-3">
+                        {canEditOwn && (
                           <div className="flex items-center justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              aria-label={`Editar roca ${r.titulo}`}
-                              onClick={() => {
-                                setEditing(r);
-                                setShowForm(true);
-                              }}
-                            >
+                            <Button variant="ghost" size="icon-sm" aria-label={`Editar roca ${r.titulo}`} onClick={() => editRoca(r)}>
                               <Pencil />
                             </Button>
                             <Button
@@ -298,8 +303,8 @@ export default function RocasPage() {
                               <Trash2 />
                             </Button>
                           </div>
-                        </td>
-                      )}
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
@@ -309,9 +314,11 @@ export default function RocasPage() {
         </>
       )}
 
-      {showForm && isDireccion && (
+      {showForm && userId && (
         <RocaForm
           roca={editing}
+          isDireccion={isDireccion}
+          userId={userId}
           members={members}
           membersError={membersApi.error}
           defaultMes={mes}
@@ -429,6 +436,8 @@ function ChecklistView({
 
 function RocaForm({
   roca,
+  isDireccion,
+  userId,
   members,
   membersError,
   defaultMes,
@@ -436,6 +445,8 @@ function RocaForm({
   onSaved,
 }: {
   roca: Roca | null;
+  isDireccion: boolean;
+  userId: string;
   members: Member[];
   membersError: string | null;
   defaultMes: string;
@@ -446,8 +457,8 @@ function RocaForm({
   const [saving, setSaving] = useState(false);
   const [titulo, setTitulo] = useState(roca?.titulo ?? "");
   const [metricaExito, setMetricaExito] = useState(roca?.metricaExito ?? "");
-  const [fechaLimite, setFechaLimite] = useState(roca ? roca.fechaLimite.slice(0, 10) : "");
-  const [duenoId, setDuenoId] = useState(roca?.duenoId ?? "");
+  const [fechaLimite, setFechaLimite] = useState(roca ? fechaMX(new Date(roca.fechaLimite)) : "");
+  const [duenoId, setDuenoId] = useState(roca?.duenoId ?? (isDireccion ? "" : userId));
   const [mes, setMes] = useState(roca?.mes ?? defaultMes);
   const [porcentajeAvance, setPorcentajeAvance] = useState<string>(String(roca?.porcentajeAvance ?? 0));
   const [usaChecklist, setUsaChecklist] = useState<boolean>(roca?.usaChecklist ?? false);
@@ -499,10 +510,10 @@ function RocaForm({
         titulo,
         metricaExito,
         fechaLimite,
-        duenoId,
         mes,
         usaChecklist,
       };
+      if (isDireccion) body.duenoId = duenoId;
       if (!usaChecklist) body.porcentajeAvance = Number(porcentajeAvance);
       if (!roca && usaChecklist) body.items = items.map((i) => i.titulo);
       const d = await apiSend<{ roca: Roca }>(roca ? `/api/rocas/${roca.id}` : "/api/rocas", roca ? "PATCH" : "POST", body);
@@ -545,16 +556,18 @@ function RocaForm({
               <Input type="month" value={mes} onChange={(e) => setMes(e.target.value)} />
             </Field>
           </div>
-          <Field label="Dueño" error={membersError ? "No se pudo cargar el equipo" : null}>
-            <Select value={duenoId} onChange={(e) => setDuenoId(e.target.value)}>
-              <option value="">Selecciona…</option>
-              {members.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
+          {isDireccion && (
+            <Field label="Dueño" error={membersError ? "No se pudo cargar el equipo" : null}>
+              <Select value={duenoId} onChange={(e) => setDuenoId(e.target.value)}>
+                <option value="">Selecciona…</option>
+                {members.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          )}
           <fieldset>
             <legend className="text-sm font-medium text-foreground">Tipo de avance</legend>
             <div className="mt-1.5 grid grid-cols-2 gap-2">

@@ -554,6 +554,9 @@ model Receivable {
   pagado        Boolean   @default(false)
   fechaPago     DateTime?
   clienteManual String?
+  // Recurring invoices are carried into the next month automatically; this
+  // points at the invoice it was copied from (unique: copied at most once).
+  recurrenteDeId String?  @unique
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -569,6 +572,16 @@ model Receivable {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, issueDate])
+}
+
+// Marks that a month's automatic cobranza rollover already ran for an org, so
+// it runs exactly once (and a recurring invoice deleted on purpose stays gone).
+model CobranzaRollover {
+  organizationId String
+  mes            String   // "YYYY-MM" (America/Mexico_City)
+  createdAt      DateTime @default(now())
+
+  @@id([organizationId, mes])
 }
 
 // ─── Abonos (pagos parciales sobre un receivable) ───────────────────

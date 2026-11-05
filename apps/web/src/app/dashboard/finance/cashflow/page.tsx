@@ -10,6 +10,8 @@ import { ErrorState, RowsSkeleton, CardsSkeleton } from "@/components/ui/states"
 import { useConfirm } from "@/components/ui/confirm";
 import { useToast } from "@/components/toast";
 import { useMe } from "@/hooks/use-me";
+import { useCurrentMonth } from "@/hooks/use-current-month";
+import { currentMonthMX, shiftMonth as shiftMes } from "@/lib/day";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -53,15 +55,6 @@ interface CashFlowTransaction {
 
 // ─── Month helpers ──────────────────────────────────────────────────
 
-const MX_TZ = "America/Mexico_City";
-
-/** Current month "YYYY-MM" in America/Mexico_City. */
-function currentMonthMX(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: MX_TZ, year: "numeric", month: "2-digit" })
-    .format(new Date())
-    .slice(0, 7);
-}
-
 const MES_NAMES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
@@ -73,16 +66,8 @@ function mesLabel(mes: string): string {
   return `${MES_NAMES[m - 1]} ${y}`;
 }
 
-/** Month "YYYY-MM" `delta` months away from `mes`. */
-function shiftMes(mes: string, delta: number): string {
-  const [y, m] = mes.split("-").map(Number);
-  const d = new Date(Date.UTC(y, m - 1 + delta, 1));
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
-}
-
 /** Last 36 months + current, newest first. */
-function monthOptions(): string[] {
-  const cur = currentMonthMX();
+function monthOptions(cur: string = currentMonthMX()): string[] {
   const out: string[] = [];
   for (let i = 0; i <= 36; i++) out.push(shiftMes(cur, -i));
   return out;
@@ -1259,8 +1244,6 @@ function AddAccountDialog({ open, onClose, onCreated }: { open: boolean; onClose
 
 // ─── Main Page ───────────────────────────────────────────────────────
 
-const MES_STORAGE_KEY = "cashflow.mes";
-
 export default function CashFlowPage() {
   const { toast } = useToast();
   const confirm = useConfirm();
@@ -1270,24 +1253,12 @@ export default function CashFlowPage() {
   const [activeTab, setActiveTab] = useState<"report" | string>("report");
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
-  const [mes, setMes] = useState<string>(currentMonthMX());
+  // Follows the calendar: a tab left open moves to the new month by itself.
+  const [mes, changeMes, mesActual] = useCurrentMonth();
   const [closedThroughMes, setClosedThroughMes] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
 
-  const options = useMemo(() => monthOptions(), []);
-
-  // Restore persisted month (client only).
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(MES_STORAGE_KEY);
-      if (saved && /^\d{4}-\d{2}$/.test(saved)) setMes(saved);
-    } catch {}
-  }, []);
-
-  const changeMes = useCallback((next: string) => {
-    setMes(next);
-    try { localStorage.setItem(MES_STORAGE_KEY, next); } catch {}
-  }, []);
+  const options = useMemo(() => monthOptions(mesActual), [mesActual]);
 
   const fetchAccounts = useCallback(async () => {
     setLoadingAccounts(true);
@@ -1430,12 +1401,12 @@ export default function CashFlowPage() {
                 <Lock className="h-3.5 w-3.5" />
                 Mes cerrado
               </span>
-            ) : (
+            ) : mes < mesActual ? (
               <Button variant="outline" size="sm" onClick={closeMonth} disabled={closing}>
                 <Lock className="h-3.5 w-3.5" />
                 Cerrar mes
               </Button>
-            )}
+            ) : null}
 
             {monthClosed && me?.jobRole === "DIRECCION" && (
               <Button variant="outline" size="sm" onClick={reopenMonth} disabled={closing} title="Reabrir este mes (solo Dirección)">

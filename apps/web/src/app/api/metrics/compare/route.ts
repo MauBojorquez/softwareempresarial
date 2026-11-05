@@ -1,42 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { db } from "@/server/db";
+import { requireAccess } from "@/lib/access";
+import { currentMonthMX, shiftMonth } from "@/lib/day";
+import { isMetricCategory, metricResource } from "@/server/services/metrics/access";
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const membership = await db.membership.findFirst({ where: { userId: session.user.id } });
-  if (!membership) return NextResponse.json({ error: "No organization" }, { status: 404 });
-
   const { searchParams } = req.nextUrl;
   const category = searchParams.get("category");
-  const months = Math.min(Math.max(parseInt(searchParams.get("months") || "3", 10), 1), 24);
+  const monthsRaw = parseInt(searchParams.get("months") || "3", 10);
+  const months = Number.isFinite(monthsRaw) ? Math.min(Math.max(monthsRaw, 1), 24) : 3;
 
-  const validCategories = ["FINANCE", "SALES", "OPERATIONS", "HR", "MARKETING"];
-  if (!category || !validCategories.includes(category)) {
+  if (!isMetricCategory(category)) {
     return NextResponse.json({ error: "Valid category is required" }, { status: 400 });
   }
 
-  const now = new Date();
+  const access = await requireAccess(req, metricResource(category));
+  if (access instanceof NextResponse) return access;
+  const membership = { organizationId: access.orgId };
 
-  // Anchor both windows to the first day of a UTC month so they align with the
-  // monthly buckets the UI sums by (matching api/metrics/manual). Using
-  // setMonth on a day-of-month date overflows on month-ends (e.g. May 31 → "Apr
-  // 31" → May 1) and drifts the boundaries; Date.UTC(y, m, 1) avoids that.
-  const y = now.getUTCFullYear();
-  const m = now.getUTCMonth();
+  // "Current month" is the business (America/Mexico_City) month. Metric rows
+  // are bucketed by their UTC month string (manual rows are stored at
+  // UTC-midnight day 1, matching api/metrics/manual), so each window starts at
+  // UTC midnight of day 1 of its month.
+  const monthStart = (mes: string) => new Date(`${mes}-01T00:00:00.000Z`);
+  const mes = currentMonthMX();
   // Current period: the current month plus the previous N-1 months.
-  const currentStart = new Date(Date.UTC(y, m - (months - 1), 1));
+  const currentStart = monthStart(shiftMonth(mes, -(months - 1)));
   // Previous period: the N months immediately before the current window.
-  const previousStart = new Date(Date.UTC(y, m - (2 * months - 1), 1));
+  const previousStart = monthStart(shiftMonth(mes, -(2 * months - 1)));
   const previousEnd = currentStart;
 
   const [current, previous] = await Promise.all([
     db.metric.findMany({
       where: {
         organizationId: membership.organizationId,
-        category: category as "FINANCE" | "SALES" | "OPERATIONS" | "HR" | "MARKETING",
+        category,
         period: { gte: currentStart },
       },
       orderBy: { period: "desc" },
@@ -44,7 +42,7 @@ export async function GET(req: NextRequest) {
     db.metric.findMany({
       where: {
         organizationId: membership.organizationId,
-        category: category as "FINANCE" | "SALES" | "OPERATIONS" | "HR" | "MARKETING",
+        category,
         period: { gte: previousStart, lt: previousEnd },
       },
       orderBy: { period: "desc" },
