@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Settings2, GripVertical, Check, Target, Users, KanbanSquare,
   TrendingUp, ClipboardList, Mountain, ListChecks, Receipt, Landmark, Megaphone, LayoutDashboard,
 } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
+import { todayMX } from "@/lib/day";
 import { useToast } from "@/components/toast";
 import { Button } from "@/components/ui/button";
 import { PageHeader, Card } from "@/components/ui/page-header";
@@ -60,15 +61,23 @@ export default function OverviewPage() {
   const [saving, setSaving] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
 
+  // MX day the blocks on screen were computed for, and the blocks shown, so a
+  // tab left open past midnight refetches when it comes back.
+  const loadedDay = useRef<string | null>(null);
+  const shownIds = useRef<string[]>([]);
+
   const fetchBlocks = useCallback(async (ids: string[]) => {
+    shownIds.current = ids;
     if (ids.length === 0) { setBlockData({}); setBlocksError(null); return; }
     setLoadingData(true);
     setBlocksError(null);
     try {
+      const day = todayMX();
       const res = await fetch(`/api/resumen?blocks=${ids.join(",")}`);
       if (res.ok) {
         const json = await res.json();
         setBlockData(json.blocks ?? {});
+        loadedDay.current = day;
       } else {
         const body = await res.json().catch(() => ({}));
         setBlocksError(body.error || "Error al cargar los bloques");
@@ -111,6 +120,28 @@ export default function OverviewPage() {
   useEffect(() => {
     loadInitial();
   }, [loadInitial]);
+
+  // Refetch the blocks when the tab comes back on a different MX day than the
+  // one they were loaded for ("hoy"/"este mes" figures would be stale).
+  useEffect(() => {
+    const check = () => {
+      if (loadedDay.current && loadedDay.current !== todayMX() && shownIds.current.length > 0) {
+        // Mark first so focus + visibilitychange firing together fetch once; a
+        // failure shows the blocks error with "Reintentar".
+        loadedDay.current = todayMX();
+        fetchBlocks(shownIds.current);
+      }
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") check();
+    };
+    window.addEventListener("focus", check);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("focus", check);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [fetchBlocks]);
 
   const savePrefs = async (bloques: string[]): Promise<string[]> => {
     const res = await fetch("/api/dashboard-preferences", {

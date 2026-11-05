@@ -1,5 +1,6 @@
 import { db } from "@/server/db";
 import { metricLabel } from "@/lib/metric-labels";
+import { currentMonthMX, shiftMonth } from "@/lib/day";
 
 /**
  * Lightweight, dependency-free analytics over the org's monthly metrics:
@@ -46,8 +47,10 @@ function isCostLike(name: string): boolean {
   return ["gasto", "egreso", "costo", "compra", "nomina", "deuda", "spend"].some((k) => n.includes(k));
 }
 
+/** Month bucket of a metric row: its UTC month string (rows are stored at
+ * UTC-midnight day 1, so this matches the rest of the metrics code). */
 function monthKey(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  return d.toISOString().slice(0, 7);
 }
 
 /** Groups one metric name into a {monthKey -> summed value} series. */
@@ -66,11 +69,10 @@ function buildSeries(
 
 /** Ordered list of the last N month keys ending at the current month. */
 function lastMonths(n: number): string[] {
+  // "Current month" is the business month in America/Mexico_City.
+  const mes = currentMonthMX();
   const out: string[] = [];
-  const now = new Date();
-  for (let i = n - 1; i >= 0; i--) {
-    out.push(monthKey(new Date(now.getFullYear(), now.getMonth() - i, 1)));
-  }
+  for (let i = n - 1; i >= 0; i--) out.push(shiftMonth(mes, -i));
   return out;
 }
 
@@ -189,14 +191,13 @@ export async function forecastMetric(
 
   // Seasonal-naive component: same month last year if available.
   const forecast: ForecastPoint[] = [];
-  const now = new Date();
+  const mesActual = currentMonthMX();
   for (let h = 1; h <= monthsAhead; h++) {
-    const d = new Date(now.getFullYear(), now.getMonth() + h, 1);
-    const k = monthKey(d);
+    const k = shiftMonth(mesActual, h);
     const trendVal = intercept + slope * (values.length - 1 + h);
 
     // blend trend with last-year-same-month if we have it
-    const lyKey = monthKey(new Date(d.getFullYear() - 1, d.getMonth(), 1));
+    const lyKey = shiftMonth(k, -12);
     const seasonal = series.get(lyKey);
     const blended = seasonal !== undefined ? trendVal * 0.6 + seasonal * 0.4 : trendVal;
 

@@ -8,6 +8,7 @@ import Link from "next/link";
 import { Card } from "@/components/ui/page-header";
 import { ErrorState, Skeleton } from "@/components/ui/states";
 import { cn } from "@/lib/utils";
+import { currentMonthMX, shiftMonth } from "@/lib/day";
 
 type MetricEntry = { id: string; name: string; value: number; unit: string | null; period: string };
 
@@ -138,12 +139,15 @@ function CashFlowBanner() {
 }
 
 function FinanceChart({ metrics, months }: { metrics: MetricEntry[]; months: number }) {
-  const now = new Date();
+  // Slots end at the current business month (Mexico City), not the UTC month,
+  // which turns over at 18:00 local on the last day.
+  const current = currentMonthMX();
   const monthSlots = Array.from({ length: months }, (_, i) => {
-    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (months - 1 - i), 1));
+    const key = shiftMonth(current, -(months - 1 - i));
+    const [y, m] = key.split("-").map(Number);
     return {
-      key: `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`,
-      label: d.toLocaleDateString("es-MX", { month: "short", year: months > 6 ? "2-digit" : undefined, timeZone: "UTC" }),
+      key,
+      label: new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("es-MX", { month: "short", year: months > 6 ? "2-digit" : undefined, timeZone: "UTC" }),
     };
   });
   const sum = (name: string, key: string) =>

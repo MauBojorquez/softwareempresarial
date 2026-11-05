@@ -11,7 +11,7 @@ import { Field, Input, Select } from "@/components/ui/field";
 import { PageHeader, Card } from "@/components/ui/page-header";
 import { EmptyState, ErrorState, RowsSkeleton, Skeleton } from "@/components/ui/states";
 import { useApi } from "@/hooks/use-api";
-import { refreshMe } from "@/hooks/use-me";
+import { refreshMeAndNotify } from "@/components/brand-provider";
 import {
   Sun, Moon, Monitor, User, Building2, Download, Trash2,
   AlertTriangle, Key, Plus, Copy, Eye, EyeOff, Save, Lock, Users, Mail, X,
@@ -258,7 +258,7 @@ export default function SettingsPage() {
         toast(isAdmin ? "Perfil y empresa actualizados" : "Perfil actualizado", "success");
         await updateSession({ name: profile.name });
         // Sidebar / header read the cached /api/user: refresh name, avatar, org.
-        refreshMe();
+        refreshMeAndNotify().catch(() => {});
       } else {
         toast(data.error || "Error al guardar", "error");
       }
@@ -279,7 +279,7 @@ export default function SettingsPage() {
       const data = await res.json();
       if (res.ok) {
         toast("Marca actualizada", "success");
-        refreshMe();
+        refreshMeAndNotify().catch(() => {});
       } else {
         toast(data.error || "Error al guardar", "error");
       }

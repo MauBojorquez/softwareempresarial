@@ -104,7 +104,7 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="rounded-lg p-1 text-muted-foreground hover:text-foreground lg:hidden">
+          <button onClick={onClose} aria-label="Cerrar menú" className="rounded-lg p-1 text-muted-foreground hover:text-foreground lg:hidden">
             <X className="h-5 w-5" />
           </button>
         </div>

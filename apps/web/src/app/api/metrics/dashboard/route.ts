@@ -1,14 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getOrganizationId } from "@/lib/get-org";
 import { db } from "@/server/db";
+import { can, resolveMember } from "@/lib/access";
+import { currentMonthMX, fechaMX, shiftMonth } from "@/lib/day";
 import { syncCashflowMetrics } from "@/lib/cashflow-sync";
 import { receivableStatus, saldo as calcSaldo } from "@/lib/cobranza";
 
 type M = { name: string; value: number; unit: string | null; period: Date; category: string; source: string | null };
 
 export async function GET(req: NextRequest) {
-  const orgId = await getOrganizationId(req);
-  if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const member = await resolveMember(req);
+  if (member instanceof NextResponse) return member;
+  const orgId = member.orgId;
+  // Caja (flujo) and cobranza are sensitive: only returned to roles that can
+  // see those areas; everyone else gets null for those fields.
+  const canFlujo = can(member.jobRole, "flujo");
+  const canCobranza = can(member.jobRole, "cobranza");
 
   try {
     // Purge any legacy cashflow-mirrored FINANCE rows so SAT and cashflow are
@@ -26,17 +32,20 @@ export async function GET(req: NextRequest) {
       orderBy: { period: "desc" },
     })) as unknown as M[];
 
-    const now = new Date();
-    // Bucket everything by UTC month. Manual entries are stored as UTC-midnight
-    // day-1 dates ("2026-06-01" → June UTC), so reading in UTC keeps the
-    // dashboard consistent with the per-section pages and the goals API, which
-    // also bucket by the UTC month string. Reading in local time would shift a
-    // June-1 row into May for any timezone west of UTC (e.g. Mexico, UTC-6).
-    const currentMonth = now.getUTCMonth();
-    const currentYear = now.getUTCFullYear();
-    const prev = new Date(Date.UTC(currentYear, currentMonth - 1, 1));
+    // "Current month" is the business month in America/Mexico_City (never the
+    // UTC month, which flips at 18:00 MX on the last day). Metric rows are then
+    // bucketed by their UTC month string: manual entries are stored as
+    // UTC-midnight day-1 dates ("2026-06-01" → June UTC), consistent with the
+    // per-section pages and the goals API. Reading those in MX time would shift
+    // a June-1 row into May. Cash transactions are real instants and are
+    // bucketed by their MX month below.
+    const curMes = currentMonthMX();
+    const prevMes = shiftMonth(curMes, -1);
+    const currentYear = Number(curMes.slice(0, 4));
+    const currentMonth = Number(curMes.slice(5, 7)) - 1; // 0..11
 
-    const inMonth = (d: Date, y: number, mo: number) => d.getUTCMonth() === mo && d.getUTCFullYear() === y;
+    const metricMonth = (d: Date) => d.toISOString().slice(0, 7);
+    const inMonth = (d: Date, mes: string) => metricMonth(d) === mes;
     const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
     /**
@@ -48,8 +57,7 @@ export async function GET(req: NextRequest) {
     const sumMonth = (
       category: string,
       keywords: string[],
-      year: number,
-      month: number,
+      mes: string,
       excludes: string[] = [],
       source?: string | null,
     ) =>
@@ -57,7 +65,7 @@ export async function GET(req: NextRequest) {
         .filter((m) => {
           if (m.category !== category) return false;
           if (source !== undefined && m.source !== source) return false;
-          if (!inMonth(m.period, year, month)) return false;
+          if (!inMonth(m.period, mes)) return false;
           const n = norm(m.name);
           if (excludes.some((e) => n.includes(e))) return false;
           return keywords.some((k) => n.includes(k));
@@ -77,8 +85,8 @@ export async function GET(req: NextRequest) {
       before !== 0 ? parseFloat((((curr - before) / before) * 100).toFixed(1)) : 0;
 
     const flow = (category: string, keywords: string[], excludes: string[] = [], source?: string | null) => {
-      const curr = sumMonth(category, keywords, currentYear, currentMonth, excludes, source);
-      const before = sumMonth(category, keywords, prev.getUTCFullYear(), prev.getUTCMonth(), excludes, source);
+      const curr = sumMonth(category, keywords, curMes, excludes, source);
+      const before = sumMonth(category, keywords, prevMes, excludes, source);
       return { value: curr, change: pctChange(curr, before) };
     };
 
@@ -98,15 +106,17 @@ export async function GET(req: NextRequest) {
     const satIngresos = flow("FINANCE", ingresoKw, [], "SAT");
     const satEgresos = flow("FINANCE", egresoKw, [], "SAT");
     const satBalance = satIngresos.value - satEgresos.value;
-    const satIva = sumMonth("FINANCE", ["iva"], currentYear, currentMonth, [], "SAT");
+    const satIva = sumMonth("FINANCE", ["iva"], curMes, [], "SAT");
 
     // ── Flujo de Efectivo (Caja) — read straight from the source ──────────
     // Separate block, never summed with SAT. "Saldo en Bancos" = opening +
     // net movements across all active accounts (the real bank position).
-    const cashAccounts = await db.cashFlowAccount.findMany({
-      where: { organizationId: orgId, isActive: true },
-      include: { transactions: { select: { date: true, deposit: true, withdrawal: true } } },
-    });
+    const cashAccounts = canFlujo
+      ? await db.cashFlowAccount.findMany({
+          where: { organizationId: orgId, isActive: true },
+          include: { transactions: { select: { date: true, deposit: true, withdrawal: true } } },
+        })
+      : [];
     const cajaConnected = cashAccounts.length > 0;
     let cajaBalance = 0;
     let cajaDepMonth = 0, cajaWdMonth = 0, cajaDepPrev = 0, cajaWdPrev = 0;
@@ -116,8 +126,9 @@ export async function GET(req: NextRequest) {
         const dep = tx.deposit ?? 0;
         const wd = tx.withdrawal ?? 0;
         cajaBalance += dep - wd;
-        if (inMonth(tx.date, currentYear, currentMonth)) { cajaDepMonth += dep; cajaWdMonth += wd; }
-        else if (inMonth(tx.date, prev.getUTCFullYear(), prev.getUTCMonth())) { cajaDepPrev += dep; cajaWdPrev += wd; }
+        const txMes = fechaMX(tx.date).slice(0, 7);
+        if (txMes === curMes) { cajaDepMonth += dep; cajaWdMonth += wd; }
+        else if (txMes === prevMes) { cajaDepPrev += dep; cajaWdPrev += wd; }
       }
     }
     const cajaDepositsChange = pctChange(cajaDepMonth, cajaDepPrev);
@@ -125,10 +136,12 @@ export async function GET(req: NextRequest) {
 
     // ── Cobranza (cuentas por cobrar) — read straight from the source ─────
     // Status/saldo are DERIVED from the `pagado` flag via receivableStatus().
-    const receivables = await db.receivable.findMany({
-      where: { organizationId: orgId },
-      select: { amount: true, pagado: true, issueDate: true },
-    });
+    const receivables = canCobranza
+      ? await db.receivable.findMany({
+          where: { organizationId: orgId },
+          select: { amount: true, pagado: true, issueDate: true },
+        })
+      : [];
     let cobPorCobrar = 0, cobCobrado = 0, cobVencido = 0;
     let cobPagadas = 0, cobPendientes = 0;
     for (const r of receivables) {
@@ -142,33 +155,33 @@ export async function GET(req: NextRequest) {
         if (status === "VENCIDA") cobVencido += saldoR;
       }
     }
-    const cobranza = {
+    const cobranza = canCobranza ? {
       total: receivables.length,
       porCobrar: cobPorCobrar,
       cobrado: cobCobrado,
       vencido: cobVencido,
       pagadas: cobPagadas,
       pendientes: cobPendientes,
-    };
+    } : null;
 
     // ── CRM / Ventas ──────────────────────────────────────
     const ventas = flow("SALES", ["venta", "vendido", "facturado", "ingreso"], ["pipeline", "lead", "prospecto"]);
     const leads = flow("SALES", ["lead", "prospecto", "contacto"], ["pipeline"]);
-    const dealsCurr = sumMonth("SALES", ["deal", "cerrado", "cierre", "ganado"], currentYear, currentMonth, ["pipeline"]);
+    const dealsCurr = sumMonth("SALES", ["deal", "cerrado", "cierre", "ganado"], curMes, ["pipeline"]);
     const pipeline = {
       value: latestMatch("SALES", ["pipeline", "embudo", "oportunidad"]),
       change: 0,
     };
     const conversion = leads.value > 0 ? parseFloat(((dealsCurr / leads.value) * 100).toFixed(1)) : 0;
-    const prevLeads = sumMonth("SALES", ["lead", "prospecto", "contacto"], prev.getUTCFullYear(), prev.getUTCMonth(), ["pipeline"]);
-    const prevDeals = sumMonth("SALES", ["deal", "cerrado", "cierre", "ganado"], prev.getUTCFullYear(), prev.getUTCMonth(), ["pipeline"]);
+    const prevLeads = sumMonth("SALES", ["lead", "prospecto", "contacto"], prevMes, ["pipeline"]);
+    const prevDeals = sumMonth("SALES", ["deal", "cerrado", "cierre", "ganado"], prevMes, ["pipeline"]);
     const prevConversion = prevLeads > 0 ? parseFloat(((prevDeals / prevLeads) * 100).toFixed(1)) : 0;
     const conversionChange = pctChange(conversion, prevConversion);
 
     // ── RRHH ──────────────────────────────────────────────
     const headcount = latestMatch("HR", ["headcount", "empleado", "colaborador", "equipo", "personal", "plantilla"]);
     const prevHeadcount = (() => {
-      const m = metrics.find((x) => x.category === "HR" && inMonth(x.period, prev.getUTCFullYear(), prev.getUTCMonth()) &&
+      const m = metrics.find((x) => x.category === "HR" && inMonth(x.period, prevMes) &&
         ["headcount", "empleado", "colaborador", "equipo", "personal", "plantilla"].some((k) => norm(x.name).includes(k)));
       return m?.value ?? 0;
     })();
@@ -198,10 +211,11 @@ export async function GET(req: NextRequest) {
     // ── Monthly history (6 months) ────────────────────────
     const monthlyHistory: { month: string; ingresos: number; gastos: number }[] = [];
     for (let i = 5; i >= 0; i--) {
-      const m = new Date(Date.UTC(currentYear, currentMonth - i, 1));
+      const mes = shiftMonth(curMes, -i);
+      const m = new Date(`${mes}-01T00:00:00.000Z`);
       const monthName = m.toLocaleDateString("es-MX", { month: "short", timeZone: "UTC" });
-      const ing = sumMonth("FINANCE", ingresoKw, m.getUTCFullYear(), m.getUTCMonth(), [], "SAT");
-      const gas = sumMonth("FINANCE", egresoKw, m.getUTCFullYear(), m.getUTCMonth(), [], "SAT");
+      const ing = sumMonth("FINANCE", ingresoKw, mes, [], "SAT");
+      const gas = sumMonth("FINANCE", egresoKw, mes, [], "SAT");
       monthlyHistory.push({ month: monthName, ingresos: ing, gastos: gas });
     }
 
@@ -213,7 +227,7 @@ export async function GET(req: NextRequest) {
     const uniqueGoals = new Map<string, typeof goalMetrics[0]>();
     for (const g of goalMetrics) if (!uniqueGoals.has(g.name)) uniqueGoals.set(g.name, g);
     // Current value for a goal = sum of its latest month (same logic as the charts)
-    const goalMonthKey = (d: Date) => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+    const goalMonthKey = metricMonth;
     const goalLatestSum = (name: string) => {
       const rows = metrics.filter((m) => m.name === name);
       if (!rows.length) return { value: 0, unit: null };
@@ -249,7 +263,16 @@ export async function GET(req: NextRequest) {
         orderBy: { period: "desc" },
         take: 20,
       });
-      const metaVal = (name: string) => metaMetrics.find((m) => m.name === name)?.value ?? 0;
+      // Only this month's row (the sync stores period = first of the month,
+      // built in server-local time, so match UTC or local year+month). No row
+      // yet (e.g. on the 1st) → 0, never last month's numbers.
+      const metaVal = (name: string) =>
+        metaMetrics.find(
+          (m) =>
+            m.name === name &&
+            ((m.period.getUTCFullYear() === currentYear && m.period.getUTCMonth() === currentMonth) ||
+              (m.period.getFullYear() === currentYear && m.period.getMonth() === currentMonth)),
+        )?.value ?? 0;
       metaSummary = {
         spend: metaVal("meta_spend"),
         clicks: metaVal("meta_clicks"),
@@ -268,13 +291,14 @@ export async function GET(req: NextRequest) {
       satIva,
       satConnected,
       // Flujo de Efectivo (Caja) — independent block, never summed with SAT
-      cajaConnected,
-      cajaBalance,
-      cajaDeposits: cajaDepMonth,
-      cajaDepositsChange,
-      cajaWithdrawals: cajaWdMonth,
-      cajaWithdrawalsChange,
-      // Cobranza (cuentas por cobrar)
+      // (null when the caller's role cannot see Flujo de Efectivo)
+      cajaConnected: canFlujo ? cajaConnected : null,
+      cajaBalance: canFlujo ? cajaBalance : null,
+      cajaDeposits: canFlujo ? cajaDepMonth : null,
+      cajaDepositsChange: canFlujo ? cajaDepositsChange : null,
+      cajaWithdrawals: canFlujo ? cajaWdMonth : null,
+      cajaWithdrawalsChange: canFlujo ? cajaWithdrawalsChange : null,
+      // Cobranza (cuentas por cobrar) — null when the role cannot see Cobranza
       cobranza,
       // CRM
       ventas: ventas.value,
