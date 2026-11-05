@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { detectAnomalies } from "@/server/services/metrics/insights";
-import { sendEmail, digestEmail, fmtMoneyForEmail } from "@/server/services/email";
+import { sendEmail, digestEmail, fmtMoneyForEmail, escHtml } from "@/server/services/email";
+import { currentMonthMX, shiftMonth, todayMX, weekdayOf } from "@/lib/day";
 import { sendPushToUser } from "@/server/services/push/send-push";
 
 export const runtime = "nodejs";
@@ -20,8 +21,10 @@ async function handle(req: NextRequest) {
   }
 
   const now = new Date();
-  const isMonday = now.getDay() === 1;
-  const isFirstOfMonth = now.getDate() === 1;
+  // Business calendar is America/Mexico_City, not the server's timezone.
+  const hoy = todayMX();
+  const isMonday = weekdayOf(hoy) === 1;
+  const isFirstOfMonth = hoy.endsWith("-01");
   const force = req.nextUrl.searchParams.get("force") === "1";
 
   const orgs = await db.organization.findMany({
@@ -70,20 +73,23 @@ async function handle(req: NextRequest) {
           take: 200,
         });
         if (metrics.length > 0) {
-          const cm = now.getMonth();
-          const cy = now.getFullYear();
+          // On the 1st the new month is still empty: the monthly digest
+          // summarizes the month that just closed. Metric rows are bucketed by
+          // their UTC month string (stored at UTC-midnight day 1).
+          const digestMes = isFirstOfMonth ? shiftMonth(currentMonthMX(), -1) : currentMonthMX();
           const monthSum = (kw: string[], cat?: string) =>
             metrics
-              .filter((m) => m.period.getMonth() === cm && m.period.getFullYear() === cy)
+              .filter((m) => m.period.toISOString().slice(0, 7) === digestMes)
               .filter((m) => !cat || m.category === cat)
               .filter((m) => kw.some((k) => m.name.toLowerCase().includes(k)))
               .reduce((s, m) => s + m.value, 0);
 
           const ingresos = monthSum(["ingreso", "venta", "facturado"]);
           const egresos = monthSum(["egreso", "gasto", "costo", "compra"]);
+          const mesLabel = isFirstOfMonth ? "del mes anterior" : "del mes";
           const kpis = [
-            { label: "Ingresos del mes", value: fmtMoneyForEmail(ingresos) },
-            { label: "Egresos del mes", value: fmtMoneyForEmail(egresos) },
+            { label: `Ingresos ${mesLabel}`, value: fmtMoneyForEmail(ingresos) },
+            { label: `Egresos ${mesLabel}`, value: fmtMoneyForEmail(egresos) },
             { label: "Balance", value: fmtMoneyForEmail(ingresos - egresos) },
           ];
           const period = isFirstOfMonth && !isMonday ? "mensual" : "semanal";
@@ -163,7 +169,8 @@ async function handle(req: NextRequest) {
         // Send alert email to org owner
         const ownerEmail = rule.organization.owner?.email;
         if (ownerEmail) {
-          const subject = `⚠️ Alerta StratiuMetrics: ${rule.metricName}`;
+          // Subject is plain text (not HTML); strip line breaks to avoid header issues.
+          const subject = `⚠️ Alerta StratiuMetrics: ${rule.metricName.replace(/[\r\n]+/g, " ")}`;
           const html = `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f4f4f5;font-family:Inter,sans-serif;">
 <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:40px 16px;">
 <table width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;border:1px solid #e4e4e7;">
@@ -173,12 +180,12 @@ async function handle(req: NextRequest) {
 </td></tr>
 <tr><td style="padding:32px;">
 <h2 style="margin:0 0 8px;color:#18181b;font-size:20px;">⚠️ Alerta activada</h2>
-<p style="color:#71717a;font-size:15px;line-height:1.6;">Hola, tu alerta para <strong>${rule.metricName}</strong> en <strong>${rule.organization.name}</strong> fue activada.</p>
+<p style="color:#71717a;font-size:15px;line-height:1.6;">Hola, tu alerta para <strong>${escHtml(rule.metricName)}</strong> en <strong>${escHtml(rule.organization.name)}</strong> fue activada.</p>
 <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:12px;padding:20px;margin:20px 0;">
-  <p style="margin:0;color:#92400e;font-size:14px;line-height:1.7;"><strong>Motivo:</strong> ${triggerDetail}.</p>
+  <p style="margin:0;color:#92400e;font-size:14px;line-height:1.7;"><strong>Motivo:</strong> ${escHtml(triggerDetail)}.</p>
 </div>
-<p style="color:#71717a;font-size:13px;">Métrica: <strong>${rule.metricName}</strong> · Categoría: ${rule.category}</p>
-<a href="${process.env.NEXTAUTH_URL}/dashboard/overview" style="display:inline-block;margin-top:20px;background:#224CA0;color:#fff;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:600;font-size:14px;">Ver Dashboard</a>
+<p style="color:#71717a;font-size:13px;">Métrica: <strong>${escHtml(rule.metricName)}</strong> · Categoría: ${escHtml(rule.category)}</p>
+<a href="${escHtml(process.env.NEXTAUTH_URL ?? "")}/dashboard/overview" style="display:inline-block;margin-top:20px;background:#224CA0;color:#fff;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:600;font-size:14px;">Ver Dashboard</a>
 </td></tr>
 <tr><td style="padding:20px 32px;border-top:1px solid #f4f4f5;text-align:center;">
 <p style="margin:0;font-size:12px;color:#a1a1aa;">StratiuMetrics · Uso interno del equipo Stratium</p>

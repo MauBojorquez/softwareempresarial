@@ -8,8 +8,22 @@ import { Button } from "@/components/ui/button";
 import { Field, Select } from "@/components/ui/field";
 import { PageHeader, Card } from "@/components/ui/page-header";
 import { EmptyState, ErrorState, CardsSkeleton, RowsSkeleton, Skeleton } from "@/components/ui/states";
+import { useRouter } from "next/navigation";
+import { useToast } from "@/components/toast";
+
+// Error codes the Meta OAuth callback (api/integrations/meta/callback) sends
+// back as ?meta_error=<code>.
+const META_ERROR_MESSAGES: Record<string, string> = {
+  sin_permiso: "Solo Dirección o un administrador puede conectar Meta",
+  missing_code: "Meta no devolvió la autorización. Vuelve a intentarlo.",
+  invalid_state: "La conexión con Meta expiró o no es válida. Vuelve a intentarlo.",
+  meta_token_exchange: "Meta rechazó la autorización. Vuelve a intentarlo.",
+  meta_failed: "No se pudo conectar Meta. Vuelve a intentarlo.",
+};
 
 export default function MarketingPage() {
+  const router = useRouter();
+  const { toast } = useToast();
   const [campaigns, setCampaigns] = useState<any>(null);
   const [acq, setAcq] = useState<any>(null);
   const [acqError, setAcqError] = useState<string | null>(null);
@@ -47,6 +61,19 @@ export default function MarketingPage() {
   };
 
   useEffect(() => { load(); }, []);
+
+  // Result of the Meta OAuth round-trip (?meta=conectado / ?meta_error=<code>):
+  // tell the user, then drop the params so a reload doesn't repeat the toast.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ok = params.get("meta");
+    const err = params.get("meta_error");
+    if (!ok && !err) return;
+    if (err) toast(META_ERROR_MESSAGES[err] ?? "No se pudo conectar Meta. Vuelve a intentarlo.", "error");
+    else if (ok === "conectado") toast("Meta conectado", "success");
+    router.replace("/dashboard/marketing");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Automatic "Adquisición" block: our own META leads + conversion, fed by the
   // shared Resumen marketing computation (Meta metrics + Lead/Venta tables).
