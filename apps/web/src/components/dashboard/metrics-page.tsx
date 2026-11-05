@@ -14,6 +14,8 @@ import { EmptyState, ErrorState, CardsSkeleton, RowsSkeleton, Skeleton } from "@
 import { useConfirm } from "@/components/ui/confirm";
 import { useToast } from "@/components/toast";
 import { addActivityLog } from "@/components/dashboard/activity-log";
+import { useCurrentMonth } from "@/hooks/use-current-month";
+import { shiftMonth, todayMX } from "@/lib/day";
 
 export type { MetricTemplate } from "@/lib/metric-templates";
 import { evalFormula } from "@/lib/metric-templates";
@@ -23,6 +25,11 @@ type CompareData = { current: MetricEntry[]; previous: MetricEntry[] } | null;
 
 const fmtValue = (v: number, unit: string | null) =>
   unit === "MXN" ? formatCurrency(v) : `${v.toLocaleString("es-MX")} ${unit || ""}`;
+
+// Metric periods are calendar days stored at UTC midnight (or MX noon, same UTC
+// date), so they are read in UTC: in the browser's zone a 1st-of-month period
+// would show as the last day of the previous month.
+const fmtPeriod = (period: string) => new Date(period).toLocaleDateString("es-MX", { timeZone: "UTC" });
 
 export interface MetricsDashboardProps {
   title: string;
@@ -87,7 +94,10 @@ export function MetricsDashboard({
     setMonthsState(m);
     try { localStorage.setItem(monthsKey, String(m)); } catch { /* almacenamiento no disponible: solo se pierde la preferencia */ }
   };
-  const [form, setForm] = useState({ name: templates[0].name, value: "", period: new Date().toISOString().split("T")[0] });
+  // Business month (Mexico City) the KPI cards report on; follows the calendar
+  // when the tab stays open across a month change.
+  const [, , mesActual] = useCurrentMonth();
+  const [form, setForm] = useState(() => ({ name: templates[0].name, value: "", period: todayMX() }));
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>(defaultSelected);
@@ -189,7 +199,7 @@ export function MetricsDashboard({
       addActivityLog("Métrica registrada", `${form.name}: ${form.value} en ${activityLabel}`, "add");
       toast("Dato guardado", "success");
       setShowForm(false);
-      setForm({ name: templates[0].name, value: "", period: new Date().toISOString().split("T")[0] });
+      setForm({ name: templates[0].name, value: "", period: todayMX() });
       load();
     } catch {
       toast("Error de conexión al guardar", "error");
@@ -276,24 +286,34 @@ export function MetricsDashboard({
   // Group raw entries by month key (YYYY-MM), sum within each month.
   const monthKey = (period: string) => period.slice(0, 7);
 
-  const monthsWithData = (name: string) =>
-    [...new Set(metrics.filter((m) => m.name === name).map((m) => monthKey(m.period)))].sort().reverse();
+  const mesAnterior = shiftMonth(mesActual, -1);
+
+  const hasMonthData = (name: string, mk: string) =>
+    metrics.some((m) => m.name === name && monthKey(m.period) === mk);
 
   /** Sum of all entries for a metric in a specific month (YYYY-MM). */
   const monthSum = (name: string, mk: string) =>
     metrics.filter((m) => m.name === name && monthKey(m.period) === mk).reduce((s, m) => s + m.value, 0);
 
-  /** Sum for current month (most recent month that has data for this metric). */
-  const rawLatest = (name: string) => {
-    const mks = monthsWithData(name);
-    return mks.length ? monthSum(name, mks[0]) : 0;
+  /**
+   * Sum for the current MX month (0 when it has no data yet). Not "the newest
+   * month with data": on the 1st that would present last month as current.
+   */
+  const rawLatest = (name: string) => monthSum(name, mesActual);
+
+  /** Sum for the calendar month before the current one (null when it has no data). */
+  const rawPrevious = (name: string): number | null =>
+    hasMonthData(name, mesAnterior) ? monthSum(name, mesAnterior) : null;
+
+  /** Metric names a template depends on (itself, or its formula's inputs). */
+  const formulaInputs = (name: string): string[] => {
+    const tpl = templates.find((t) => t.name === name);
+    if (!tpl?.computed) return [name];
+    return (tpl.computed.match(/\b(\w[\w\s]*\w|\w+)\b/g) ?? []).map((n) => n.trim());
   };
 
-  /** Sum for the previous month (second distinct month with data). */
-  const rawPrevious = (name: string): number | null => {
-    const mks = monthsWithData(name);
-    return mks.length >= 2 ? monthSum(name, mks[1]) : null;
-  };
+  /** True when the current month has any data for this metric (or its formula's inputs). */
+  const hasCurrent = (name: string) => formulaInputs(name).some((n) => hasMonthData(n, mesActual));
 
   /** Resolve a metric value: if computed, evaluate its formula; otherwise use raw sum. */
   const latest = (name: string): number => {
@@ -314,6 +334,8 @@ export function MetricsDashboard({
   };
 
   const pctChange = (name: string) => {
+    // No data yet this month is not a -100% drop.
+    if (!hasCurrent(name)) return undefined;
     const prev = previous(name);
     const curr = latest(name);
     return prev !== null && prev !== 0 ? ((curr - prev) / Math.abs(prev)) * 100 : undefined;
@@ -500,18 +522,23 @@ export function MetricsDashboard({
               const template = templates.find((t) => t.name === name);
               const Icon = iconMap[name] || defaultIcon;
               return (
-                <div key={name} className="relative">
-                  <MetricCard
-                    title={name}
-                    value={latest(name)}
-                    icon={Icon}
-                    format={formatFor(template?.unit)}
-                    change={pctChange(name)}
-                  />
-                  {template?.computed && (
-                    <span className="absolute bottom-2 right-2 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium leading-none text-primary">
-                      = calculado
-                    </span>
+                <div key={name}>
+                  <div className="relative">
+                    <MetricCard
+                      title={name}
+                      value={latest(name)}
+                      icon={Icon}
+                      format={formatFor(template?.unit)}
+                      change={pctChange(name)}
+                    />
+                    {template?.computed && (
+                      <span className="absolute bottom-2 right-2 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium leading-none text-primary">
+                        = calculado
+                      </span>
+                    )}
+                  </div>
+                  {!hasCurrent(name) && (
+                    <p className="mt-1 px-1 text-xs text-muted-foreground">Sin datos este mes</p>
                   )}
                 </div>
               );
@@ -626,7 +653,7 @@ export function MetricsDashboard({
                     <div key={m.id} className="flex items-center justify-between gap-3 px-4 py-3">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium">{m.name}</p>
-                        <p className="text-xs text-muted-foreground">{new Date(m.period).toLocaleDateString("es-MX")}</p>
+                        <p className="text-xs text-muted-foreground">{fmtPeriod(m.period)}</p>
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
                         <span className="text-sm font-semibold tabular-nums">{fmtValue(m.value, m.unit)}</span>
@@ -697,7 +724,7 @@ export function MetricsDashboard({
                           )}
                           <td className="p-3 font-medium">{m.name}</td>
                           <td className="p-3 text-right font-semibold tabular-nums">{fmtValue(m.value, m.unit)}</td>
-                          <td className="p-3 text-muted-foreground">{new Date(m.period).toLocaleDateString("es-MX")}</td>
+                          <td className="p-3 text-muted-foreground">{fmtPeriod(m.period)}</td>
                           {!disableManualEntry && (
                             <td className="p-2">
                               <div className="flex items-center justify-end">

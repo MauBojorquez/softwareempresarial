@@ -3,6 +3,7 @@ import type { JobRole } from "@prisma/client";
 import { db } from "@/server/db";
 import { requireAccess } from "@/lib/access";
 import { currentMonthMX } from "@/lib/day";
+import { ensureMonthStarted } from "@/server/services/month/start";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,9 @@ export async function GET(req: NextRequest) {
   const access = await requireAccess(req, "metas");
   if (access instanceof NextResponse) return access;
   const { orgId } = access;
+
+  // New month: carries last month's targets over (once) before reading them.
+  await ensureMonthStarted(orgId).catch((e) => console.error("month start failed:", e));
 
   const mesParam = req.nextUrl.searchParams.get("mes");
   const mes = mesParam && MES_RE.test(mesParam) ? mesParam : currentMonthMX();

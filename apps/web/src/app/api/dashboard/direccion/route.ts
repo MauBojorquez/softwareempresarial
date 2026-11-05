@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAccess } from "@/lib/access";
 import { currentMonthMX, monthRangeMX, todayMX } from "@/lib/day";
+import { ensureMonthStarted } from "@/server/services/month/start";
 import {
   getMonthPayments,
   computeNumeroCritico,
@@ -18,6 +19,9 @@ export async function GET(req: NextRequest) {
   const access = await requireAccess(req, "dashboard_direccion");
   if (access instanceof NextResponse) return access;
   const { orgId } = access;
+
+  // New month: carries last month's targets over (once) before reading them.
+  await ensureMonthStarted(orgId).catch((e) => console.error("month start failed:", e));
 
   const mes = currentMonthMX();
   const { start, end } = monthRangeMX(mes);
