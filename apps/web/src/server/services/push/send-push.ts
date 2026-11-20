@@ -42,8 +42,12 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
         );
       } catch (err: unknown) {
         const code = (err as { statusCode?: number })?.statusCode;
-        if (code === 404 || code === 410) {
+        // 404/410: expired; 403: made with another VAPID key. Either way it
+        // can never deliver again; the browser re-registers on its next visit.
+        if (code === 404 || code === 410 || code === 403) {
           await db.pushSubscription.delete({ where: { id: sub.id } }).catch(() => {});
+        } else {
+          console.error("web push failed", code, err);
         }
       }
     })

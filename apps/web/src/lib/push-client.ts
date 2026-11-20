@@ -71,6 +71,33 @@ export async function subscribeToPush(): Promise<boolean> {
   return res.ok;
 }
 
+/**
+ * Silently re-registers this device with the server on every visit when the
+ * user already allowed notifications. Push services rotate subscriptions and
+ * the server prunes expired ones, so without this a device can look "active"
+ * while nothing reaches it. Never prompts for permission.
+ */
+export async function syncPushSubscription(): Promise<void> {
+  if (!pushSupported() || Notification.permission !== "granted") return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      });
+    }
+    await fetch("/api/push/subscribe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(sub.toJSON()),
+    });
+  } catch {
+    // best-effort; the bell's "Activar" button still works manually
+  }
+}
+
 /** Remove the push subscription from this device and the server. */
 export async function unsubscribeFromPush(): Promise<boolean> {
   if (!pushSupported()) return false;

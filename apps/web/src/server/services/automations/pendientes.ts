@@ -1,6 +1,7 @@
 import { db } from "@/server/db";
 import { dayRangeMX, fechaLargaMX, previousBusinessSpanMX, todayMX } from "@/lib/day";
 import { JOB_ROLE_LABEL, reportToText } from "@/lib/report-format";
+import { isSubmitterRole } from "@/lib/daily-report";
 import { buildPendientes, type PendientesAI } from "@/server/services/ai/daily-ai";
 import { sendEmail } from "@/server/services/email";
 import { pendientesEmail } from "@/server/services/email/daily-emails";
@@ -49,9 +50,13 @@ export async function runPendientes(
     `Tareas vencidas o que vencen hoy:\n${datos.tareas.map((t) => `- ${t}`).join("\n") || "- (ninguna)"}`,
     `Rocas del mes:\n${datos.rocasTexto}`,
     `Meta del mes: ${meta ?? "(sin meta para su puesto)"}`,
-    `Su último reporte diario:\n${
-      reportes.map((r) => `${r.fecha}:\n${reportToText(r.jobRole, r.payload)}`).join("\n") || "- (no envió reporte)"
-    }`,
+    // Only puestos that submit a daily report get asked about it; Dirección
+    // doesn't report, so it must never be told to "send its report".
+    isSubmitterRole(member.jobRole)
+      ? `Su último reporte diario:\n${
+          reportes.map((r) => `${r.fecha}:\n${reportToText(r.jobRole, r.payload)}`).join("\n") || "- (no envió reporte)"
+        }`
+      : "Reporte diario: esta persona NO envía reporte diario (no se lo pidas ni lo menciones).",
   ].join("\n\n");
 
   let ai: PendientesAI | null = null;

@@ -219,11 +219,14 @@ export async function POST(req: NextRequest) {
           message: `${autor} envió su reporte diario.`,
           type: "report",
           url: "/dashboard/reportes",
+          // One per author, so several reports don't overwrite each other on the phone.
+          tag: `report-${userId}`,
         }),
       ),
     );
-  } catch {
+  } catch (e) {
     // best-effort; notification failures never block the report submission
+    console.error("report notify failed:", e);
   }
 
   return NextResponse.json({ report: shape(saved) });

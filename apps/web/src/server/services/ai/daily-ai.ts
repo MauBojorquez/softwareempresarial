@@ -137,6 +137,7 @@ Reglas:
 - Ignora boletines, promociones, notificaciones automáticas y spam.
 - En "fuente" pon de dónde salió, corto: "Correo de Juan Pérez (lun)", "Reunión con Acme", "App".
 - No repitas como compromiso algo que ya es una tarea de la app.
+- Si los datos dicen que la persona NO envía reporte diario, nunca le pidas ni le recuerdes enviarlo.
 Responde ÚNICAMENTE con un objeto JSON con esta forma:
 {"resumen": "1 o 2 frases", "prioridades": ["..."], "compromisos": [{"texto": "...", "fuente": "..."}],
  "seguimientos": [{"texto": "...", "fuente": "..."}], "incongruencias": ["..."]}`;

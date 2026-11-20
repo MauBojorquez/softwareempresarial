@@ -1,5 +1,5 @@
 // StratiuMetrics service worker — offline support + asset caching + web push.
-const CACHE = "metrixpro-v3";
+const CACHE = "metrixpro-v4";
 const OFFLINE_URL = "/offline.html";
 const PRECACHE = [OFFLINE_URL, "/manifest.json", "/favicon.svg"];
 
@@ -89,6 +89,24 @@ self.addEventListener("push", (event) => {
   };
 
   event.waitUntil(self.registration.showNotification(payload.title, options));
+});
+
+// The push service rotated this device's subscription: register the new one so
+// notifications keep arriving without the user doing anything.
+self.addEventListener("pushsubscriptionchange", (event) => {
+  const options = event.oldSubscription && event.oldSubscription.options;
+  event.waitUntil(
+    (options ? self.registration.pushManager.subscribe(options) : Promise.reject())
+      .then((sub) =>
+        fetch("/api/push/subscribe", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(sub.toJSON()),
+        })
+      )
+      .catch(() => {})
+  );
 });
 
 // Tapping a notification focuses an open tab (or opens a new one) at the URL.
