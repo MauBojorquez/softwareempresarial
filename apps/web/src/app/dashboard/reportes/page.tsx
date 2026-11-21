@@ -118,6 +118,19 @@ const FIELDS: Record<Exclude<JobRole, "DIRECCION">, FieldDef[]> = {
   ],
 };
 
+/**
+ * Money fields hold whole pesos as plain digits. Whatever the person types
+ * ("75,000", "75.000", "$75 000") keeps only the digits, so a thousands
+ * separator can never be read as a decimal point (which turned 75.000 into 75).
+ */
+function pesosDigits(v: string): string {
+  return v.replace(/\D/g, "").replace(/^0+(?=\d)/, "").slice(0, 13);
+}
+
+function pesosDisplay(digits: string): string {
+  return digits ? Number(digits).toLocaleString("es-MX") : "";
+}
+
 function fmtNum(v: unknown): string {
   const n = Number(v);
   if (!Number.isFinite(n)) return "0";
@@ -303,7 +316,8 @@ function SubmitterView({ jobRole }: { jobRole: Exclude<JobRole, "DIRECCION"> }) 
       const p = d.report?.payload ?? {};
       const next: Record<string, string> = {};
       for (const def of FIELDS[jobRole]) {
-        next[def.key] = p[def.key] != null ? String(p[def.key]) : "";
+        const v = p[def.key];
+        next[def.key] = v == null ? "" : def.money ? String(Math.round(Number(v)) || 0) : String(v);
       }
       setForm(next);
     } catch (e) {
@@ -434,11 +448,11 @@ function SubmitterView({ jobRole }: { jobRole: Exclude<JobRole, "DIRECCION"> }) 
               control = (
                 <MoneyInput
                   {...common}
-                  type="number"
-                  min={f.min}
-                  max={f.max}
-                  step="any"
-                  onChange={onChange}
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="Ej. 75,000"
+                  value={pesosDisplay(form[f.key] ?? "")}
+                  onChange={(e) => setForm((s) => ({ ...s, [f.key]: pesosDigits(e.target.value) }))}
                 />
               );
             } else {
@@ -462,6 +476,7 @@ function SubmitterView({ jobRole }: { jobRole: Exclude<JobRole, "DIRECCION"> }) 
               <Field
                 key={f.key}
                 label={f.label}
+                hint={f.money ? "Monto completo en pesos (ej. 75,000), no en miles." : undefined}
                 optional={f.type === "text"}
                 className={cn(f.type === "text" && "sm:col-span-2")}
               >
