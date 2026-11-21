@@ -13,6 +13,7 @@ import { PageHeader, Card } from "@/components/ui/page-header";
 import { EmptyState, ErrorState, Skeleton, CardsSkeleton, RowsSkeleton } from "@/components/ui/states";
 import { cn, formatCurrency } from "@/lib/utils";
 import { currentMonthMX, todayMX } from "@/lib/day";
+import { ReporteCentralizado } from "@/components/dashboard/reporte-centralizado";
 
 type JobRole = "DIRECCION" | "OPERACIONES" | "COMERCIAL" | "MARKETING" | "ADMINISTRACION";
 type Salud = "VERDE" | "AMARILLO" | "ROJO";
@@ -285,8 +286,8 @@ export default function DireccionDashboardPage() {
     return cur;
   };
 
-  const header = (description?: string) => (
-    <PageHeader icon={Gauge} title="Dirección" description={description} />
+  const header = (description?: string, actions?: React.ReactNode) => (
+    <PageHeader icon={Gauge} title="Dirección" description={description} actions={actions} />
   );
 
   if (user.initialLoading) {
@@ -326,7 +327,7 @@ export default function DireccionDashboardPage() {
 
   return (
     <div className="space-y-6">
-      {header(`Panorama del mes ${data.mes}`)}
+      {header(`Panorama del mes ${data.mes}`, <ReporteCentralizado />)}
 
       <NumeroCriticoHero nc={data.numeroCritico} metaMes={metaMes} onSaved={reload} toast={toast} />
 
